@@ -19,6 +19,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkEffect
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkViewModel
+import dev.chungjungsoo.gptmobile.presentation.phone.chatRoomRoute
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
@@ -47,6 +50,7 @@ fun SetupNavGraph(
     toolConnectionsViewModel: ToolConnectionsViewModel,
     onLaunchOAuth: (String) -> Unit = {}
 ) {
+    PhoneDeepLinkEffect(navController)
     NavHost(
         modifier = Modifier
             .fillMaxSize()
@@ -157,23 +161,18 @@ fun NavGraphBuilder.setupNavigation(
 
 fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
+        val phoneDeepLinkViewModel: PhoneDeepLinkViewModel = hiltViewModel()
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
             onExistingChatClick = { chatRoom ->
-                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
-                navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
-                )
+                navController.navigate(chatRoomRoute(chatRoom.id, chatRoom.enabledPlatform))
             },
-            navigateToNewChat = {
-                val enabledPlatformString = it.joinToString(",")
-                navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "0")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
-                )
+            navigateToNewChat = { platforms ->
+                navController.navigate(chatRoomRoute(0, platforms))
+            },
+            onAskAboutPhoto = { platforms ->
+                phoneDeepLinkViewModel.offerCameraForNewChat()
+                navController.navigate(chatRoomRoute(0, platforms))
             }
         )
     }

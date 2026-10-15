@@ -101,6 +101,7 @@ class ProviderAttachmentEncoder @Inject constructor(
         message.attachments.forEach { attachment ->
             val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
             val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
+            if (!FileUtils.isInlineVisionMimeType(mimeType)) return@forEach
             encodedAttachment(filePath, mimeType)?.let { encoded ->
                 content += OpenAIImageContent(ImageUrl("data:${encoded.mimeType};base64,${encoded.base64Data}"))
             }
@@ -119,7 +120,7 @@ class ProviderAttachmentEncoder @Inject constructor(
         val text = message.modelVisibleText(isUser)
         val images = message.attachments.filter { attachment ->
             val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
-            FileUtils.isImage(attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) })
+            FileUtils.isInlineVisionMimeType(attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) })
         }
         if (images.isEmpty()) {
             return ResponseInputMessage(
@@ -159,12 +160,13 @@ class ProviderAttachmentEncoder @Inject constructor(
         val text = message.modelVisibleText(role == MessageRole.USER)
         if (text.isNotBlank()) content += AnthropicTextContent(text)
         message.attachments.forEach { attachment ->
+            val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
+            val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
+            if (!FileUtils.isInlineVisionMimeType(mimeType)) return@forEach
             val providerRef = attachment.providerRefFor(platformUid)
             if (providerRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE) {
                 content += AnthropicImageContent(ImageSource.file(providerRef.remoteId))
             } else {
-                val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
-                val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
                 encodedAttachment(filePath, mimeType)?.let { encoded ->
                     content += AnthropicImageContent(
                         ImageSource.base64(encoded.mimeType.toAnthropicMediaType(), encoded.base64Data)
@@ -184,12 +186,13 @@ class ProviderAttachmentEncoder @Inject constructor(
         val text = message.modelVisibleText(role == GoogleRole.USER)
         if (text.isNotBlank()) parts += Part.text(text)
         message.attachments.forEach { attachment ->
+            val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
+            val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
+            if (!FileUtils.isInlineVisionMimeType(mimeType)) return@forEach
             val providerRef = attachment.providerRefFor(platformUid)
             if (providerRef?.remoteType == AttachmentRemoteType.GOOGLE_FILE) {
                 parts += Part.fileData(providerRef.mimeType, providerRef.remoteId)
             } else {
-                val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
-                val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
                 encodedAttachment(filePath, mimeType)?.let { encoded ->
                     parts += Part.inlineData(encoded.mimeType, encoded.base64Data)
                 }
@@ -199,7 +202,7 @@ class ProviderAttachmentEncoder @Inject constructor(
     }
 
     private suspend fun encodedAttachment(filePath: String, mimeType: String): FileUtils.EncodedImage? {
-        if (!FileUtils.isSupportedUploadMimeType(mimeType)) return null
+        if (!FileUtils.isInlineVisionMimeType(mimeType)) return null
         AttachmentPayloadCache.get(filePath)?.let { return it }
         return withContext(Dispatchers.IO) {
             FileUtils.encodeFileForUpload(context, filePath, mimeType)?.also { encoded ->

@@ -594,4 +594,23 @@
     <string name="chat_context_timeout">Compaction timed out. The transcript and last valid checkpoint were kept.</string>
     <string name="agent_run_timeout">The response timed out. Partial output was kept.</string>
     <string name="agent_run_save_failed">Could not save this reply.</string>
+    <string name="ask_about_photo">Ask about a photo</string>
+    <string name="take_photo">Take photo</string>
+    <string name="camera_failed">Couldn’t open the camera.</string>
+    <string name="share_to_app">Share to GPTMobile</string>
+    <string name="share_new_chat">New chat</string>
+    <string name="share_add_to_chat">Add to an existing chat</string>
+    <string name="share_add_to_this_chat">Add the shared content to this chat</string>
+    <string name="share_untitled_chat">Untitled chat</string>
+    <string name="share_nothing_usable">Nothing in this share can be added. Share text, an image, or a PDF.</string>
+    <string name="share_one_attachment">1 attachment</string>
+    <string name="share_attachment_count">%1$d attachments</string>
+    <string name="no_platforms_for_share">Add an assistant in settings before starting a chat.</string>
+    <string name="chat_link_unavailable">That chat is no longer available.</string>
+    <string name="voice_mode_unavailable">Voice mode isn’t available yet.</string>
+    <string name="widget_name">GPTMobile</string>
+    <string name="widget_description">Start a chat, open voice, or jump back into a recent conversation.</string>
+    <string name="widget_new_chat">New chat</string>
+    <string name="widget_voice">Voice</string>
+    <string name="widget_recent">Recent chats</string>
 </resources>
