@@ -14,10 +14,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
+import dev.chungjungsoo.gptmobile.data.project.ProjectChatListSource
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -47,7 +49,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -76,7 +79,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -110,7 +114,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -173,6 +178,11 @@ private class QueueChatRepository(
     override suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2 = error("unused")
     override suspend fun deleteChats(chatRooms: List<ChatRoom>) = error("unused")
     override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) = error("unused")
+}
+
+private class EmptyProjectChatListSource : ProjectChatListSource {
+    override suspend fun listProjects(): List<Project> = emptyList()
+    override suspend fun moveChats(chatIds: List<Int>, projectId: Int?) = Unit
 }
 
 private class EmptySettingRepository : SettingRepository {

@@ -22,7 +22,17 @@ object Route {
     const val OLLAMA_API_ADDRESS = "ollama_api_address"
 
     const val CHAT_LIST = "chat_list"
-    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}"
+    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&projectId={projectId}"
+    const val PROJECTS = "projects"
+    const val PROJECT_DETAIL = "project/{projectId}"
+    const val PROJECT_EDITOR = "project_editor?projectId={projectId}"
+
+    fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: String, projectId: Int = -1): String =
+        "chat_room/$chatRoomId?enabled=$enabledPlatforms&projectId=$projectId"
+
+    fun projectDetail(projectId: Int): String = "project/$projectId"
+
+    fun projectEditor(projectId: Int = -1): String = "project_editor?projectId=$projectId"
 
     const val SETTING_ROUTE = "setting_route"
     const val SETTINGS = "settings"

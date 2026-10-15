@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentToolBinding
@@ -24,6 +25,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ModelCapacityEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.Project
+import dev.chungjungsoo.gptmobile.data.database.entity.ProjectFile
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
@@ -40,9 +43,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         ToolEvent::class,
         LocalModel::class,
         ContextCheckpointEntity::class,
-        ModelCapacityEntity::class
+        ModelCapacityEntity::class,
+        Project::class,
+        ProjectFile::class
     ],
-    version = 11,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(
@@ -62,4 +67,5 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun toolConnectionDao(): ToolConnectionDao
     abstract fun localModelDao(): LocalModelDao
     abstract fun compactionDao(): CompactionDao
+    abstract fun projectDao(): ProjectDao
 }

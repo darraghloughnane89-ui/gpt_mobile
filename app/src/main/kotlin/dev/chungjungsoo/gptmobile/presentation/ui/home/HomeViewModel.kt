@@ -7,6 +7,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.Project
+import dev.chungjungsoo.gptmobile.data.project.ProjectChatListSource
+import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
@@ -29,7 +32,8 @@ import kotlinx.coroutines.launch
 class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
-    private val agentRunCoordinator: AgentRunCoordinator
+    private val agentRunCoordinator: AgentRunCoordinator,
+    private val projectChatListSource: ProjectChatListSource
 ) : ViewModel() {
 
     companion object {
@@ -63,6 +67,16 @@ class HomeViewModel @Inject constructor(
 
     private val _activeChatIds = MutableStateFlow<Set<Int>>(emptySet())
     val activeChatIds = _activeChatIds.asStateFlow()
+
+    private val _projects = MutableStateFlow<List<Project>>(emptyList())
+    val projects = _projects.asStateFlow()
+
+    private val _projectFilter = MutableStateFlow<ProjectFilter>(ProjectFilter.All)
+    val projectFilter = _projectFilter.asStateFlow()
+
+    private val _showMoveDialog = MutableStateFlow(false)
+    val showMoveDialog = _showMoveDialog.asStateFlow()
+
     private var fetchChatsJob: Job? = null
 
     init {
@@ -192,6 +206,7 @@ class HomeViewModel @Inject constructor(
         fetchChatsJob = viewModelScope.launch {
             try {
                 val chats = chatRepository.fetchChatListV2()
+                refreshProjects()
                 _chatListState.update {
                     it.copy(
                         chats = chats,
@@ -225,6 +240,46 @@ class HomeViewModel @Inject constructor(
             if (_chatListState.value.selectedPlatforms.size != platforms.size) {
                 _chatListState.update { it.copy(selectedPlatforms = List(platforms.size) { false }) }
             }
+        }
+    }
+
+    fun setProjectFilter(filter: ProjectFilter) {
+        _projectFilter.value = filter
+        disableSelectionMode()
+    }
+
+    fun openMoveDialog() {
+        if (_chatListState.value.selectedChats.none { it }) return
+        _showMoveDialog.value = true
+    }
+
+    fun closeMoveDialog() {
+        _showMoveDialog.value = false
+    }
+
+    fun moveSelectedChats(projectId: Int?) {
+        viewModelScope.launch {
+            val selectedIds = _chatListState.value.chats.mapIndexedNotNull { index, chat ->
+                chat.id.takeIf { _chatListState.value.selectedChats.getOrElse(index) { false } }
+            }
+            projectChatListSource.moveChats(selectedIds, projectId)
+            _showMoveDialog.value = false
+            fetchChats()
+        }
+    }
+
+    private suspend fun refreshProjects() {
+        try {
+            val loaded = projectChatListSource.listProjects()
+            _projects.value = loaded
+            val filter = _projectFilter.value
+            if (filter is ProjectFilter.Project && loaded.none { it.id == filter.id }) {
+                _projectFilter.value = ProjectFilter.All
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // Chat list stays usable when project metadata cannot be read.
         }
     }
 
