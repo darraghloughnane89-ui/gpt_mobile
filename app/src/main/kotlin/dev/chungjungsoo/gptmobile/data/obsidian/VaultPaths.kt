@@ -53,10 +53,18 @@ object VaultPaths {
         return wikiLink(root, "Projects/$file", file)
     }
 
-    fun isUnderRoot(path: String, root: String): Boolean {
-        val prefix = normalizeRoot(root)
-        return path == prefix || path.startsWith("$prefix/")
+    fun confine(path: String, root: String): String? {
+        val normalizedRoot = normalizeRoot(root)
+        val raw = path.trim().replace('\\', '/')
+        if (raw.isEmpty() || raw.startsWith("/") || raw.contains(':')) return null
+        val segments = raw.split('/')
+        if (segments.any { it.isEmpty() || it == "." || it == ".." }) return null
+        val normalized = segments.joinToString("/")
+        if (normalized != normalizedRoot && !normalized.startsWith("$normalizedRoot/")) return null
+        return normalized
     }
+
+    fun isUnderRoot(path: String, root: String): Boolean = confine(path, root) != null
 
     fun normalizeRoot(root: String): String {
         val trimmed = root.trim().trim('/').replace('\\', '/')

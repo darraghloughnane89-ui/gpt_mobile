@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.obsidian.github
 
+import dev.chungjungsoo.gptmobile.data.obsidian.redactVaultOutbound
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultCommit
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultCommitResult
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultFileWrite
@@ -68,6 +69,9 @@ class GitHubVaultSync(
     }
 
     override suspend fun commit(change: VaultCommit): VaultCommitResult = withContext(Dispatchers.IO) {
+        if (change.files.any { VaultPaths.confine(it.path, rootFolder) == null }) {
+            return@withContext VaultCommitResult.Failed("Refusing to write outside the vault.")
+        }
         if (token.isBlank()) return@withContext VaultCommitResult.Failed("Add a GitHub token before syncing.")
         if (change.files.isEmpty()) return@withContext VaultCommitResult.Ok("unchanged")
         val refPath = "/repos/${segment(owner)}/${segment(repo)}/git/ref/heads/${segment(branch)}"
@@ -87,7 +91,7 @@ class GitHubVaultSync(
             val blob = post(
                 "/repos/${segment(owner)}/${segment(repo)}/git/blobs",
                 buildJsonObject {
-                    put("content", file.content)
+                    put("content", redactVaultOutbound(file.content))
                     put("encoding", "utf-8")
                 }.toString()
             )
@@ -125,12 +129,15 @@ class GitHubVaultSync(
     }
 
     private fun createInitialCommit(change: VaultCommit): VaultCommitResult {
+        if (change.files.any { VaultPaths.confine(it.path, rootFolder) == null }) {
+            return VaultCommitResult.Failed("Refusing to write outside the vault.")
+        }
         val blobs = mutableListOf<Pair<String, String>>()
         change.files.forEach { file ->
             val blob = post(
                 "/repos/${segment(owner)}/${segment(repo)}/git/blobs",
                 buildJsonObject {
-                    put("content", file.content)
+                    put("content", redactVaultOutbound(file.content))
                     put("encoding", "utf-8")
                 }.toString()
             )
@@ -222,7 +229,8 @@ class GitHubVaultSync(
 
     private fun HttpResult.error(fallback: String): String {
         val message = runCatching { json.decodeFromString<ErrorResponse>(body).message }.getOrNull()
-        return message?.takeIf { it.isNotBlank() } ?: fallback
+        val raw = message?.takeIf { it.isNotBlank() } ?: fallback
+        return if (token.isBlank()) raw else raw.replace(token, "•••")
     }
 
     private data class HttpResult(val code: Int, val body: String)

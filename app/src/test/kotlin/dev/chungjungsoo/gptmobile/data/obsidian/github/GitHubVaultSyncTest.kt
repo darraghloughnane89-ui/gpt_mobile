@@ -16,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -110,6 +111,49 @@ class GitHubVaultSyncTest {
         assertTrue(treeBody.contains("Robin/Memory/Tea.md"))
         assertTrue(treeBody.contains("Robin/Skills/summarise/SKILL.md"))
         assertTrue(treeBody.contains("basesha"))
+    }
+
+    @Test
+    fun commit_refusesPathsThatEscapeTheVault() = runBlocking {
+        dispatch { MockResponse().setResponseCode(500).setBody("""{"message":"should not be called"}""") }
+
+        val result = sync().commit(
+            VaultCommit(
+                "Sync Robin vault",
+                listOf(VaultFileWrite("Robin/../.github/workflows/pwn.yml", "evil"))
+            )
+        )
+
+        assertTrue(result is VaultCommitResult.Failed)
+        assertEquals(0, calls.size)
+    }
+
+    @Test
+    fun commit_redactsSecretsInBlobContent() = runBlocking {
+        dispatch { request ->
+            when {
+                request.method == "GET" && request.path.orEmpty().contains("/git/ref/") ->
+                    json("""{"object":{"sha":"headsha"}}""")
+                request.method == "GET" && request.path.orEmpty().contains("/git/commits/") ->
+                    json("""{"sha":"headsha","tree":{"sha":"basesha"}}""")
+                request.method == "POST" && request.path.orEmpty().endsWith("/git/blobs") ->
+                    json("""{"sha":"blobsha"}""")
+                request.method == "POST" && request.path.orEmpty().endsWith("/git/trees") ->
+                    json("""{"sha":"treesha"}""")
+                request.method == "POST" && request.path.orEmpty().endsWith("/git/commits") ->
+                    json("""{"sha":"newcommit"}""")
+                request.method == "PATCH" -> json("""{"object":{"sha":"newcommit"}}""")
+                else -> MockResponse().setResponseCode(500)
+            }
+        }
+        val secret = "sk-live-secret-value"
+        val result = sync().commit(
+            VaultCommit("Sync Robin vault", listOf(VaultFileWrite("Robin/Memory/Tea.md", "key $secret")))
+        )
+
+        assertTrue(result is VaultCommitResult.Ok)
+        val blob = calls.single { it.path.orEmpty().endsWith("/git/blobs") }.body.readUtf8()
+        assertFalse(blob.contains(secret))
     }
 
     @Test

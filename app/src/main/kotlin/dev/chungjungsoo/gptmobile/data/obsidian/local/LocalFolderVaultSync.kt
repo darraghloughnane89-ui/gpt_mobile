@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.obsidian.local
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
+import dev.chungjungsoo.gptmobile.data.obsidian.redactVaultOutbound
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultCommit
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultCommitResult
 import dev.chungjungsoo.gptmobile.data.obsidian.VaultPaths
@@ -48,7 +49,12 @@ class LocalFolderVaultSync(
             return@withContext VaultCommitResult.Failed("Choose a vault folder before syncing.")
         }
         try {
-            change.files.forEach { file -> writeText(root, file.path, file.content) }
+            change.files.forEach { file ->
+                if (VaultPaths.confine(file.path, rootFolder) == null) {
+                    error("Refusing to write outside the vault.")
+                }
+                writeText(root, file.path, redactVaultOutbound(file.content))
+            }
             VaultCommitResult.Ok(sha256(change.files.joinToString("\n") { it.path + it.content }))
         } catch (error: Exception) {
             VaultCommitResult.Failed(error.message ?: "Could not write the vault folder.")

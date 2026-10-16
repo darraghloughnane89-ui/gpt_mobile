@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.obsidian
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -82,6 +83,8 @@ class VaultMarkdownTest {
         assertEquals("Robin/Bots/Ada.md", VaultPaths.bot("Robin", "Ada", "bot-1"))
         assertEquals("Robin/Projects/Inbox.md", VaultPaths.project("Robin", "Inbox", "project-1"))
         assertTrue(VaultPaths.isUnderRoot("Robin/Memory/Prefers tea.md", "Robin"))
+        assertFalse(VaultPaths.isUnderRoot("Robin/../.github/workflows/pwn.md", "Robin"))
+        assertFalse(VaultPaths.isUnderRoot("/etc/passwd", "Robin"))
         assertEquals("[[Robin/Projects/Inbox|Inbox]]", VaultPaths.projectWikiLink("Robin", "Inbox"))
     }
 }
