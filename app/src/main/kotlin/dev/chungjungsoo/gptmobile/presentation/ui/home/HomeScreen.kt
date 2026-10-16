@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
@@ -87,6 +88,7 @@ import dev.chungjungsoo.gptmobile.util.getPlatformName
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
+    onHandsFreeClick: (List<String>) -> Unit = {},
     onExistingChatClick: (ChatRoomV2) -> Unit,
     navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
 ) {
@@ -143,6 +145,18 @@ fun HomeScreen(
                         homeViewModel.openDeleteWarningDialog()
                     } else {
                         settingOnClick()
+                    }
+                },
+                handsFreeOnClick = {
+                    val enabled = platformState.filter { it.enabled }.map { it.uid }
+                    if (enabled.isEmpty()) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.enable_at_leat_one_platform),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        onHandsFreeClick(enabled)
                     }
                 },
                 duplicateOnClick = {
@@ -311,6 +325,7 @@ fun HomeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit,
     duplicateOnClick: () -> Unit,
+    handsFreeOnClick: () -> Unit = {},
     navigationOnClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     searchQuery: String
@@ -439,6 +454,15 @@ fun HomeTopAppBar(
                 }
 
                 !isSearchMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = handsFreeOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Mic,
+                            contentDescription = stringResource(R.string.hands_free_title)
+                        )
+                    }
                     IconButton(
                         modifier = Modifier.padding(4.dp),
                         onClick = actionOnClick

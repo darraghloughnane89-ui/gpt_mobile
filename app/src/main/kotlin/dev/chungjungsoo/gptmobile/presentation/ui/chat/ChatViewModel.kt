@@ -47,6 +47,7 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
+import dev.chungjungsoo.gptmobile.data.voice.canAcceptVoiceUtterance
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -243,6 +244,14 @@ class ChatViewModel @Inject constructor(
             )
         }
         _indexStates.update { it + listOf(0) }
+    }
+
+    fun submitVoiceUtterance(text: String): Boolean {
+        val busy = _isContextBusy.value || _loadingStates.value.any { it is LoadingState.Loading }
+        if (!canAcceptVoiceUtterance(busy, text)) return false
+        question.setTextAndPlaceCursorAtEnd(text.trim())
+        askQuestion()
+        return true
     }
 
     fun askQuestion() {

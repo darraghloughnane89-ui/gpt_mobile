@@ -22,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
+import dev.chungjungsoo.gptmobile.data.voice.VoiceSessionAdoption
+import dev.chungjungsoo.gptmobile.data.voice.VoiceSessionLaunch
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -32,10 +34,15 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import dev.chungjungsoo.gptmobile.presentation.voice.HandsFreeForegroundService
+import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var voiceSessionLaunch: VoiceSessionLaunch
 
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
@@ -101,12 +108,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         dispatchOAuthIntent(intent)
+        dispatchVoiceIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        dispatchVoiceIntent(intent)
     }
 
     private fun launchOAuth(authorizationUri: String) {
@@ -134,6 +143,14 @@ class MainActivity : ComponentActivity() {
         ?.takeIf(::isMcpOAuthCallbackUri)
         ?.let(::dispatchOAuthCallback)
 
+    private fun dispatchVoiceIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(HandsFreeForegroundService.EXTRA_OPEN_VOICE, false) != true) return
+        val chatRoomId = intent.getIntExtra(HandsFreeForegroundService.EXTRA_CHAT_ROOM_ID, 0)
+        val platforms = intent.getStringExtra(HandsFreeForegroundService.EXTRA_PLATFORMS).orEmpty()
+        intent.removeExtra(HandsFreeForegroundService.EXTRA_OPEN_VOICE)
+        voiceSessionLaunch.open(chatRoomId, platforms)
+    }
+
     private suspend fun NavHostController.awaitStartupRoute() {
         when (mainViewModel.event.first()) {
             MainViewModel.SplashEvent.OpenIntro -> {
@@ -151,5 +168,12 @@ class MainActivity : ComponentActivity() {
             MainViewModel.SplashEvent.OpenHome -> {}
         }
         isStartupRouteReady = true
+        voiceSessionLaunch.opens.collect { request ->
+            if (request == null) return@collect
+            voiceSessionLaunch.consume()
+            navigate(VoiceSessionAdoption.destination(request.chatRoomId, request.enabledPlatforms)) {
+                launchSingleTop = true
+            }
+        }
     }
 }

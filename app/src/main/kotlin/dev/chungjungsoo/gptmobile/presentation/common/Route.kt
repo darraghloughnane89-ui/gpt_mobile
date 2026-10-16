@@ -42,6 +42,8 @@ object Route {
     const val OLLAMA_SETTINGS = "ollama_settings"
     const val ABOUT_PAGE = "about"
     const val LICENSE = "license"
+    const val VOICE_SETTINGS = "voice_settings"
+    const val VOICE_SESSION = "voice_session?chatRoomId={chatRoomId}&enabled={enabledPlatforms}"
 
     const val MIGRATE_V2 = "migrate_v2"
 }

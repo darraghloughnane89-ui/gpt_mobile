@@ -128,7 +128,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onOpenHandsFree: (Int, String) -> Unit = { _, _ -> }
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -269,7 +270,13 @@ fun ChatScreen(
                 botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
                 botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
                     ?: stringResource(R.string.choose_bot),
-                onBotClick = { botPickerOpen = true }
+                onBotClick = { botPickerOpen = true },
+                onHandsFreeClick = {
+                    onOpenHandsFree(
+                        chatRoom.id,
+                        chatViewModel.enabledPlatformsInChat.joinToString(",")
+                    )
+                }
             )
         }
     ) { innerPadding ->
@@ -720,7 +727,8 @@ private fun ChatTopBar(
     onChatContextItemClick: () -> Unit,
     botLabel: String?,
     botContentDescription: String,
-    onBotClick: () -> Unit
+    onBotClick: () -> Unit,
+    onHandsFreeClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -775,7 +783,11 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
-                onChatContextItemClick = onChatContextItemClick
+                onChatContextItemClick = onChatContextItemClick,
+                onHandsFreeClick = {
+                    onHandsFreeClick()
+                    isDropDownMenuExpanded = false
+                }
             )
         },
         scrollBehavior = scrollBehavior
@@ -789,13 +801,18 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit = {}
+    onChatContextItemClick: () -> Unit = {},
+    onHandsFreeClick: () -> Unit = {}
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
         expanded = isDropdownMenuExpanded,
         onDismissRequest = onDismissRequest
     ) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.hands_free_title)) },
+            onClick = onHandsFreeClick
+        )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.chat_context_title)) },
             onClick = {

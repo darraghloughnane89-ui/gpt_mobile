@@ -19,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import dev.chungjungsoo.gptmobile.data.voice.VoiceSessionAdoption
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
@@ -41,6 +42,8 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.HandsFreeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceSettingsScreen
 
 @Composable
 fun SetupNavGraph(
@@ -71,6 +74,7 @@ fun SetupNavGraph(
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
         chatScreenNavigation(navController)
+        voiceSessionNavigation(navController)
     }
 }
 
@@ -160,6 +164,11 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
+            onHandsFreeClick = { enabledPlatforms ->
+                navController.navigate(
+                    VoiceSessionAdoption.destination(0, enabledPlatforms.joinToString(","))
+                )
+            },
             onExistingChatClick = { chatRoom ->
                 val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
                 navController.navigate(
@@ -190,7 +199,10 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onOpenHandsFree = { chatRoomId, enabledPlatforms ->
+                navController.navigate(VoiceSessionAdoption.destination(chatRoomId, enabledPlatforms))
+            }
         )
     }
 }
@@ -218,7 +230,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToVoice = { navController.navigate(Route.VOICE_SETTINGS) }
             )
         }
         composable(Route.ADD_PLATFORM) {
@@ -286,5 +299,37 @@ fun NavGraphBuilder.settingNavigation(
         composable(Route.LICENSE) {
             LicenseScreen(onNavigationClick = { navController.navigateUp() })
         }
+        composable(Route.VOICE_SETTINGS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModelV2 = hiltViewModel(parentEntry)
+            val platforms by settingViewModel.platformState.collectAsStateWithLifecycle()
+            VoiceSettingsScreen(
+                onBackAction = { navController.navigateUp() },
+                enabledPlatforms = platforms.filter { platform -> platform.enabled }.joinToString(",") { platform -> platform.uid },
+                onOpenDrivingMode = { enabled ->
+                    navController.navigate(VoiceSessionAdoption.destination(0, enabled))
+                }
+            )
+        }
+    }
+}
+
+fun NavGraphBuilder.voiceSessionNavigation(navController: NavHostController) {
+    composable(
+        Route.VOICE_SESSION,
+        arguments = listOf(
+            navArgument("chatRoomId") {
+                type = NavType.IntType
+                defaultValue = 0
+            },
+            navArgument("enabledPlatforms") {
+                type = NavType.StringType
+                defaultValue = ""
+            }
+        )
+    ) {
+        HandsFreeScreen(onBackAction = { navController.navigateUp() })
     }
 }
