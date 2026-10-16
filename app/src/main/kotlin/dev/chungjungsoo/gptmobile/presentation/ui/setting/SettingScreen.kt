@@ -37,6 +37,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.brand.AppBrand
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
@@ -60,7 +61,8 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToSkills: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -145,6 +147,15 @@ fun SettingScreen(
                     title = stringResource(R.string.web_tools),
                     description = stringResource(R.string.web_tools_description),
                     onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+            }
+            SettingsSection(title = stringResource(R.string.skills)) {
+                SettingItem(
+                    title = stringResource(R.string.skills),
+                    description = stringResource(R.string.skills_settings_description, AppBrand.NAME),
+                    onItemClick = onNavigateToSkills,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

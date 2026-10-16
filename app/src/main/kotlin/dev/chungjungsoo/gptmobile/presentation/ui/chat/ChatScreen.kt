@@ -111,6 +111,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.ui.skill.SkillFeedbackBar
+import dev.chungjungsoo.gptmobile.presentation.ui.skill.SkillPickerDialog
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +125,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToSkills: () -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -154,6 +157,10 @@ fun ChatScreen(
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
+    val isSkillPickerOpen by chatViewModel.isSkillPickerOpen.collectAsStateWithLifecycle()
+    val skillChoices by chatViewModel.skillChoices.collectAsStateWithLifecycle()
+    val skillNotice by chatViewModel.skillNotice.collectAsStateWithLifecycle()
+    val feedbackSkillIds by chatViewModel.feedbackSkillIds.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
@@ -232,6 +239,13 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(skillNotice) {
+        skillNotice?.let { notice ->
+            Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+            chatViewModel.consumeSkillNotice()
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .clickable(
@@ -249,6 +263,8 @@ fun ChatScreen(
                 chatViewModel::openChatTitleDialog,
                 chatViewModel::openChatModelDialog,
                 onExportChatItemClick = { exportChat(context, chatViewModel) },
+                onSaveAsSkill = chatViewModel::saveAsSkill,
+                onPickSkill = chatViewModel::openSkillPicker,
                 onChatContextItemClick = {
                     val selected = chatViewModel.enabledPlatformsInChat
                     if (selected.size == 1) {
@@ -334,6 +350,13 @@ fun ChatScreen(
                 }
             }
 
+            if (isIdle && feedbackSkillIds.isNotEmpty()) {
+                SkillFeedbackBar(
+                    onUp = { chatViewModel.recordSkillFeedback(true) },
+                    onDown = { chatViewModel.recordSkillFeedback(false) }
+                )
+            }
+
             ChatInputBox(
                 inputState = chatViewModel.question,
                 chatEnabled = canUseChat,
@@ -369,6 +392,18 @@ fun ChatScreen(
                 onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
                 onConfirmRequest = { title -> chatViewModel.updateChatTitle(title) },
                 onDismissRequest = chatViewModel::closeChatTitleDialog
+            )
+        }
+
+        if (isSkillPickerOpen) {
+            SkillPickerDialog(
+                skills = skillChoices,
+                onDismiss = chatViewModel::closeSkillPicker,
+                onPick = chatViewModel::stageSkill,
+                onManage = {
+                    chatViewModel.closeSkillPicker()
+                    onNavigateToSkills()
+                }
             )
         }
 
@@ -689,7 +724,9 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit
+    onChatContextItemClick: () -> Unit,
+    onSaveAsSkill: () -> Unit = {},
+    onPickSkill: () -> Unit = {}
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -727,7 +764,9 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
-                onChatContextItemClick = onChatContextItemClick
+                onChatContextItemClick = onChatContextItemClick,
+                onSaveAsSkill = onSaveAsSkill,
+                onPickSkill = onPickSkill
             )
         },
         scrollBehavior = scrollBehavior
@@ -741,7 +780,9 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit = {}
+    onChatContextItemClick: () -> Unit = {},
+    onSaveAsSkill: () -> Unit = {},
+    onPickSkill: () -> Unit = {}
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -752,6 +793,21 @@ fun ChatDropdownMenu(
             text = { Text(stringResource(R.string.chat_context_title)) },
             onClick = {
                 onChatContextItemClick()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.skill_use)) },
+            onClick = {
+                onPickSkill()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(stringResource(R.string.skill_save)) },
+            onClick = {
+                onSaveAsSkill()
                 onDismissRequest()
             }
         )
