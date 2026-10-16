@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.obsidian.obsidianSyncNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -69,6 +70,7 @@ fun SetupNavGraph(
         startScreenNavigation(navController)
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
+        obsidianSyncNavigation(navController)
         chatScreenNavigation(navController)
     }
 }
@@ -216,7 +218,8 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToObsidianSync = { navController.navigate(Route.OBSIDIAN_SYNC) }
             )
         }
         composable(Route.ADD_PLATFORM) {

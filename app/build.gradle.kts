@@ -126,6 +126,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
+    implementation(libs.square.okhttp)
     implementation(libs.mcp.kotlin.sdk.client) {
         // The SDK bytecode targets Kotlin 2.1, but its 2.4 stdlib confuses Hilt's 2.3 metadata reader.
         exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
@@ -162,6 +163,7 @@ dependencies {
     // Test
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
