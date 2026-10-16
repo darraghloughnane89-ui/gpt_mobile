@@ -74,6 +74,7 @@ mcp-kotlin-sdk-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 androidx-lifecycle-runtime-compose-android = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose-android", version.ref = "lifecycleRuntime" }
 openid-appauth = { group = "net.openid", name = "appauth", version.ref = "appauth" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version = "5.3.2" }
 litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 [plugins]

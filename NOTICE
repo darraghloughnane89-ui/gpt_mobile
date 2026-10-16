@@ -1,0 +1,36 @@
+GPT Mobile / Robin
+Copyright (C) the GPT Mobile contributors.
+This program is free software under the GNU General Public License version 3.
+See the LICENSE file.
+
+Third-party components added for plugins, routines, and agent handoff
+------------------------------------------------------------------------
+
+Model Context Protocol Kotlin SDK
+  io.modelcontextprotocol:kotlin-sdk-client 0.15.0
+  https://github.com/modelcontextprotocol/kotlin-sdk
+  License: Apache License 2.0
+  Used for Streamable HTTP and SSE MCP sessions, tool listing, and tool calls.
+  JSON-RPC framing is the SDK's. This app does not ship a second JSON-RPC client.
+
+AppAuth for Android
+  net.openid:appauth 0.11.1
+  https://github.com/openid/AppAuth-Android
+  License: Apache License 2.0
+  Used to open the authorization request and exchange the authorization code
+  for MCP plugin sign-in. Protected-resource metadata (RFC 9728) and dynamic
+  client registration (RFC 7591) stay in this app because AppAuth does not
+  implement them.
+
+JetBrains Koog
+  https://github.com/JetBrains/koog
+  License: Apache License 2.0
+  Considered for the agent loop and scheduled routines. Not bundled.
+  The app already has an agent loop (provider adapters, compaction, and tool
+  traces). Replacing it would duplicate that work. Routines are scheduled with
+  AndroidX WorkManager, which is already a dependency, because Koog does not
+  provide an Android scheduler.
+
+No Affero GPL or All Rights Reserved source was copied into this tree.
+Apache-2.0 and MIT dependencies are compatible with distributing this
+GPL-3.0 program.

@@ -62,7 +62,8 @@ object ChatRepositoryModule {
         @DeviceSocModel
         deviceSocModel: String,
         compactionDao: CompactionDao,
-        networkClient: NetworkClient
+        networkClient: NetworkClient,
+        pluginToolRegistry: dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -86,6 +87,7 @@ object ChatRepositoryModule {
         modelCatalogRepository,
         deviceSocModel,
         RoomCompactionStore(compactionDao),
-        HttpRemoteContextWindowLookup(networkClient)
+        HttpRemoteContextWindowLookup(networkClient),
+        pluginToolRegistry
     )
 }

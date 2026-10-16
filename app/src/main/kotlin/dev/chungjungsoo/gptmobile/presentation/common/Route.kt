@@ -29,6 +29,8 @@ object Route {
     const val ADD_PLATFORM = "add_platform"
     const val LOCAL_MODELS = "local_models"
     const val TOOL_CONNECTIONS = "tool_connections"
+    const val PLUGINS = "plugins"
+    const val ROUTINES = "routines"
     const val ADD_TOOL_CONNECTION = "tool_connections/add"
     const val EDIT_TOOL_CONNECTION = "tool_connections/edit/{connectionUid}"
     const val PLATFORM_SETTINGS = "platform_settings/{platformUid}"

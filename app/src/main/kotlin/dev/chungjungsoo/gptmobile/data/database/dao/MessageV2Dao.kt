@@ -27,6 +27,9 @@ interface MessageV2Dao {
     @Insert
     suspend fun addMessages(vararg messages: MessageV2)
 
+    @Insert
+    suspend fun insertMessage(message: MessageV2): Long
+
     @Update
     suspend fun editMessages(vararg message: MessageV2)
 

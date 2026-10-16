@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.agent.tool
 
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.util.AppBrand
 import io.ktor.client.HttpClient
 import io.ktor.client.request.accept
 import io.ktor.client.request.forms.FormDataContent
@@ -251,7 +252,7 @@ class McpOAuthClient internal constructor(
             contentType(ContentType.Application.Json)
             setBody(
                 buildJsonObject {
-                    put("client_name", "GPT Mobile")
+                    put("client_name", AppBrand.NAME)
                     put("redirect_uris", buildJsonArray { add(JsonPrimitive(redirectUri)) })
                     put("token_endpoint_auth_method", "none")
                     put(

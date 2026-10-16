@@ -466,6 +466,7 @@ fun ChatScreen(
                 }
             }
         }
+        PluginWriteConfirmHost()
     }
 }
 

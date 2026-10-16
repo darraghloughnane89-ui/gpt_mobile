@@ -22,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
+import dev.chungjungsoo.gptmobile.data.plugin.PluginOAuthCallbackHub
+import dev.chungjungsoo.gptmobile.data.plugin.isPluginOAuthCallback
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -32,6 +34,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -40,6 +43,9 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
     private val toolConnectionsViewModel: ToolConnectionsViewModel by viewModels()
+
+    @Inject
+    lateinit var pluginOAuthCallbackHub: PluginOAuthCallbackHub
     private lateinit var authTabLauncher: ActivityResultLauncher<Intent>
     private lateinit var oauthCustomTabLauncher: ActivityResultLauncher<Intent>
     private var lastOAuthCallback: String? = null
@@ -130,9 +136,16 @@ class MainActivity : ComponentActivity() {
         toolConnectionsViewModel.completeOAuthCallback(callbackUri)
     }
 
-    private fun dispatchOAuthIntent(intent: Intent?) = intent?.data?.toString()
-        ?.takeIf(::isMcpOAuthCallbackUri)
-        ?.let(::dispatchOAuthCallback)
+    private fun dispatchOAuthIntent(intent: Intent?) {
+        val callbackUri = intent?.data?.toString() ?: return
+        if (isPluginOAuthCallback(callbackUri)) {
+            pluginOAuthCallbackHub.offer(callbackUri)
+            return
+        }
+        if (isMcpOAuthCallbackUri(callbackUri)) {
+            dispatchOAuthCallback(callbackUri)
+        }
+    }
 
     private suspend fun NavHostController.awaitStartupRoute() {
         when (mainViewModel.event.first()) {
