@@ -26,7 +26,7 @@ extensions.configure<ApplicationExtension> {
         versionCode = 25
         versionName = "0.9.1"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "dev.chungjungsoo.gptmobile.HiltTestRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -164,9 +164,16 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.intents)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.uiautomator)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.hilt)
+    androidTestImplementation(libs.hilt.testing)
+    androidTestImplementation(libs.mockwebserver)
+    kspAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

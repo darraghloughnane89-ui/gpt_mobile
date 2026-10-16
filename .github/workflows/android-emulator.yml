@@ -1,0 +1,122 @@
+name: Instrumented emulator tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  instrumented:
+    name: API ${{ matrix.api-level }} ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api-level: 34
+            profile: pixel_6
+          - api-level: 35
+            profile: pixel_7
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          if [[ ! -e /dev/kvm ]]; then
+            echo "KVM is required for the emulator workflow"
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/share/powershell /opt/ghc || true
+          df -h
+
+      - name: Unit tests and test APK
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Restore AVD snapshot
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/avd
+          key: avd-snapshot-api-${{ matrix.api-level }}-${{ matrix.profile }}-x86_64-v1
+
+      - name: Choose emulator boot mode
+        id: emulator
+        run: |
+          if [[ "${{ steps.avd-cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "force=false" >> "$GITHUB_OUTPUT"
+            echo "options=-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save" >> "$GITHUB_OUTPUT"
+          else
+            echo "force=true" >> "$GITHUB_OUTPUT"
+            echo "options=-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-load" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        env:
+          SMOKE_PROFILE: api-${{ matrix.api-level }}-${{ matrix.profile }}
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          avd-name: robin-api-${{ matrix.api-level }}
+          force-avd-creation: ${{ steps.emulator.outputs.force }}
+          ram-size: 2048M
+          disk-size: 2048M
+          cores: 2
+          emulator-boot-timeout: 900
+          disable-animations: true
+          disable-spellchecker: true
+          disable-linux-hw-accel: false
+          enable-hw-keyboard: true
+          emulator-options: ${{ steps.emulator.outputs.options }}
+          pre-emulator-launch-script: bash scripts/prepare-avd-snapshot.sh
+          script: bash scripts/run-instrumented-tests.sh
+
+      - name: Aggregate test report
+        if: always()
+        run: bash scripts/test-report.sh || true
+
+      - name: Upload test reports, logcat, and screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: instrumented-api-${{ matrix.api-level }}-${{ matrix.profile }}
+          if-no-files-found: warn
+          path: |
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+            app/build/reports/tests
+            app/build/test-results
+            app/build/smoke-artifacts
+            docs/TEST_REPORT.md
