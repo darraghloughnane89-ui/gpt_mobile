@@ -8,8 +8,8 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.bot.NewChatBotHint
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
-import dev.chungjungsoo.gptmobile.data.library.ChatDesk
 import dev.chungjungsoo.gptmobile.data.library.ChatLibraryState
+import dev.chungjungsoo.gptmobile.data.library.ChatLibraryStore
 import dev.chungjungsoo.gptmobile.data.library.ChatListFilter
 import dev.chungjungsoo.gptmobile.data.library.FolderNameIssue
 import dev.chungjungsoo.gptmobile.data.library.addFolder
@@ -47,7 +47,7 @@ class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
     private val agentRunCoordinator: AgentRunCoordinator,
-    private val chatDesk: ChatDesk,
+    private val chatLibraryStore: ChatLibraryStore,
     private val newChatBotHint: NewChatBotHint = NewChatBotHint.None
 ) : ViewModel() {
 
@@ -81,9 +81,6 @@ class HomeViewModel @Inject constructor(
     private val _libraryFilter = MutableStateFlow<ChatListFilter>(ChatListFilter.Inbox)
     val libraryFilter = _libraryFilter.asStateFlow()
 
-    private val _searchExcerpts = MutableStateFlow<Map<Int, String>>(emptyMap())
-    val searchExcerpts = _searchExcerpts.asStateFlow()
-
     private var rawChats: List<ChatRoomV2> = emptyList()
 
     private val _showSelectModelDialog = MutableStateFlow(false)
@@ -107,7 +104,7 @@ class HomeViewModel @Inject constructor(
         agentRunCoordinator.activeRuns
             .onEach { runs -> _activeChatIds.update { runs.values.mapTo(mutableSetOf()) { it.chatId } } }
             .launchIn(viewModelScope)
-        chatDesk.library
+        chatLibraryStore.observe()
             .onEach { library ->
                 _libraryState.value = library
                 if (!_chatListState.value.isLoading) {
@@ -140,9 +137,7 @@ class HomeViewModel @Inject constructor(
     private fun searchChats(query: String) {
         viewModelScope.launch {
             val chats = chatRepository.searchChatsV2(query)
-            val excerpts = if (query.isBlank()) emptyMap() else chatDesk.searchExcerpts(query)
             rawChats = chats
-            _searchExcerpts.value = excerpts
             _chatListState.update { it.copy(loadError = null) }
             applyProjection(resetSelection = true)
         }
@@ -187,7 +182,7 @@ class HomeViewModel @Inject constructor(
             val chats = agentRunCoordinator.withChatGate(selectedChats.map { it.id }) {
                 selectedChats.forEach { agentRunCoordinator.cancelChatAndJoin(it.id) }
                 chatRepository.deleteChatsV2(selectedChats)
-                chatDesk.updateLibrary { state ->
+                chatLibraryStore.update { state ->
                     selectedChats.fold(state) { acc, chat -> acc.forget(chat.id) }
                 }
                 chatRepository.fetchChatListV2()
@@ -245,7 +240,6 @@ class HomeViewModel @Inject constructor(
                 purgeTemporaryChats()
                 val chats = chatRepository.fetchChatListV2()
                 rawChats = chats
-                _searchExcerpts.value = emptyMap()
                 _chatListState.update { it.copy(isLoading = false, loadError = null) }
                 applyProjection(resetSelection = true)
                 Log.d("chats", "${_chatListState.value.chats}")
@@ -305,7 +299,7 @@ class HomeViewModel @Inject constructor(
         if (selected.isEmpty()) return
         val unpinAll = selected.all { it.id in _libraryState.value.pinnedChatIds }
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 selected.fold(state) { acc, chat ->
                     if (unpinAll) acc.unpin(chat.id) else acc.pin(chat.id)
                 }
@@ -318,7 +312,7 @@ class HomeViewModel @Inject constructor(
         if (selected.isEmpty()) return
         val restoreAll = selected.all { it.id in _libraryState.value.archivedChatIds }
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 selected.fold(state) { acc, chat ->
                     if (restoreAll) acc.restore(chat.id) else acc.archive(chat.id)
                 }
@@ -330,7 +324,7 @@ class HomeViewModel @Inject constructor(
         val ids = selectedRooms().map { it.id }
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 ids.fold(state) { acc, id -> acc.moveToFolder(id, folderId) }
             }
         }
@@ -341,7 +335,7 @@ class HomeViewModel @Inject constructor(
         if (issue != null) return issue
         val folderId = UUID.randomUUID().toString()
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 val update = state.addFolder(folderId, name)
                 if (update.issue != null) state else update.state
             }
@@ -357,7 +351,7 @@ class HomeViewModel @Inject constructor(
         val ids = selectedRooms().map { it.id }
         val folderId = UUID.randomUUID().toString()
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 val created = state.addFolder(folderId, name)
                 if (created.issue != null) {
                     state
@@ -375,7 +369,7 @@ class HomeViewModel @Inject constructor(
         val issue = folderNameIssue(_libraryState.value.folders, name, ignoreId = folderId)
         if (issue != null) return issue
         viewModelScope.launch {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 val update = state.renameFolder(folderId, name)
                 if (update.issue != null) state else update.state
             }
@@ -385,7 +379,7 @@ class HomeViewModel @Inject constructor(
 
     fun deleteLibraryFolder(folderId: String) {
         viewModelScope.launch {
-            chatDesk.updateLibrary { it.deleteFolder(folderId) }
+            chatLibraryStore.update { it.deleteFolder(folderId) }
             if (_libraryFilter.value == ChatListFilter.Folder(folderId)) {
                 _libraryFilter.value = ChatListFilter.Inbox
             }
@@ -401,7 +395,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun purgeTemporaryChats() {
-        val ids = chatDesk.currentLibrary().temporaryChatIds
+        val ids = chatLibraryStore.current().temporaryChatIds
         if (ids.isEmpty()) return
         val all = chatRepository.fetchChatListV2()
         val doomed = all.filter { it.id in ids }
@@ -411,7 +405,7 @@ class HomeViewModel @Inject constructor(
         val presentIds = all.map { it.id }.toSet()
         val forgetIds = doomed.map { it.id }.toSet() + (ids - presentIds)
         if (forgetIds.isNotEmpty()) {
-            chatDesk.updateLibrary { state ->
+            chatLibraryStore.update { state ->
                 forgetIds.fold(state) { acc, id -> acc.forget(id) }
             }
         }

@@ -18,8 +18,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
-import dev.chungjungsoo.gptmobile.data.library.ChatDesk
-import dev.chungjungsoo.gptmobile.data.library.ChatLibraryState
+import dev.chungjungsoo.gptmobile.data.library.MemoryChatLibraryStore
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -27,7 +26,6 @@ import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -51,7 +49,7 @@ class HomeViewModelInstrumentedTest {
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
             agentRunCoordinator = AgentRunCoordinator(context, repository),
-            chatDesk = EmptyChatDesk()
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()
@@ -81,7 +79,7 @@ class HomeViewModelInstrumentedTest {
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
             agentRunCoordinator = AgentRunCoordinator(context, repository),
-            chatDesk = EmptyChatDesk()
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()
@@ -116,7 +114,7 @@ class HomeViewModelInstrumentedTest {
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
             agentRunCoordinator = AgentRunCoordinator(context, repository),
-            chatDesk = EmptyChatDesk()
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()
@@ -193,16 +191,6 @@ private class QueueChatRepository(
     override suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2 = error("unused")
     override suspend fun deleteChats(chatRooms: List<ChatRoom>) = error("unused")
     override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) = error("unused")
-}
-
-private class EmptyChatDesk : ChatDesk {
-    override val library: Flow<ChatLibraryState> = flowOf(ChatLibraryState())
-
-    override suspend fun updateLibrary(transform: (ChatLibraryState) -> ChatLibraryState): ChatLibraryState = ChatLibraryState()
-
-    override suspend fun currentLibrary(): ChatLibraryState = ChatLibraryState()
-
-    override suspend fun searchExcerpts(query: String): Map<Int, String> = emptyMap()
 }
 
 private class EmptySettingRepository : SettingRepository {

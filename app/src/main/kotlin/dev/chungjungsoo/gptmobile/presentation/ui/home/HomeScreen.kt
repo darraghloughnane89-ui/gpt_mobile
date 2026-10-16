@@ -107,7 +107,6 @@ fun HomeScreen(
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
     val library by homeViewModel.libraryState.collectAsStateWithLifecycle()
     val libraryFilter by homeViewModel.libraryFilter.collectAsStateWithLifecycle()
-    val searchExcerpts by homeViewModel.searchExcerpts.collectAsStateWithLifecycle()
     var showFolderPicker by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
@@ -365,12 +364,11 @@ fun HomeScreen(
                                 val folderName = library.folders
                                     .firstOrNull { it.id == library.chatFolderIds[chatRoom.id] }
                                     ?.name
-                                val excerpt = searchExcerpts[chatRoom.id]
                                 Text(
-                                    text = when {
-                                        excerpt != null -> excerpt
-                                        folderName != null -> stringResource(R.string.library_in_folder, folderName, platformLine)
-                                        else -> platformLine
+                                    text = if (folderName != null) {
+                                        stringResource(R.string.library_in_folder, folderName, platformLine)
+                                    } else {
+                                        platformLine
                                     },
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
