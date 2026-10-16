@@ -1,7 +1,10 @@
 package dev.chungjungsoo.gptmobile.data.dto.openai.response
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonClassDiscriminator
 
 /**
@@ -276,6 +279,7 @@ data class FunctionCallArgumentsDoneEvent(
 @SerialName("unknown")
 data object UnknownEvent : ResponsesStreamEvent()
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ResponseObject(
     @SerialName("id")
@@ -288,7 +292,15 @@ data class ResponseObject(
     val error: ResponseError? = null,
 
     @SerialName("usage")
-    val usage: ResponseUsage? = null
+    val usage: ResponseUsage? = null,
+
+    @SerialName("output")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val output: JsonArray? = null,
+
+    @SerialName("citations")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val citations: JsonArray? = null
 )
 
 @Serializable

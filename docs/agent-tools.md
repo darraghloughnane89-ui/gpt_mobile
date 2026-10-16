@@ -18,7 +18,7 @@ Retrying creates a new run and may invoke tools again. Prior tool results are sh
 
 ## Supported tools and limits
 
-- `web_search`: Firecrawl, Perplexity, or Exa; one search backend per profile.
+- `web_search`: Firecrawl, Perplexity, or Exa; one search backend per profile. The composer Web search toggle is separate: it turns on provider-native search (OpenAI `web_search`, Anthropic `web_search_20250305`, Gemini `googleSearch`, xAI Responses `web_search`) or, when the provider has none, a keyless DuckDuckGo search with an optional SearXNG URL, plus `fetch_page` readability. Fetched text is fenced as untrusted and is not executed as a tool call or a send. Citations are stored in the message text and shown as numbered chips.
 - `read_url`: HTTP(S) pages only, with private/loopback/metadata destinations blocked, up to five redirects, a 1 MiB download limit, and at most 64 KiB returned to the model.
 - MCP: current Streamable HTTP servers, including JSON and SSE responses, bearer auth, and OAuth 2.1/PKCE.
 

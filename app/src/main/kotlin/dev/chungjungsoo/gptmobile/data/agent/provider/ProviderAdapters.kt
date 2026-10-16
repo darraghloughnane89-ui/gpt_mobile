@@ -59,6 +59,12 @@ import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
 import dev.chungjungsoo.gptmobile.data.repository.GroqReasoningParser
+import dev.chungjungsoo.gptmobile.data.search.CitationExtractors
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
+import dev.chungjungsoo.gptmobile.data.search.WebCitation
+import dev.chungjungsoo.gptmobile.data.search.anthropicWebSearchTool
+import dev.chungjungsoo.gptmobile.data.search.geminiWebSearchTool
+import dev.chungjungsoo.gptmobile.data.search.openAiWebSearchTool
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -78,7 +84,8 @@ class OpenAIResponsesAdapter @Inject constructor(
         turns: List<ConversationTurn>,
         platform: PlatformV2,
         prepared: PreparedContext? = null,
-        onUnconfirmedRemoteCancellation: (suspend (responseId: String) -> Unit)? = null
+        onUnconfirmedRemoteCancellation: (suspend (responseId: String) -> Unit)? = null,
+        webSearch: Boolean = false
     ): AgentProviderSession {
         val encodedTail = attachmentEncoder.responsesInput(turns, platform.uid)
         val nativeItems = parseOpenAiNativeItems(prepared?.nativeItemsJson)
@@ -114,9 +121,7 @@ class OpenAIResponsesAdapter @Inject constructor(
                     topP = if (platform.reasoning) null else platform.topP,
                     reasoning = if (platform.reasoning) ReasoningConfig(effort = "medium", summary = "auto") else null,
                     previousResponseId = previousResponseId,
-                    tools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
-                        ResponseFunctionTool(definition.name, definition.description, definition.inputSchema)
-                    }
+                    tools = responseTools(tools, webSearch)
                 )
                 val assembler = OpenAIResponsesEventAssembler()
                 var failed = false
@@ -251,7 +256,8 @@ class AnthropicMessagesAdapter @Inject constructor(
     suspend fun openSession(
         turns: List<ConversationTurn>,
         platform: PlatformV2,
-        prepared: PreparedContext? = null
+        prepared: PreparedContext? = null,
+        webSearch: Boolean = false
     ): AgentProviderSession {
         val encodedTurns = attachmentEncoder.anthropicMessages(turns, platform.uid)
         val initialMessages = nativeAnthropicMessages(prepared?.nativeItemsJson) + encodedTurns
@@ -278,9 +284,7 @@ class AnthropicMessagesAdapter @Inject constructor(
                     temperature = if (isThinkingActive) null else platform.temperature,
                     topP = if (isThinkingActive) null else platform.topP,
                     thinking = thinkingPolicy.config,
-                    tools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
-                        AnthropicTool(definition.name, definition.description, definition.inputSchema)
-                    }
+                    tools = anthropicTools(tools, webSearch)
                 )
                 val assembler = AnthropicEventAssembler()
                 var failed = false
@@ -381,7 +385,11 @@ class GeminiAdapter @Inject constructor(
     private val api: GoogleAPI,
     private val attachmentEncoder: ProviderAttachmentEncoder
 ) {
-    suspend fun openSession(turns: List<ConversationTurn>, platform: PlatformV2): AgentProviderSession {
+    suspend fun openSession(
+        turns: List<ConversationTurn>,
+        platform: PlatformV2,
+        webSearch: Boolean = false
+    ): AgentProviderSession {
         val initialContents = attachmentEncoder.googleContents(turns, platform.uid)
         val config = ProviderRequestConfig(platform.apiUrl, platform.token)
         val modelPartsByRound = mutableMapOf<Int, List<Part>>()
@@ -404,26 +412,18 @@ class GeminiAdapter @Inject constructor(
                         Content(parts = listOf(Part.text(prompt)))
                     },
                     safetySettings = platform.googleSafetySettings(),
-                    tools = tools.takeIf { it.isNotEmpty() }?.let { definitions ->
-                        listOf(
-                            GoogleTool(
-                                definitions.map { definition ->
-                                    FunctionDeclaration(
-                                        definition.name,
-                                        definition.description,
-                                        geminiToolParameters(definition.inputSchema)
-                                    )
-                                }
-                            )
-                        )
-                    },
+                    tools = geminiTools(tools, webSearch),
                     toolConfig = tools.takeIf { it.isNotEmpty() }?.let {
                         GoogleToolConfig(GoogleFunctionCallingConfig(mode = "AUTO"))
                     }
                 )
                 var failed = false
                 var usage: ProviderEvent.Usage? = null
+                val grounding = mutableListOf<WebCitation>()
                 api.streamGenerateContent(request, platform.model, platform.timeout, config).collect { response ->
+                    response.candidates.orEmpty().forEach { candidate ->
+                        candidate.groundingMetadata?.let { grounding += CitationExtractors.fromGrounding(it) }
+                    }
                     val parts = response.candidates.orEmpty().flatMap { it.content?.parts.orEmpty() }
                     if (parts.isNotEmpty()) {
                         modelPartsByRound[exchanges.size] = modelPartsByRound[exchanges.size].orEmpty() + parts
@@ -451,6 +451,9 @@ class GeminiAdapter @Inject constructor(
                     }
                 }
                 if (!failed) {
+                    CitationMarkup.trailer(CitationExtractors.number(grounding)).takeIf { it.isNotEmpty() }?.let {
+                        emit(ProviderEvent.TextDelta(it))
+                    }
                     usage?.let { emit(it) }
                     emit(ProviderEvent.Completed)
                 }
@@ -458,6 +461,40 @@ class GeminiAdapter @Inject constructor(
         }
     }
 }
+
+private fun responseTools(
+    tools: List<AgentToolDefinition>,
+    webSearch: Boolean
+): List<dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseTool>? = buildList {
+    if (webSearch) add(openAiWebSearchTool())
+    tools.forEach { definition ->
+        add(ResponseFunctionTool(definition.name, definition.description, definition.inputSchema))
+    }
+}.takeIf { it.isNotEmpty() }
+
+private fun anthropicTools(tools: List<AgentToolDefinition>, webSearch: Boolean): List<AnthropicTool>? = buildList {
+    if (webSearch) add(anthropicWebSearchTool())
+    tools.forEach { definition ->
+        add(AnthropicTool(definition.name, definition.description, definition.inputSchema))
+    }
+}.takeIf { it.isNotEmpty() }
+
+private fun geminiTools(tools: List<AgentToolDefinition>, webSearch: Boolean): List<GoogleTool>? = buildList {
+    if (webSearch) add(geminiWebSearchTool())
+    if (tools.isNotEmpty()) {
+        add(
+            GoogleTool(
+                tools.map { definition ->
+                    FunctionDeclaration(
+                        definition.name,
+                        definition.description,
+                        geminiToolParameters(definition.inputSchema)
+                    )
+                }
+            )
+        )
+    }
+}.takeIf { it.isNotEmpty() }
 
 private fun AgentToolExchange.toChatMessages(): List<ChatMessage> = listOf(
     ChatMessage(

@@ -32,6 +32,9 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
+import dev.chungjungsoo.gptmobile.data.search.CitationExtractors
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
+import dev.chungjungsoo.gptmobile.data.search.WebCitation
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
@@ -85,6 +88,8 @@ class OpenAIResponsesEventAssembler {
 
         is ResponseCompletedEvent -> buildList {
             event.response.usage.toProviderUsage()?.let(::add)
+            val citations = CitationExtractors.fromResponses(event.response.output, event.response.citations)
+            CitationMarkup.trailer(citations).takeIf { it.isNotEmpty() }?.let { add(ProviderEvent.TextDelta(it)) }
             add(ProviderEvent.Completed)
         }
 
@@ -197,6 +202,7 @@ class AnthropicEventAssembler {
     private val pendingRedactedThinking = mutableMapOf<Int, String>()
     private val pendingCompaction = mutableMapOf<Int, StringBuilder>()
     private val completed = sortedMapOf<Int, MessageContent>()
+    private val citations = mutableListOf<WebCitation>()
 
     private var inputTokens: Int? = null
     private var cacheCreationInputTokens = 0
@@ -220,6 +226,7 @@ class AnthropicEventAssembler {
         }
 
         is ContentStartResponseChunk -> {
+            rememberCitations(event.contentBlock)
             when (event.contentBlock.type) {
                 ContentBlockType.TEXT -> pendingText[event.index] = StringBuilder(event.contentBlock.text.orEmpty())
 
@@ -275,6 +282,11 @@ class AnthropicEventAssembler {
                 emptyList()
             }
 
+            ContentBlockType.CITATIONS_DELTA -> {
+                rememberCitations(event.delta)
+                emptyList()
+            }
+
             else -> emptyList()
         }
 
@@ -305,6 +317,9 @@ class AnthropicEventAssembler {
         is ErrorResponseChunk -> listOf(ProviderEvent.Failed(event.error.message))
 
         MessageStopResponseChunk -> buildList {
+            CitationMarkup.trailer(CitationExtractors.number(citations)).takeIf { it.isNotEmpty() }?.let {
+                add(ProviderEvent.TextDelta(it))
+            }
             providerUsage(contextInputTokens(), outputTokens)?.let(::add)
             add(ProviderEvent.Completed)
         }
@@ -313,6 +328,15 @@ class AnthropicEventAssembler {
     }
 
     fun replayContent(): List<MessageContent> = completed.values.toList()
+
+    private fun rememberCitations(block: dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlock) {
+        block.citations.orEmpty().forEach { element ->
+            (element as? kotlinx.serialization.json.JsonObject)
+                ?.let(CitationExtractors::fromAnthropicCitation)
+                ?.let { citations += it }
+        }
+        block.citation?.let(CitationExtractors::fromAnthropicCitation)?.let { citations += it }
+    }
 
     private fun rememberAnthropicUsage(usage: Usage) {
         rememberAnthropicUsage(

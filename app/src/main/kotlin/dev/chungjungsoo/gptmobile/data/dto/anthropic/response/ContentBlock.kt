@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.dto.anthropic.response
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
@@ -35,5 +36,11 @@ data class ContentBlock(
     val partialJson: String? = null,
 
     @SerialName("content")
-    val content: String? = null
+    val content: String? = null,
+
+    @SerialName("citations")
+    val citations: JsonArray? = null,
+
+    @SerialName("citation")
+    val citation: JsonObject? = null
 )

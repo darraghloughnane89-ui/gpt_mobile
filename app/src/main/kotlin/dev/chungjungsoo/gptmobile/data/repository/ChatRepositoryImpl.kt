@@ -73,6 +73,12 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.search.CitationExtractors
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
+import dev.chungjungsoo.gptmobile.data.search.NativeWebSearchKind
+import dev.chungjungsoo.gptmobile.data.search.augmentToolsForWebSearch
+import dev.chungjungsoo.gptmobile.data.search.nativeWebSearchKind
+import dev.chungjungsoo.gptmobile.data.search.withWebSearchGuidance
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
@@ -186,7 +192,9 @@ class ChatRepositoryImpl @Inject constructor(
         emit(ApiState.Loading)
         try {
             val chatId = userMessages.firstOrNull()?.chatId ?: completion.chatId
-            val platform = applyInstructionStack(platform, completion, chatId)
+            val platform = applyInstructionStack(platform, completion, chatId).let { preparedPlatform ->
+                if (completion.webSearchEnabled) preparedPlatform.withWebSearchGuidance() else preparedPlatform
+            }
             val resolvedTools = resolveCompletionTools(platform, completion)
             val toolEvidence = loadToolEvidence(assistantMessages, platform)
             val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
@@ -241,7 +249,8 @@ class ChatRepositoryImpl @Inject constructor(
                 platform,
                 resolvedTools.map { it.tool },
                 prepared,
-                onUnconfirmedCancellation
+                onUnconfirmedCancellation,
+                webSearch = completion.webSearchEnabled
             )
             val runnerTools = if (session.handlesToolsInternally) {
                 emptyList()
@@ -320,7 +329,8 @@ class ChatRepositoryImpl @Inject constructor(
                                     platform,
                                     resolvedTools.map { it.tool },
                                     activePrepared,
-                                    onUnconfirmedCancellation
+                                    onUnconfirmedCancellation,
+                                    webSearch = completion.webSearchEnabled
                                 )
                                 didCompactDuringRun = true
                                 usageAdjustment = 0
@@ -375,6 +385,23 @@ class ChatRepositoryImpl @Inject constructor(
                     is AgentRunEvent.ToolFinished -> trace.finish(runEvent.call, runEvent.result)
 
                     is AgentRunEvent.Notice -> emit(ApiState.Notice(runEvent.message, runEvent.persistent))
+                }
+            }
+            if (completion.webSearchEnabled && CitationMarkup.parse(assistantProgress.toString()).citations.isEmpty()) {
+                val fromTools = completedExchanges.flatMap { exchange ->
+                    exchange.results.flatMap { result ->
+                        val text = when (val content = result.content) {
+                            is ToolResultContent.Text -> content.text
+                            is ToolResultContent.Json -> content.value.toString()
+                            is ToolResultContent.ResourceLinks -> ""
+                        }
+                        CitationExtractors.fromToolText(text)
+                    }
+                }
+                val trailer = CitationMarkup.trailer(CitationExtractors.number(fromTools))
+                if (trailer.isNotEmpty()) {
+                    assistantProgress.append(trailer)
+                    emit(ApiState.Success(trailer))
                 }
             }
             val usage = latestUsage
@@ -724,11 +751,17 @@ class ChatRepositoryImpl @Inject constructor(
         platform: PlatformV2,
         completion: ChatCompletionContext
     ): List<ResolvedAgentTool> {
-        val botUid = completion.botUid
-        if (!botUid.isNullOrBlank()) {
-            botCompletionTools.resolve(botUid)?.let { return it }
+        val assigned = if (!completion.botUid.isNullOrBlank()) {
+            botCompletionTools.resolve(completion.botUid) ?: agentToolResolver.resolve(platform.uid)
+        } else {
+            agentToolResolver.resolve(platform.uid)
         }
-        return agentToolResolver.resolve(platform.uid)
+        return augmentToolsForWebSearch(
+            assigned = assigned,
+            platform = platform,
+            webSearchEnabled = completion.webSearchEnabled,
+            searxngUrl = completion.searxngUrl
+        )
     }
 
     private suspend fun generateSamePlatformText(platform: PlatformV2, systemPrompt: String, turns: List<ConversationTurn>): String {
@@ -773,19 +806,45 @@ class ChatRepositoryImpl @Inject constructor(
         platform: PlatformV2,
         tools: List<dev.chungjungsoo.gptmobile.data.agent.AgentTool>,
         prepared: PreparedContext? = null,
-        onUnconfirmedRemoteCancellation: (suspend (String) -> Unit)? = null
+        onUnconfirmedRemoteCancellation: (suspend (String) -> Unit)? = null,
+        webSearch: Boolean = false
     ): AgentProviderSession {
         val preparedTurns = ensureProviderReferencesForTurns(turns, platform)
         validateInlineBudgetIfNeeded(preparedTurns, platform)
+        val searchKind = if (webSearch) nativeWebSearchKind(platform) else null
         return when (platform.compatibleType) {
-            ClientType.OPENAI -> openAIResponsesAdapter.openSession(preparedTurns, platform, prepared, onUnconfirmedRemoteCancellation)
+            ClientType.OPENAI -> openAIResponsesAdapter.openSession(
+                preparedTurns,
+                platform,
+                prepared,
+                onUnconfirmedRemoteCancellation,
+                webSearch = searchKind == NativeWebSearchKind.OPENAI || searchKind == NativeWebSearchKind.XAI
+            )
 
             ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
-                openAICompatibleAdapter.openSession(preparedTurns, platform)
+                if (searchKind == NativeWebSearchKind.XAI) {
+                    openAIResponsesAdapter.openSession(
+                        preparedTurns,
+                        platform,
+                        prepared,
+                        webSearch = true
+                    )
+                } else {
+                    openAICompatibleAdapter.openSession(preparedTurns, platform)
+                }
 
-            ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(preparedTurns, platform, prepared)
+            ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(
+                preparedTurns,
+                platform,
+                prepared,
+                webSearch = searchKind == NativeWebSearchKind.ANTHROPIC
+            )
 
-            ClientType.GOOGLE -> geminiAdapter.openSession(preparedTurns, platform)
+            ClientType.GOOGLE -> geminiAdapter.openSession(
+                preparedTurns,
+                platform,
+                webSearch = searchKind == NativeWebSearchKind.GEMINI
+            )
 
             ClientType.LITERT_LM -> liteRtLmAdapter.openSession(preparedTurns, platform, tools)
         }

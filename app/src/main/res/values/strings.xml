@@ -470,6 +470,12 @@
     <string name="choose_connection_type">What do you want to connect?</string>
     <string name="choose_connection_type_description">Choose one connection type to get started.</string>
     <string name="web_search">Web Search</string>
+    <string name="composer_web_search">Web search</string>
+    <string name="composer_searxng">SearXNG</string>
+    <string name="searxng_url">SearXNG URL</string>
+    <string name="searxng_url_placeholder">https://searx.example</string>
+    <string name="searxng_url_description">Optional. Leave this blank to search with DuckDuckGo. A SearXNG URL you host is used first and does not need an API key.</string>
+    <string name="citation_chip">%1$d %2$s</string>
     <string name="web_search_connection_description">Search the web with Firecrawl, Perplexity, or Exa.</string>
     <string name="mcp_server">MCP Server</string>
     <string name="mcp_server_connection_description">Connect tools exposed by a Streamable HTTP MCP server.</string>

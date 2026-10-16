@@ -40,6 +40,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.rebuildAssistantTimelineF
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
+import dev.chungjungsoo.gptmobile.data.datastore.WebSearchPreferences
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
@@ -47,6 +48,7 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -86,7 +88,8 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
-    private val chatBotSession: ChatBotSession
+    private val chatBotSession: ChatBotSession,
+    private val webSearchPreferences: WebSearchPreferences
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -167,6 +170,12 @@ class ChatViewModel @Inject constructor(
     val bots = chatBotSession.bots
     val selectedBot = chatBotSession.selectedBot
 
+    private val _webSearchEnabled = MutableStateFlow(false)
+    val webSearchEnabled = _webSearchEnabled.asStateFlow()
+    private val _searxngUrl = MutableStateFlow("")
+    val searxngUrl = _searxngUrl.asStateFlow()
+    private var webSearchPreferenceTouched = false
+
     // Enabled platforms list in app
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<PlatformV2>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -231,6 +240,26 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
         }
+        viewModelScope.launch {
+            val enabled = webSearchPreferences.isEnabled()
+            val url = webSearchPreferences.searxngUrl()
+            if (!webSearchPreferenceTouched) {
+                _webSearchEnabled.value = enabled
+                _searxngUrl.value = url
+            }
+        }
+    }
+
+    fun setWebSearchEnabled(enabled: Boolean) {
+        webSearchPreferenceTouched = true
+        _webSearchEnabled.value = enabled
+        viewModelScope.launch { webSearchPreferences.setEnabled(enabled) }
+    }
+
+    fun setSearxngUrl(url: String) {
+        webSearchPreferenceTouched = true
+        _searxngUrl.value = url.trim()
+        viewModelScope.launch { webSearchPreferences.setSearxngUrl(url) }
     }
 
     fun addMessage(userMessage: MessageV2) {
@@ -1152,7 +1181,10 @@ class ChatViewModel @Inject constructor(
         return groupPersistedMessages(messages, enabledPlatformsInChat, chatId)
     }
 
-    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id)
+    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id).copy(
+        webSearchEnabled = _webSearchEnabled.value,
+        searxngUrl = _searxngUrl.value.trim().ifBlank { null }
+    )
 
     private fun applyNewChatBotModel() {
         if (chatRoomId != 0 || _chatRoom.value.id != 0) return
@@ -1520,8 +1552,15 @@ internal fun formatAssistantExport(
     val trace = message.effectiveRunId()
         ?.let(toolEventsByRun::get)
         .orEmpty()
-    val timeline = message.effectiveTimeline()
-    val content = message.effectiveContent()
+    val parsedContent = CitationMarkup.parse(message.effectiveContent())
+    val content = parsedContent.body
+    val timeline = message.effectiveTimeline().map { item ->
+        if (item.type == AssistantTimelineItemType.TEXT) {
+            item.copy(content = CitationMarkup.parse(item.content).body)
+        } else {
+            item
+        }
+    }
     val thoughts = message.effectiveThoughts()
     if (hasUnavailableAssistantOrder(timeline, content, thoughts, trace.isNotEmpty())) {
         appendLine("> $legacyOrderNotice")
@@ -1581,6 +1620,9 @@ internal fun formatAssistantExport(
                 appendLine(formatToolTraceMarkdown(it, toolTraceLabels))
                 appendLine()
             }
+    }
+    parsedContent.citations.forEach { citation ->
+        appendLine("[${citation.number}] ${citation.title} (${citation.url})")
     }
 }
 

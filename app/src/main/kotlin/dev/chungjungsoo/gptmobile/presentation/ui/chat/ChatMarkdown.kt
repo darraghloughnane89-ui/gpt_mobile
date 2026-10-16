@@ -57,6 +57,7 @@ import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownInlineContent
 import com.mikepenz.markdown.model.rememberMarkdownState
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
@@ -87,7 +88,8 @@ fun ChatMarkdown(
     val isDarkTheme = isSystemInDarkTheme()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val parsed = remember(renderedContent) { parseChatMarkdown(renderedContent) }
+    val citationView = remember(renderedContent) { CitationMarkup.parse(renderedContent) }
+    val parsed = remember(citationView.body) { parseChatMarkdown(citationView.body) }
     val displayMathNonce = remember(contentIdentity) { DISPLAY_MATH_NONCE }
     val highlightsBuilder = remember(isDarkTheme) {
         Highlights.Builder().theme(SyntaxThemes.atom(isDarkTheme))
@@ -205,15 +207,22 @@ fun ChatMarkdown(
         )
         val animations = markdownAnimations(animateTextSize = { this })
 
-        Markdown(
-            markdownState = markdownState,
-            inlineContent = markdownInlineContent(inlineContent),
-            annotator = annotator,
-            components = components,
-            typography = chatMarkdownTypography(),
-            animations = animations,
-            modifier = modifier
-        )
+        Column(modifier = modifier) {
+            Markdown(
+                markdownState = markdownState,
+                inlineContent = markdownInlineContent(inlineContent),
+                annotator = annotator,
+                components = components,
+                typography = chatMarkdownTypography(),
+                animations = animations
+            )
+            if (citationView.citations.isNotEmpty()) {
+                CitationChips(
+                    citations = citationView.citations,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
     }
 }
 

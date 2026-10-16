@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.dto.google.response
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class GenerateContentResponse(
@@ -28,7 +29,10 @@ data class Candidate(
     val finishReason: String? = null,
 
     @SerialName("index")
-    val index: Int = 0
+    val index: Int = 0,
+
+    @SerialName("groundingMetadata")
+    val groundingMetadata: JsonObject? = null
 )
 
 @Serializable

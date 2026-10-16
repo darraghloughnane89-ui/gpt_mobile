@@ -733,7 +733,7 @@ class ProviderAdaptersTest {
             session.streamRound(listOf(definition), listOf(AgentToolExchange(listOf(call), listOf(result)))).toList()
         )
         assertEquals("AUTO", api.requests.first().toolConfig?.functionCallingConfig?.mode)
-        assertEquals("weather", api.requests.first().tools!!.single().functionDeclarations.single().name)
+        assertEquals("weather", api.requests.first().tools!!.single().functionDeclarations!!.single().name)
         val continuation = api.requests.last().contents.takeLast(2)
         assertEquals("call_exact", continuation[0].parts.single().functionCall!!.id)
         assertEquals("call_exact", continuation[1].parts.single().functionResponse!!.id)

@@ -63,16 +63,27 @@ data class MessageRequest(
     val contextManagement: AnthropicContextManagement? = null
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AnthropicTool(
     @SerialName("name")
     val name: String,
 
     @SerialName("description")
-    val description: String,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val description: String? = null,
 
     @SerialName("input_schema")
-    val inputSchema: JsonObject
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val inputSchema: JsonObject? = null,
+
+    @SerialName("type")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val type: String? = null,
+
+    @SerialName("max_uses")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val maxUses: Int? = null
 )
 
 @OptIn(ExperimentalSerializationApi::class)

@@ -34,10 +34,16 @@ data class GenerateContentRequest(
     val toolConfig: GoogleToolConfig? = null
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class GoogleTool(
     @SerialName("functionDeclarations")
-    val functionDeclarations: List<FunctionDeclaration>
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val functionDeclarations: List<FunctionDeclaration>? = null,
+
+    @SerialName("googleSearch")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val googleSearch: JsonObject? = null
 )
 
 @Serializable

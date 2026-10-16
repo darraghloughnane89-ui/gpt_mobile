@@ -34,5 +34,8 @@ enum class ContentBlockType {
     INPUT_JSON_DELTA,
 
     @SerialName("compaction")
-    COMPACTION
+    COMPACTION,
+
+    @SerialName("citations_delta")
+    CITATIONS_DELTA
 }

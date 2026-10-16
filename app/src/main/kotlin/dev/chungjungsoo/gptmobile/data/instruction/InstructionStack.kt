@@ -94,7 +94,9 @@ data class ChatCompletionContext(
     val chatId: Int = 0,
     val botUid: String? = null,
     val botInstructions: String? = null,
-    val chatInstructions: String? = null
+    val chatInstructions: String? = null,
+    val webSearchEnabled: Boolean = false,
+    val searxngUrl: String? = null
 )
 
 fun PlatformV2.withInstructionStack(stack: InstructionStack): PlatformV2 {

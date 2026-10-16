@@ -49,20 +49,24 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -114,6 +118,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
@@ -164,6 +169,8 @@ fun ChatScreen(
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
     val bots by chatViewModel.bots.collectAsStateWithLifecycle()
     val selectedBot by chatViewModel.selectedBot.collectAsStateWithLifecycle()
+    val webSearchEnabled by chatViewModel.webSearchEnabled.collectAsStateWithLifecycle()
+    val searxngUrl by chatViewModel.searxngUrl.collectAsStateWithLifecycle()
     var botPickerOpen by rememberSaveable { mutableStateOf(false) }
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
@@ -359,6 +366,10 @@ fun ChatScreen(
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
                 selectedAttachments = selectedAttachments,
+                webSearchEnabled = webSearchEnabled,
+                searxngUrl = searxngUrl,
+                onWebSearchChange = chatViewModel::setWebSearchEnabled,
+                onSearxngUrlChange = chatViewModel::setSearxngUrl,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                 onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
                 onCancelButtonClick = chatViewModel::cancelActiveRuns
@@ -525,6 +536,7 @@ private fun ChatMessagePair(
 ) {
     val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
     val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
+    val visibleAssistantContent = CitationMarkup.parse(assistantContent).body
     val assistantThoughts = selectedAssistantMessage?.effectiveThoughts() ?: ""
     val assistantTimeline = selectedAssistantMessage?.effectiveTimeline().orEmpty()
     val selectedRunId = selectedAssistantMessage?.effectiveRunId()
@@ -633,8 +645,8 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                onCopyClick = { onCopyText(assistantContent) },
-                onSelectClick = { onSelectText(assistantContent) },
+                onCopyClick = { onCopyText(visibleAssistantContent) },
+                onSelectClick = { onSelectText(visibleAssistantContent) },
                 onViewFull = onSelectText,
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
@@ -881,6 +893,10 @@ fun ChatInputBox(
     sendButtonEnabled: Boolean = true,
     isRunning: Boolean = false,
     selectedAttachments: List<ChatAttachmentDraft> = emptyList(),
+    webSearchEnabled: Boolean = false,
+    searxngUrl: String = "",
+    onWebSearchChange: (Boolean) -> Unit = {},
+    onSearxngUrlChange: (String) -> Unit = {},
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
@@ -892,6 +908,8 @@ fun ChatInputBox(
     val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
     val hasQuestionText = inputState.text.isNotEmpty()
+    var searxngDialogOpen by remember { mutableStateOf(false) }
+    var searxngDraft by remember(searxngUrl) { mutableStateOf(searxngUrl) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -915,6 +933,28 @@ fun ChatInputBox(
         shadowElevation = 2.dp
     ) {
         Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, top = 8.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(
+                    selected = webSearchEnabled,
+                    onClick = { onWebSearchChange(!webSearchEnabled) },
+                    enabled = chatEnabled,
+                    label = { Text(stringResource(R.string.composer_web_search)) }
+                )
+                TextButton(
+                    enabled = chatEnabled,
+                    onClick = {
+                        searxngDraft = searxngUrl
+                        searxngDialogOpen = true
+                    }
+                ) {
+                    Text(stringResource(R.string.composer_searxng))
+                }
+            }
             if (selectedAttachments.isNotEmpty()) {
                 FileThumbnailRow(
                     selectedAttachments = selectedAttachments,
@@ -979,6 +1019,41 @@ fun ChatInputBox(
                 }
             )
         }
+    }
+    if (searxngDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { searxngDialogOpen = false },
+            title = { Text(stringResource(R.string.searxng_url)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.searxng_url_description))
+                    OutlinedTextField(
+                        value = searxngDraft,
+                        onValueChange = { searxngDraft = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.searxng_url_placeholder)) }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onSearxngUrlChange(searxngDraft)
+                        searxngDialogOpen = false
+                    }
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { searxngDialogOpen = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 

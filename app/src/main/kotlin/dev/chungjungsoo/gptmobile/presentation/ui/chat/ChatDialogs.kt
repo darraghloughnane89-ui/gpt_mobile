@@ -39,6 +39,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.search.CitationMarkup
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
@@ -339,7 +340,8 @@ fun AssistantMessageEditDialog(
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var responseText by remember { mutableStateOf(initialMessage.effectiveContent()) }
+    val parsedResponse = remember(initialMessage) { CitationMarkup.parse(initialMessage.effectiveContent()) }
+    var responseText by remember { mutableStateOf(parsedResponse.body) }
     var thoughtsText by remember { mutableStateOf(initialMessage.effectiveThoughts()) }
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -402,13 +404,13 @@ fun AssistantMessageEditDialog(
                 enabled = !hasPendingOrFailedAttachments &&
                     (responseText.isNotBlank() || thoughtsText.isNotBlank() || attachments.isNotEmpty()) &&
                     (
-                        responseText != initialMessage.effectiveContent() ||
+                        responseText != parsedResponse.body ||
                             thoughtsText != initialMessage.effectiveThoughts() ||
                             attachments.mapNotNull { it.attachment } != initialMessage.attachments
                         ),
                 onClick = {
                     onConfirmRequest(
-                        initialMessage.copy(content = responseText),
+                        initialMessage.copy(content = CitationMarkup.append(responseText, parsedResponse.citations)),
                         thoughtsText
                     )
                 }

@@ -60,8 +60,11 @@ data class ResponsesRequest(
 
     @SerialName("tools")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val tools: List<ResponseFunctionTool>? = null
+    val tools: List<ResponseTool>? = null
 )
+
+@Serializable(with = ResponseToolSerializer::class)
+sealed interface ResponseTool
 
 @Serializable
 data class ResponseFunctionTool(
@@ -76,7 +79,36 @@ data class ResponseFunctionTool(
 
     @SerialName("type")
     val type: String = "function"
-)
+) : ResponseTool
+
+@Serializable
+data class ResponseWebSearchTool(
+    @SerialName("type")
+    val type: String = "web_search"
+) : ResponseTool
+
+object ResponseToolSerializer : KSerializer<ResponseTool> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ResponseTool")
+
+    override fun serialize(encoder: Encoder, value: ResponseTool) {
+        val jsonEncoder = encoder as JsonEncoder
+        val element = when (value) {
+            is ResponseFunctionTool -> jsonEncoder.json.encodeToJsonElement(ResponseFunctionTool.serializer(), value)
+            is ResponseWebSearchTool -> jsonEncoder.json.encodeToJsonElement(ResponseWebSearchTool.serializer(), value)
+        }
+        jsonEncoder.encodeJsonElement(element)
+    }
+
+    override fun deserialize(decoder: Decoder): ResponseTool {
+        val jsonDecoder = decoder as JsonDecoder
+        val element = jsonDecoder.decodeJsonElement().jsonObject
+        return if (element["type"]?.jsonPrimitive?.content == "web_search") {
+            jsonDecoder.json.decodeFromJsonElement(ResponseWebSearchTool.serializer(), element)
+        } else {
+            jsonDecoder.json.decodeFromJsonElement(ResponseFunctionTool.serializer(), element)
+        }
+    }
+}
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
