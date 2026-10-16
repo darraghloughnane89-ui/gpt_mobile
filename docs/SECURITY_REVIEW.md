@@ -33,6 +33,7 @@ Branch: `cursor/memory-usage-security-184c`
 - Facts copied into the prompt are flattened, cut at a `MEMORY_SUGGESTION:` marker, and redacted. The same policy runs on explicit saves, confirmed suggestions, and edits. The suggestion protocol line in the prompt is unchanged. A fact that is only a redacted secret is dropped.
 - Key Manager writes a provider secret with `secretVault.put` and stores `token = null` plus `secretRef`. Deleting a platform key also deletes the vault record.
 - The staged chat backup still clears provider tokens, and now redacts `messages_v2.content` and `memories.text` when those columns exist.
+- The local JSON export and the encrypted Drive archive redact message text, thoughts, timelines, system prompts, and memory facts. Platform tokens and secret refs are left out of the archive. Skill and import writes use the same fact sanitizer as explicit memory.
 
 Vault files stay in `noBackupFilesDir`. Message text can still hold a secret that does not match these patterns. Suggestions are saved only after `confirmMemorySuggestion`.
 
