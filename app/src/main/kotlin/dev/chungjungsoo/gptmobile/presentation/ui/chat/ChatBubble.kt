@@ -70,6 +70,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.hasUnavailableAssistantOrder
+import dev.chungjungsoo.gptmobile.data.diagnostics.DiagnosticRedactor
+import dev.chungjungsoo.gptmobile.data.diagnostics.displayChatText
+import dev.chungjungsoo.gptmobile.data.diagnostics.presentChatFailure
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
@@ -168,8 +171,18 @@ fun OpponentChatBubble(
         stored = runNotices,
         timelineNotices = timelineNoticeMessages(timeline),
         isRunActive = isLoading
-    )
-    val contentTimeline = timeline.filter { it.type != AssistantTimelineItemType.NOTICE }
+    ).map { DiagnosticRedactor.redact(it, includeChatContent = true) }
+    val failure = presentChatFailure(text)
+    val answerText = displayChatText(text)
+    val sourceTimeline = timeline.filter { it.type != AssistantTimelineItemType.NOTICE }
+    val contentTimeline = sourceTimeline.map { item ->
+        if (item.type == AssistantTimelineItemType.TEXT) {
+            val sanitized = displayChatText(item.content)
+            if (sanitized == item.content) item else item.copy(content = sanitized)
+        } else {
+            item
+        }
+    }.filterNot { it.type == AssistantTimelineItemType.TEXT && it.content.isBlank() }
     val hasUnresolvedToolDetails = hasUnresolvedToolReferences(contentTimeline, toolEvents)
     val hasDetails = thoughts.isNotBlank() ||
         toolEvents.isNotEmpty() ||
@@ -179,14 +192,14 @@ fun OpponentChatBubble(
                 it.type == AssistantTimelineItemType.LEGACY_ORDER
         }
     val hasUnavailableOrder = hasUnavailableAssistantOrder(
-        timeline = contentTimeline,
+        timeline = sourceTimeline,
         content = text,
         thoughts = thoughts,
         hasToolEvents = toolEvents.isNotEmpty()
     )
     var isDetailsExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     val showAnswerStreamingIndicator = isLoading
-    val showProcessStreamingIndicator = showAnswerStreamingIndicator && text.isBlank()
+    val showProcessStreamingIndicator = showAnswerStreamingIndicator && answerText.isBlank()
 
     Column(modifier = modifier) {
         RunNoticeChips(
@@ -212,54 +225,65 @@ fun OpponentChatBubble(
             }
         }
 
-        AnimatedContent(
-            targetState = isDetailsExpanded && hasDetails,
-            transitionSpec = {
-                fadeIn(animationSpec = fastEffectsSpec()) togetherWith
-                    fadeOut(animationSpec = fastEffectsSpec()) using
-                    SizeTransform(sizeAnimationSpec = { _, _ -> defaultSpatialSpec() })
-            },
-            label = "assistant details"
-        ) { showDetails ->
-            if (showDetails) {
-                Column {
-                    if (contentTimeline.isNotEmpty() && !hasUnavailableOrder) {
-                        AssistantProcessContent(
-                            timeline = contentTimeline,
-                            toolEvents = toolEvents,
-                            showStreamingIndicator = showProcessStreamingIndicator,
+        val showAnswerBody = answerText.isNotBlank() || attachments.isNotEmpty() || isLoading
+        if (showAnswerBody) {
+            AnimatedContent(
+                targetState = isDetailsExpanded && hasDetails,
+                transitionSpec = {
+                    fadeIn(animationSpec = fastEffectsSpec()) togetherWith
+                        fadeOut(animationSpec = fastEffectsSpec()) using
+                        SizeTransform(sizeAnimationSpec = { _, _ -> defaultSpatialSpec() })
+                },
+                label = "assistant details"
+            ) { showDetails ->
+                if (showDetails) {
+                    Column {
+                        if (contentTimeline.isNotEmpty() && !hasUnavailableOrder) {
+                            AssistantProcessContent(
+                                timeline = contentTimeline,
+                                toolEvents = toolEvents,
+                                showStreamingIndicator = showProcessStreamingIndicator,
+                                contentIdentity = contentIdentity,
+                                onViewFull = onViewFull
+                            )
+                        } else {
+                            LegacyAssistantProcessContent(
+                                thoughts = thoughts,
+                                toolEvents = toolEvents,
+                                contentIdentity = contentIdentity,
+                                showOrderNotice = hasUnavailableOrder,
+                                showStreamingIndicator = showProcessStreamingIndicator,
+                                onViewFull = onViewFull
+                            )
+                        }
+                        QuietAssistantContent(
+                            cardColor = cardColor,
+                            text = answerText,
+                            attachments = attachments,
+                            showStreamingIndicator = showAnswerStreamingIndicator && answerText.isNotBlank(),
                             contentIdentity = contentIdentity,
-                            onViewFull = onViewFull
-                        )
-                    } else {
-                        LegacyAssistantProcessContent(
-                            thoughts = thoughts,
-                            toolEvents = toolEvents,
-                            contentIdentity = contentIdentity,
-                            showOrderNotice = hasUnavailableOrder,
-                            showStreamingIndicator = showProcessStreamingIndicator,
-                            onViewFull = onViewFull
+                            isStreaming = isLoading
                         )
                     }
+                } else {
                     QuietAssistantContent(
                         cardColor = cardColor,
-                        text = text,
+                        text = answerText,
                         attachments = attachments,
-                        showStreamingIndicator = showAnswerStreamingIndicator && text.isNotBlank(),
+                        showStreamingIndicator = showAnswerStreamingIndicator,
                         contentIdentity = contentIdentity,
                         isStreaming = isLoading
                     )
                 }
-            } else {
-                QuietAssistantContent(
-                    cardColor = cardColor,
-                    text = text,
-                    attachments = attachments,
-                    showStreamingIndicator = showAnswerStreamingIndicator,
-                    contentIdentity = contentIdentity,
-                    isStreaming = isLoading
-                )
             }
+        }
+        if (failure != null) {
+            ProviderFailureCard(
+                kind = failure.kind,
+                canRetry = canRetry && !isLoading,
+                onRetryClick = onRetryClick,
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp)
+            )
         }
 
         if (!isLoading) {

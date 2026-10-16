@@ -16,6 +16,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
+import dev.chungjungsoo.gptmobile.data.diagnostics.DiagnosticsStore
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
@@ -23,6 +24,7 @@ import dev.chungjungsoo.gptmobile.data.project.ProjectChatListSource
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -49,7 +51,11 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            agentRunCoordinator = AgentRunCoordinator(
+                context,
+                repository,
+                DiagnosticsStore(File(context.cacheDir, "diagnostics-home-test"))
+            ),
             projectChatListSource = EmptyProjectChatListSource()
         )
 
@@ -79,7 +85,11 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            agentRunCoordinator = AgentRunCoordinator(
+                context,
+                repository,
+                DiagnosticsStore(File(context.cacheDir, "diagnostics-home-test"))
+            ),
             projectChatListSource = EmptyProjectChatListSource()
         )
 
@@ -114,7 +124,11 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            agentRunCoordinator = AgentRunCoordinator(
+                context,
+                repository,
+                DiagnosticsStore(File(context.cacheDir, "diagnostics-home-test"))
+            ),
             projectChatListSource = EmptyProjectChatListSource()
         )
 

@@ -116,6 +116,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.data.diagnostics.displayChatText
 import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
 import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
@@ -660,8 +661,8 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                onCopyClick = { onCopyText(assistantContent) },
-                onSelectClick = { onSelectText(assistantContent) },
+                onCopyClick = { onCopyText(displayChatText(assistantContent)) },
+                onSelectClick = { onSelectText(displayChatText(assistantContent)) },
                 onViewFull = onSelectText,
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },

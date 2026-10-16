@@ -16,6 +16,8 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.diagnostics.displayChatText
+import dev.chungjungsoo.gptmobile.data.diagnostics.presentChatFailure
 import dev.chungjungsoo.gptmobile.data.voice.VoicePhase
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
 
@@ -64,15 +66,15 @@ fun VoiceChatHost(
             chatViewModel.cancelActiveRuns()
         }
     }
+    val rawAssistant = groupedMessages.assistantMessages.lastOrNull()
+        ?.firstOrNull()
+        ?.effectiveContent()
+        .orEmpty()
+    val generating = loadingStates.firstOrNull()?.let { it != ChatViewModel.LoadingState.Idle } == true
     LaunchedEffect(groupedMessages, loadingStates, contextBusy, chatContext) {
-        val assistantText = groupedMessages.assistantMessages.lastOrNull()
-            ?.firstOrNull()
-            ?.effectiveContent()
-            .orEmpty()
-        val generating = loadingStates.firstOrNull()?.let { it != ChatViewModel.LoadingState.Idle } == true
         voiceViewModel.onChatSnapshot(
             turnCount = groupedMessages.userMessages.size,
-            assistantText = assistantText,
+            assistantText = displayChatText(rawAssistant),
             busy = generating || contextBusy,
             awaitingContext = chatContext != null
         )
@@ -81,6 +83,8 @@ fun VoiceChatHost(
         onDispose { voiceViewModel.end() }
     }
 
+    val failure = presentChatFailure(rawAssistant)
+    val canRetryFailure = failure != null && !generating && !contextBusy && groupedMessages.userMessages.isNotEmpty()
     VoiceScreen(
         state = state,
         permissionGranted = permissionGranted,
@@ -98,6 +102,12 @@ fun VoiceChatHost(
                 else -> Unit
             }
         },
-        onGrantPermission = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+        onGrantPermission = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+        failureKind = failure?.kind,
+        onRetry = if (canRetryFailure) {
+            { chatViewModel.retryChat(groupedMessages.userMessages.lastIndex, 0) }
+        } else {
+            null
+        }
     )
 }

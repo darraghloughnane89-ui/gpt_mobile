@@ -30,6 +30,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.DiagnosticsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
@@ -250,6 +251,7 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToDiagnostics = { navController.navigate(Route.DIAGNOSTICS) },
                 onNavigateToVoiceSettings = { navController.navigate(Route.VOICE_SETTINGS) }
             )
         }
@@ -309,6 +311,9 @@ fun NavGraphBuilder.settingNavigation(
             )
         }
         botNavigation(navController)
+        composable(Route.DIAGNOSTICS) {
+            DiagnosticsScreen(onNavigationClick = { navController.navigateUp() })
+        }
         composable(Route.ABOUT_PAGE) {
             AboutScreen(
                 onNavigationClick = { navController.navigateUp() },

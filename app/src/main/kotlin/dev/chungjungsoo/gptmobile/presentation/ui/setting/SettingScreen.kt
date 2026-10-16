@@ -62,6 +62,7 @@ fun SettingScreen(
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
     onNavigateToAboutPage: () -> Unit,
+    onNavigateToDiagnostics: () -> Unit = {},
     onNavigateToVoiceSettings: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
@@ -161,6 +162,13 @@ fun SettingScreen(
                 )
             }
             SettingsSection(title = stringResource(R.string.settings_app)) {
+                SettingItem(
+                    title = stringResource(R.string.diagnostics),
+                    description = stringResource(R.string.diagnostics_description),
+                    onItemClick = onNavigateToDiagnostics,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 SettingItem(
                     title = stringResource(R.string.voice_settings),
                     description = stringResource(R.string.voice_settings_description),
