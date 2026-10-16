@@ -30,8 +30,8 @@ data class CredentialBinding(
         if (!this.packageName.equals(packageName, ignoreCase = true)) return false
         if (!this.certSha256.equals(certSha256, ignoreCase = true)) return false
         val requiredDomain = this.webDomain?.trim()?.lowercase().orEmpty()
-        if (requiredDomain.isEmpty()) return true
         val actual = webDomain?.trim()?.lowercase().orEmpty()
+        if (requiredDomain.isEmpty()) return actual.isEmpty()
         return actual == requiredDomain || actual.endsWith(".$requiredDomain")
     }
 }

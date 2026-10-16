@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.phonecontrol.plan
 
 import dev.chungjungsoo.gptmobile.data.phonecontrol.IndexedElement
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.Redaction
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.TextCanonicalizer
 
 enum class ActionSource {
     MODEL_TOOL,
@@ -43,7 +45,9 @@ data class PlannedAction(
     val resourceId: String? = null,
     val lowConfidence: Boolean = false
 ) {
-    fun summary(): String {
+    fun summary(): String = Redaction.redactSecrets(rawSummary())
+
+    private fun rawSummary(): String {
         val target = targetText?.takeIf { it.isNotBlank() } ?: resourceId.orEmpty()
         return when (kind) {
             PhoneActionKind.TAP -> "Tap ${index ?: "point"} $target".trim()
@@ -74,10 +78,22 @@ data class PlannedAction(
 }
 
 object PhoneActionClassifier {
-    private val paymentWords = listOf("pay", "payment", "purchase", "buy", "checkout", "transfer", "price")
+    private val paymentWords = listOf(
+        "pay",
+        "payment",
+        "purchase",
+        "buy",
+        "checkout",
+        "transfer",
+        "price",
+        "wire",
+        "donate",
+        "withdraw",
+        "deposit"
+    )
     private val messageWords = listOf("send", "post", "reply", "share", "publish")
-    private val deleteWords = listOf("delete", "remove", "erase")
-    private val installWords = listOf("install", "uninstall", "update app")
+    private val deleteWords = listOf("delete", "remove", "erase", "trash", "discard", "wipe", "shred")
+    private val installWords = listOf("install", "uninstall", "update app", "download", "upgrade", "sideload")
 
     fun isPayment(action: PlannedAction): Boolean = containsAny(action, paymentWords)
 
@@ -97,9 +113,9 @@ object PhoneActionClassifier {
     }
 
     private fun containsAny(action: PlannedAction, words: List<String>): Boolean {
-        val haystack = listOfNotNull(action.targetText, action.text, action.message, action.resourceId)
-            .joinToString(" ")
-            .lowercase()
+        val haystack = TextCanonicalizer.fold(
+            listOfNotNull(action.targetText, action.text, action.message, action.resourceId).joinToString(" ")
+        ).lowercase()
         return words.any { word -> haystack.contains(word) }
     }
 }

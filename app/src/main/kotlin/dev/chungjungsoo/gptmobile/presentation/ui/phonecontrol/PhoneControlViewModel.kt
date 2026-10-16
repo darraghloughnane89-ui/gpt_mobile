@@ -46,6 +46,10 @@ class PhoneControlViewModel @Inject constructor(
     private val passkeys = PasskeyBridge()
     private var routineApproved = false
 
+    init {
+        engine.setStopListener { confirmPending(false, false) }
+    }
+
     fun accessibilityEnabled(): Boolean = engine.isAttached()
 
     fun refreshVault() {
@@ -65,10 +69,13 @@ class PhoneControlViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            if (!engine.begin()) {
+                _status.value = "Phone control stopped. The stop overlay is not available."
+                return@launch
+            }
             val allowlist = repository.allowedPackages()
             val loop = PhoneAgentLoop(SafetyGate())
             var latest = emptyObservation()
-            engine.begin()
             val result = loop.run(
                 goal = goal,
                 observe = {
@@ -102,7 +109,8 @@ class PhoneControlViewModel @Inject constructor(
                         screenText = observation.treeText,
                         routineApproved = routineApproved,
                         background = false,
-                        passwordFieldFocused = observation.passwordFieldVisible
+                        passwordFieldFocused = observation.passwordFieldVisible,
+                        injectionDetected = observation.injectionDetected
                     )
                 }
             )

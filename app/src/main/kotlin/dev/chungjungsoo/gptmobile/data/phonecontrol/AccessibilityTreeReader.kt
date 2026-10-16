@@ -33,6 +33,7 @@ object AccessibilityTreeReader {
             drawingOrder = node.drawingOrder,
             windowId = node.windowId,
             opacity = if (node.isVisibleToUser) 1f else 0f,
+            packageName = node.packageName?.toString().orEmpty(),
             children = children
         )
     }

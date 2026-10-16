@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.phonecontrol.plan.PhoneActionKind
 import dev.chungjungsoo.gptmobile.data.phonecontrol.plan.PlannedAction
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.ControlSession
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.UntrustedText
 import dev.chungjungsoo.gptmobile.presentation.phonecontrol.RobinAccessibilityService
 import dev.chungjungsoo.gptmobile.presentation.phonecontrol.RobinNotificationListenerService
@@ -24,6 +25,7 @@ class PhoneControlEngine @Inject constructor(
     @ApplicationContext context: Context
 ) {
     private val launcher = StructuredActionLauncher(context)
+    private val session = ControlSession()
     private var service: RobinAccessibilityService? = null
     private var notifications: RobinNotificationListenerService? = null
 
@@ -66,21 +68,29 @@ class PhoneControlEngine @Inject constructor(
         foregroundLabel = label
     }
 
-    fun begin() {
-        _stopped.value = false
-        service?.showOverlay(warning = false)
-        _overlayVisible.value = service != null
+    fun setStopListener(listener: () -> Unit) {
+        session.onStop(listener)
+    }
+
+    fun begin(): Boolean {
+        val shown = runCatching { service?.showOverlay(warning = false) == true }.getOrDefault(false)
+        val started = session.begin(shown)
+        _stopped.value = session.isStopped()
+        _overlayVisible.value = session.overlayVisible
+        if (!started) service?.hideOverlay()
+        return started
     }
 
     fun stop() {
-        _stopped.value = true
+        session.stop()
         service?.hideOverlay()
+        _stopped.value = true
         _overlayVisible.value = false
     }
 
     fun emphasizeStop() {
-        service?.showOverlay(warning = true)
-        _overlayVisible.value = true
+        val shown = runCatching { service?.showOverlay(warning = true) == true }.getOrDefault(false)
+        _overlayVisible.value = shown && !session.isStopped()
     }
 
     fun observe(screenWidth: Int, screenHeight: Int, visionRequested: Boolean): PhoneObservation? =

@@ -25,6 +25,7 @@ package dev.chungjungsoo.gptmobile.data.phonecontrol.tree
 import dev.chungjungsoo.gptmobile.data.phonecontrol.IndexedElement
 import dev.chungjungsoo.gptmobile.data.phonecontrol.UiBounds
 import dev.chungjungsoo.gptmobile.data.phonecontrol.UiNode
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.Redaction
 
 class ConciseTreeFilter(
     private val minElementSize: Int = 5
@@ -123,7 +124,7 @@ class IndexedTreeFormatter(
             null
         }
         val visibleText = when {
-            node.isPassword -> REDACTED
+            Redaction.isSecretField(node) -> REDACTED
             node.lowConfidence -> ""
             else -> node.text.ifBlank { node.contentDescription }.ifBlank { node.resourceId }.ifBlank { node.className }
         }
@@ -142,7 +143,7 @@ class IndexedTreeFormatter(
             bounds = bounds,
             displayBounds = display,
             lowConfidence = node.lowConfidence,
-            password = node.isPassword
+            password = Redaction.isSecretField(node)
         )
         stored += element
         return element

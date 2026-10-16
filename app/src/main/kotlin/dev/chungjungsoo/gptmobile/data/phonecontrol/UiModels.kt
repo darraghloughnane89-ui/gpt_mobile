@@ -43,6 +43,7 @@ data class UiNode(
     val drawingOrder: Int? = null,
     val windowId: Int? = null,
     val opacity: Float = 1f,
+    val packageName: String = "",
     val children: List<UiNode> = emptyList()
 ) {
     val lowConfidence: Boolean
@@ -76,5 +77,6 @@ data class PhoneObservation(
     val secureWindow: Boolean,
     val passwordFieldVisible: Boolean,
     val hiddenInstructionDetected: Boolean,
-    val screenshotAttached: Boolean
+    val screenshotAttached: Boolean,
+    val injectionDetected: Boolean = false
 )

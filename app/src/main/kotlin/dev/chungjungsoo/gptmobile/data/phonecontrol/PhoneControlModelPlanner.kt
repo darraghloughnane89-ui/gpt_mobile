@@ -18,6 +18,8 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.phonecontrol.plan.ActionPlannerParser
 import dev.chungjungsoo.gptmobile.data.phonecontrol.plan.PhoneControlPrompts
 import dev.chungjungsoo.gptmobile.data.phonecontrol.plan.PlannedAction
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.Redaction
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.SecretMemoryPolicy
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
@@ -59,12 +61,12 @@ class PhoneControlModelPlanner @Inject constructor(
         val prompt = buildString {
             append(PhoneControlPrompts.SYSTEM.trim())
             append("\n\nGoal: ")
-            append(goal)
+            append(Redaction.redactSecrets(goal))
             append("\n\n")
             append(observation.treeText)
             if (history.isNotEmpty()) {
                 append("\n\nHistory:\n")
-                append(history.joinToString("\n"))
+                append(history.joinToString("\n") { SecretMemoryPolicy.admit(it) ?: Redaction.redactSecrets(it) })
             }
         }
         val turn = ConversationTurn(

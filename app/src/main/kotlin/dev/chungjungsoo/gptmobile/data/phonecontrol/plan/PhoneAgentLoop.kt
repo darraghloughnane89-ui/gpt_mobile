@@ -47,7 +47,7 @@ class PhoneAgentLoop(
             if (shouldStop()) {
                 return LoopResult(true, "Phone control stopped.", acted, suspicious)
             }
-            if (observation.hiddenInstructionDetected) {
+            if (observation.hiddenInstructionDetected || observation.injectionDetected) {
                 suspicious = true
                 onSuspicious()
                 history += "Hidden screen text was dropped and did not authorize anything."
@@ -57,6 +57,9 @@ class PhoneAgentLoop(
                 return LoopResult(false, "The model did not choose an action.", acted, suspicious)
             }
             for (action in batch) {
+                if (shouldStop()) {
+                    return LoopResult(true, "Phone control stopped.", acted, suspicious)
+                }
                 if (steps >= maxSteps) break
                 val enriched = action.withElement(action.index?.let { index -> observation.elements.firstOrNull { it.index == index } })
                 var context = contextFor(observation)
@@ -67,6 +70,9 @@ class PhoneAgentLoop(
                 }
                 if (decision.decision == SafetyDecision.NEEDS_CONFIRMATION) {
                     val confirmation = confirm(decision)
+                    if (shouldStop()) {
+                        return LoopResult(true, "Phone control stopped.", acted, suspicious)
+                    }
                     if (!confirmation.accepted) {
                         history += "You declined: ${decision.summary}"
                         continue
@@ -76,6 +82,9 @@ class PhoneAgentLoop(
                         biometricConfirmed = context.biometricConfirmed || confirmation.biometric
                     )
                     decision = safetyGate.evaluate(enriched, context)
+                }
+                if (shouldStop()) {
+                    return LoopResult(true, "Phone control stopped.", acted, suspicious)
                 }
                 if (decision.decision != SafetyDecision.ALLOW) {
                     history += "${decision.decision}: ${decision.reason}"

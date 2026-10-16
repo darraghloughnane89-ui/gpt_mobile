@@ -22,6 +22,8 @@ import dev.chungjungsoo.gptmobile.data.phonecontrol.PhoneObservationBuilder
 import dev.chungjungsoo.gptmobile.data.phonecontrol.UiBounds
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.FinanceDenylist
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.ScreenshotPolicy
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.SecureWindowDetector
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.StopOverlaySpec
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -31,6 +33,8 @@ class RobinAccessibilityService : AccessibilityService() {
 
     private var overlay: LinearLayout? = null
     private var secureFailure: Boolean = false
+    private var screenshotErrorCode: Int? = null
+    private var captureVerifiedSafe: Boolean = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -51,17 +55,22 @@ class RobinAccessibilityService : AccessibilityService() {
 
     fun observe(screenWidth: Int, screenHeight: Int, visionRequested: Boolean): PhoneObservation? {
         val root = rootInActiveWindow ?: return null
+        val rootPackage = root.packageName?.toString().orEmpty()
         val node = AccessibilityTreeReader.read(root)
         root.recycle()
-        val packageName = node?.let { engine.foregroundPackage }.orEmpty().ifBlank { engine.foregroundPackage }
+        val packageName = rootPackage.ifBlank { engine.foregroundPackage }
+        val secure = secureFailure || SecureWindowDetector.isSecure(0, screenshotErrorCode)
         return PhoneObservationBuilder.build(
             root = node,
             packageName = packageName,
             appLabel = engine.foregroundLabel,
-            secureWindow = secureFailure || FinanceDenylist.isFinance(packageName, engine.foregroundLabel),
+            secureWindow = secure || FinanceDenylist.isFinance(packageName, engine.foregroundLabel),
             screenWidth = screenWidth,
             screenHeight = screenHeight,
-            visionRequested = visionRequested
+            visionRequested = visionRequested,
+            flagSecure = secure,
+            screenshotErrorCode = screenshotErrorCode,
+            captureVerifiedSafe = captureVerifiedSafe && !secure
         )
     }
 
@@ -101,36 +110,57 @@ class RobinAccessibilityService : AccessibilityService() {
 
     fun noteSecureCaptureFailure() {
         secureFailure = true
+        captureVerifiedSafe = false
     }
 
-    fun showOverlay(warning: Boolean) {
-        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        if (overlay == null) {
-            val view = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(24, 12, 24, 12)
-                val label = TextView(this@RobinAccessibilityService).apply {
-                    setText(R.string.phone_control_overlay)
-                }
-                val stop = Button(this@RobinAccessibilityService).apply {
-                    setText(R.string.phone_control_stop)
-                    setOnClickListener { engine.stop() }
-                }
-                addView(label)
-                addView(stop)
-            }
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            windowManager.addView(view, params)
-            overlay = view
+    fun noteScreenshotResult(success: Boolean, errorCode: Int?) {
+        if (SecureWindowDetector.isSecure(0, errorCode)) {
+            secureFailure = true
+            captureVerifiedSafe = false
+            screenshotErrorCode = errorCode
+            return
         }
-        overlay?.alpha = if (warning) 1f else 0.92f
+        if (success) {
+            captureVerifiedSafe = true
+            screenshotErrorCode = null
+        }
+    }
+
+    fun showOverlay(warning: Boolean): Boolean {
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        return try {
+            if (overlay == null) {
+                val view = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(24, 12, 24, 12)
+                    val label = TextView(this@RobinAccessibilityService).apply {
+                        setText(R.string.phone_control_overlay)
+                    }
+                    val stop = Button(this@RobinAccessibilityService).apply {
+                        setText(R.string.phone_control_stop)
+                        isClickable = true
+                        setOnClickListener { engine.stop() }
+                    }
+                    addView(label)
+                    addView(stop)
+                }
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    StopOverlaySpec.layoutFlags(),
+                    PixelFormat.TRANSLUCENT
+                )
+                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                windowManager.addView(view, params)
+                overlay = view
+            }
+            overlay?.alpha = if (warning) 1f else 0.92f
+            overlay != null
+        } catch (_: RuntimeException) {
+            overlay = null
+            false
+        }
     }
 
     fun hideOverlay() {

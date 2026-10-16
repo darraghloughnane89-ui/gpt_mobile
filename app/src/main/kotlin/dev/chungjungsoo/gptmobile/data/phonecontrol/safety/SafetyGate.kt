@@ -22,7 +22,8 @@ data class SafetyContext(
     val background: Boolean = false,
     val userConfirmed: Boolean = false,
     val biometricConfirmed: Boolean = false,
-    val passwordFieldFocused: Boolean = false
+    val passwordFieldFocused: Boolean = false,
+    val injectionDetected: Boolean = false
 )
 
 data class SafetyResult(
@@ -37,13 +38,8 @@ class SafetyGate(
 ) {
     fun evaluate(action: PlannedAction, context: SafetyContext): SafetyResult {
         val summary = action.summary()
-        val instructional = InjectionGuard.isInstructional(context.screenText)
-        val suspicious = instructional &&
-            (
-                PhoneActionClassifier.isHighRisk(action) ||
-                    FinanceDenylist.isFinance(context.foregroundPackage, context.appLabel) ||
-                    context.screenText.lowercase().contains("autofill")
-                )
+        val instructional = context.injectionDetected || InjectionGuard.isInstructional(context.screenText)
+        val suspicious = instructional
         if (action.source == ActionSource.SCREEN_TEXT || action.source == ActionSource.NOTIFICATION) {
             return SafetyResult(
                 SafetyDecision.DENY,
@@ -58,8 +54,16 @@ class SafetyGate(
         if (context.secureWindow && action.kind == PhoneActionKind.REQUEST_AUTOFILL) {
             return SafetyResult(SafetyDecision.DENY, "FLAG_SECURE screens are not captured or filled from a screenshot.", summary, true)
         }
+        val destinations = ActionDestinations.packages(action)
+        val launchesElsewhere = action.kind == PhoneActionKind.OPEN_INTENT ||
+            action.kind == PhoneActionKind.LAUNCH_APP ||
+            action.kind == PhoneActionKind.APP_FUNCTION
+        val targetedFinance = launchesElsewhere &&
+            FinanceDenylist.isFinance(action.packageName.orEmpty(), action.text.orEmpty())
         val finance = FinanceDenylist.isFinance(context.foregroundPackage, context.appLabel) ||
-            FinanceDenylist.isFinance(action.packageName.orEmpty(), action.targetText.orEmpty())
+            FinanceDenylist.isFinance(action.packageName.orEmpty(), action.targetText.orEmpty()) ||
+            destinations.any { FinanceDenylist.isFinance(it, action.text.orEmpty()) } ||
+            targetedFinance
         if (finance && PhoneActionClassifier.touchesForeground(action)) {
             return SafetyResult(
                 SafetyDecision.USER_MUST_TAP,
@@ -72,9 +76,16 @@ class SafetyGate(
             return SafetyResult(SafetyDecision.DENY, "Robin never types a password. Use autofill.", summary, suspicious)
         }
         if (PhoneActionClassifier.touchesForeground(action)) {
-            val target = action.packageName?.takeIf { action.kind == PhoneActionKind.LAUNCH_APP || action.kind == PhoneActionKind.APP_FUNCTION }
-                ?: context.foregroundPackage
-            if (!AllowlistPolicy(context.allowlist).permits(target)) {
+            val policy = AllowlistPolicy(context.allowlist)
+            val denied = if (action.kind == PhoneActionKind.LAUNCH_APP ||
+                action.kind == PhoneActionKind.OPEN_INTENT ||
+                action.kind == PhoneActionKind.APP_FUNCTION
+            ) {
+                destinations.isEmpty() || destinations.any { !policy.permits(it) }
+            } else {
+                !policy.permits(context.foregroundPackage)
+            }
+            if (denied) {
                 return SafetyResult(SafetyDecision.DENY, "That app is not on the allowlist.", summary, suspicious)
             }
         }
@@ -88,11 +99,17 @@ class SafetyGate(
                 SafetyResult(SafetyDecision.NEEDS_CONFIRMATION, "That action needs a fingerprint. Safety first, no drama.", summary, suspicious)
             }
         }
+        val unresolvedGesture = (action.kind == PhoneActionKind.TAP || action.kind == PhoneActionKind.SWIPE) &&
+            action.index == null &&
+            action.targetText.isNullOrBlank() &&
+            action.resourceId.isNullOrBlank()
         val needsConfirmation = PhoneActionClassifier.isHighRisk(action) ||
             action.source == ActionSource.VISION_ONLY ||
             action.source == ActionSource.LOW_OPACITY ||
-            action.lowConfidence
-        if (needsConfirmation && !context.userConfirmed && !context.biometricConfirmed) {
+            action.lowConfidence ||
+            unresolvedGesture ||
+            instructional
+        if (needsConfirmation && !context.userConfirmed) {
             val reason = if (suspicious) {
                 "Screen text looked risky. Confirm the action before I proceed."
             } else {

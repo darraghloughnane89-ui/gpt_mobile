@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.FinanceDenylist
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.InjectionGuard
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.Redaction
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.ScreenshotPolicy
+import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.SecureWindowDetector
 import dev.chungjungsoo.gptmobile.data.phonecontrol.safety.UntrustedText
 import dev.chungjungsoo.gptmobile.data.phonecontrol.tree.IndexedTreeFormatter
 
@@ -15,35 +16,49 @@ object PhoneObservationBuilder {
         secureWindow: Boolean,
         screenWidth: Int,
         screenHeight: Int,
-        visionRequested: Boolean
+        visionRequested: Boolean,
+        flagSecure: Boolean = false,
+        screenshotErrorCode: Int? = null,
+        captureVerifiedSafe: Boolean = false
     ): PhoneObservation {
+        val rootPackage = root?.packageName?.takeIf { it.isNotBlank() }
+        val effectivePackage = rootPackage ?: packageName
+        val finance = FinanceDenylist.isFinance(effectivePackage, appLabel) ||
+            FinanceDenylist.isFinance(packageName, appLabel)
+        val secure = secureWindow ||
+            flagSecure ||
+            SecureWindowDetector.isSecure(if (flagSecure) SecureWindowDetector.FLAG_SECURE else 0, screenshotErrorCode) ||
+            finance
+        val rawText = collectText(root)
         val redacted = root?.let(Redaction::redactNode)
         val hidden = collectHidden(redacted)
         val visible = redacted?.let(::stripHidden)
+        val injectionDetected = InjectionGuard.isInstructional(rawText) || hidden.any(InjectionGuard::isInstructional)
         val formatted = IndexedTreeFormatter(screenWidth, screenHeight).format(
             visible,
             IndexedTreeFormatter.PhoneState(
-                packageName = packageName,
+                packageName = effectivePackage,
                 appLabel = appLabel,
                 focusedText = focusedText(visible),
                 keyboardVisible = containsEditable(visible)
             )
         )
-        val passwordVisible = containsPassword(redacted)
-        val finance = FinanceDenylist.isFinance(packageName, appLabel)
+        val passwordVisible = containsSecret(redacted)
         val attachScreenshot = visionRequested &&
+            captureVerifiedSafe &&
             !ScreenshotPolicy.preferTree(formatted.elements.isNotEmpty()) &&
-            ScreenshotPolicy.allowCapture(secureWindow, finance, passwordVisible)
+            ScreenshotPolicy.allowCapture(secure, finance, passwordVisible)
         return PhoneObservation(
-            packageName = packageName,
+            packageName = effectivePackage,
             appLabel = appLabel,
             treeText = UntrustedText.wrap("screen", formatted.text),
             elements = formatted.elements,
-            focusedText = if (focusedIsPassword(visible)) Redaction.REDACTED else formatted.focusedText,
-            secureWindow = secureWindow,
+            focusedText = if (focusedIsPassword(visible)) Redaction.REDACTED else Redaction.redactSecrets(formatted.focusedText),
+            secureWindow = secure,
             passwordFieldVisible = passwordVisible,
             hiddenInstructionDetected = hidden.any(InjectionGuard::isInstructional),
-            screenshotAttached = attachScreenshot
+            screenshotAttached = attachScreenshot,
+            injectionDetected = injectionDetected
         )
     }
 
@@ -66,7 +81,7 @@ object PhoneObservationBuilder {
 
     private fun focusedIsPassword(node: UiNode?): Boolean {
         if (node == null) return false
-        if (node.isFocused && node.isPassword) return true
+        if (node.isFocused && Redaction.isSecretField(node)) return true
         return node.children.any(::focusedIsPassword)
     }
 
@@ -75,8 +90,20 @@ object PhoneObservationBuilder {
         return node.isEditable || node.children.any(::containsEditable)
     }
 
-    private fun containsPassword(node: UiNode?): Boolean {
+    private fun containsSecret(node: UiNode?): Boolean {
         if (node == null) return false
-        return node.isPassword || node.children.any(::containsPassword)
+        return Redaction.isSecretField(node) || node.children.any(::containsSecret)
+    }
+
+    private fun collectText(node: UiNode?): String {
+        if (node == null) return ""
+        return buildString {
+            append(node.text)
+            append(' ')
+            append(node.contentDescription)
+            append(' ')
+            append(node.hintText)
+            node.children.forEach { append(collectText(it)) }
+        }
     }
 }
