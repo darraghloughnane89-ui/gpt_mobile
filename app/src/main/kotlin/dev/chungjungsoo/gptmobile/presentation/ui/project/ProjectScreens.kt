@@ -58,8 +58,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.project.ProjectColors
 import dev.chungjungsoo.gptmobile.data.project.ProjectIcons
-import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
+import dev.chungjungsoo.gptmobile.presentation.common.ContextualTip
+import dev.chungjungsoo.gptmobile.presentation.common.NestEmptyState
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
 import dev.chungjungsoo.gptmobile.presentation.ui.home.SelectPlatformDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.library.LibraryTipViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.library.TipIds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,10 +71,13 @@ fun ProjectsScreen(
     onBack: () -> Unit,
     onOpenProject: (Int) -> Unit,
     onCreateProject: () -> Unit,
-    viewModel: ProjectsViewModel = hiltViewModel()
+    viewModel: ProjectsViewModel = hiltViewModel(),
+    tipViewModel: LibraryTipViewModel = hiltViewModel()
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val transfer by viewModel.transfer.collectAsStateWithLifecycle()
+    val dismissedTips by tipViewModel.dismissed.collectAsStateWithLifecycle()
+    val showProjectTip = TipIds.PROJECTS !in dismissedTips
     var pendingDelete by remember { mutableStateOf<Project?>(null) }
     var importMenu by remember { mutableStateOf(false) }
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -123,20 +130,32 @@ fun ProjectsScreen(
         }
     ) { innerPadding ->
         if (projects.isEmpty()) {
-            EmptyErrorState(
-                title = stringResource(R.string.projects_empty_title),
-                description = stringResource(R.string.projects_empty_description),
+            NestEmptyState(
+                title = stringResource(R.string.shell_projects_title),
+                body = stringResource(R.string.shell_projects_body),
+                mood = MascotMood.Peek,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                primaryActionLabel = stringResource(R.string.project_new),
-                onPrimaryAction = onCreateProject
+                actionLabel = stringResource(R.string.project_new),
+                onAction = onCreateProject,
+                tip = stringResource(R.string.tip_projects).takeIf { showProjectTip },
+                onDismissTip = { tipViewModel.dismiss(TipIds.PROJECTS) }
             )
         } else {
             LazyColumn(
                 modifier = Modifier.padding(innerPadding),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
+                if (showProjectTip) {
+                    item(key = "project-tip") {
+                        ContextualTip(
+                            text = stringResource(R.string.tip_projects),
+                            onDismiss = { tipViewModel.dismiss(TipIds.PROJECTS) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                }
                 items(projects, key = { it.id }) { project ->
                     ListItem(
                         modifier = Modifier

@@ -24,7 +24,11 @@ import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.library.MemoryScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.library.SkillsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.onboarding.OnboardingDestination
+import dev.chungjungsoo.gptmobile.presentation.ui.onboarding.OnboardingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
@@ -41,7 +45,6 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformListScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
-import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
 @Composable
 fun SetupNavGraph(
@@ -68,6 +71,7 @@ fun SetupNavGraph(
     ) {
         homeScreenNavigation(navController)
         projectsNavigation(navController)
+        libraryNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
@@ -88,7 +92,25 @@ fun NavGraphBuilder.migrationScreenNavigation(navController: NavHostController) 
 
 fun NavGraphBuilder.startScreenNavigation(navController: NavHostController) {
     composable(Route.GET_STARTED) {
-        StartScreen { navController.navigate(Route.SETUP_ROUTE) }
+        OnboardingScreen { destination ->
+            navController.navigate(Route.CHAT_LIST) {
+                popUpTo(Route.GET_STARTED) { inclusive = true }
+            }
+            when (destination) {
+                OnboardingDestination.Home -> Unit
+                OnboardingDestination.Bots -> navController.navigate(Route.BOTS)
+                OnboardingDestination.Projects -> navController.navigate(Route.PROJECTS)
+            }
+        }
+    }
+}
+
+fun NavGraphBuilder.libraryNavigation(navController: NavHostController) {
+    composable(Route.SKILLS) {
+        SkillsScreen(onBack = { navController.navigateUp() })
+    }
+    composable(Route.MEMORY) {
+        MemoryScreen(onBack = { navController.navigateUp() })
     }
 }
 
@@ -226,6 +248,9 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
+                onNavigateToProjects = { navController.navigate(Route.PROJECTS) },
+                onNavigateToSkills = { navController.navigate(Route.SKILLS) },
+                onNavigateToMemory = { navController.navigate(Route.MEMORY) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }

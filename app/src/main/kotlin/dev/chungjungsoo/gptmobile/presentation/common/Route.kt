@@ -26,6 +26,8 @@ object Route {
     const val PROJECTS = "projects"
     const val PROJECT_DETAIL = "project/{projectId}"
     const val PROJECT_EDITOR = "project_editor?projectId={projectId}"
+    const val SKILLS = "skills"
+    const val MEMORY = "memory"
 
     fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: String, projectId: Int = -1): String =
         "chat_room/$chatRoomId?enabled=$enabledPlatforms&projectId=$projectId"
