@@ -52,7 +52,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         Project::class,
         ProjectFile::class
     ],
-    version = 13,
+    version = 23,
     exportSchema = true
 )
 @TypeConverters(

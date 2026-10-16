@@ -16,6 +16,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
+import dev.chungjungsoo.gptmobile.data.database.entity.PersistBranchedTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import java.util.UUID
@@ -163,6 +164,60 @@ interface AgentPersistenceDao {
     }
 
     @Transaction
+    suspend fun persistBranchedTurn(request: PersistBranchedTurnRequest): PersistAgentTurnResult {
+        val chatRoom = if (request.chatRoom.id == 0) {
+            request.chatRoom.copy(id = insertChatRoom(request.chatRoom).toInt())
+        } else {
+            updateChatRoom(request.chatRoom)
+            request.chatRoom
+        }
+        request.existingMessages.filter { it.id > 0 }.forEach { message ->
+            updateMessage(message.copy(chatId = chatRoom.id))
+        }
+        val userMessage = request.userMessage.copy(chatId = chatRoom.id).let { message ->
+            if (message.id == 0) {
+                message.copy(id = insertMessage(message).toInt())
+            } else {
+                updateMessage(message)
+                message
+            }
+        }
+        val assistantMessages = request.runs.map { draft ->
+            MessageV2(
+                chatId = chatRoom.id,
+                content = "",
+                linkedMessageId = userMessage.id,
+                platformType = draft.profileUid,
+                currentRunId = draft.runId,
+                createdAt = draft.createdAt
+            ).let { it.copy(id = insertMessage(it).toInt()) }
+        }
+        val runs = request.runs.zip(assistantMessages) { draft, assistantMessage ->
+            AgentRun(
+                runId = draft.runId,
+                chatId = chatRoom.id,
+                userMessageId = userMessage.id,
+                assistantMessageId = assistantMessage.id,
+                profileUid = draft.profileUid,
+                providerSnapshot = draft.providerSnapshot,
+                modelSnapshot = draft.modelSnapshot,
+                createdAt = draft.createdAt
+            ).also { insertRun(it) }
+        }
+        upsertModels(
+            request.chatPlatformModels.map { (profileUid, model) ->
+                ChatPlatformModelV2(chatId = chatRoom.id, platformUid = profileUid, model = model)
+            }
+        )
+        return PersistAgentTurnResult(chatRoom, userMessage, assistantMessages, runs)
+    }
+
+    @Transaction
+    suspend fun updateMessages(messages: List<MessageV2>) {
+        messages.filter { it.id > 0 }.forEach { updateMessage(it) }
+    }
+
+    @Transaction
     suspend fun saveChatSnapshot(
         chatRoom: ChatRoomV2,
         messages: List<MessageV2>,
@@ -290,6 +345,7 @@ interface AgentPersistenceDao {
                     id = messageIdMap.getValue(source.id),
                     chatId = duplicate.id,
                     linkedMessageId = messageIdMap[source.linkedMessageId] ?: 0,
+                    parentMessageId = messageIdMap[source.parentMessageId] ?: 0,
                     currentRunId = source.currentRunId?.let(runIdMap::get),
                     revisions = source.revisions.map { revision ->
                         revision.copy(runId = revision.runId?.let(runIdMap::get))
@@ -298,6 +354,85 @@ interface AgentPersistenceDao {
             )
         }
 
+        completedRuns.forEach { source ->
+            insertRun(
+                source.copy(
+                    runId = runIdMap.getValue(source.runId),
+                    chatId = duplicate.id,
+                    userMessageId = messageIdMap.getValue(source.userMessageId),
+                    assistantMessageId = messageIdMap.getValue(source.assistantMessageId)
+                )
+            )
+        }
+        sourceEvents.forEach { source ->
+            insertToolEvent(
+                source.copy(
+                    eventId = UUID.randomUUID().toString(),
+                    runId = runIdMap.getValue(source.runId)
+                )
+            )
+        }
+        upsertModels(
+            getModels(sourceChatId).map { model ->
+                model.copy(chatId = duplicate.id, updatedAt = timestamp)
+            }
+        )
+        return duplicate
+    }
+
+    @Transaction
+    suspend fun branchIntoNewChat(
+        sourceChatId: Int,
+        title: String,
+        timestamp: Long,
+        includedMessageIds: Set<Int>
+    ): ChatRoomV2 {
+        val sourceChat = requireNotNull(getChatRoom(sourceChatId))
+        val sourceMessages = getMessages(sourceChatId).filter { it.id in includedMessageIds }
+        require(sourceMessages.isNotEmpty())
+        val completedRuns = getCompletedRuns(sourceChatId).filter { run ->
+            run.userMessageId in includedMessageIds && run.assistantMessageId in includedMessageIds
+        }
+        val sourceEvents = if (completedRuns.isEmpty()) {
+            emptyList()
+        } else {
+            getToolEvents(completedRuns.map { it.runId })
+        }
+        val duplicate = sourceChat.copy(
+            id = 0,
+            title = title,
+            createdAt = timestamp,
+            updatedAt = timestamp
+        ).let { it.copy(id = insertChatRoom(it).toInt()) }
+
+        val messageIdMap = sourceMessages.associate { source ->
+            val insertedId = insertMessage(
+                source.copy(
+                    id = 0,
+                    chatId = duplicate.id,
+                    linkedMessageId = 0,
+                    parentMessageId = 0,
+                    currentRunId = null
+                )
+            ).toInt()
+            source.id to insertedId
+        }
+        val runIdMap = completedRuns.associate { it.runId to UUID.randomUUID().toString() }
+
+        sourceMessages.forEach { source ->
+            updateMessage(
+                source.copy(
+                    id = messageIdMap.getValue(source.id),
+                    chatId = duplicate.id,
+                    linkedMessageId = messageIdMap[source.linkedMessageId] ?: 0,
+                    parentMessageId = messageIdMap[source.parentMessageId] ?: 0,
+                    currentRunId = source.currentRunId?.let(runIdMap::get),
+                    revisions = source.revisions.map { revision ->
+                        revision.copy(runId = revision.runId?.let(runIdMap::get))
+                    }
+                )
+            )
+        }
         completedRuns.forEach { source ->
             insertRun(
                 source.copy(

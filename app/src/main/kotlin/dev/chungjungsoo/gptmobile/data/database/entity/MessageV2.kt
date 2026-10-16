@@ -46,6 +46,15 @@ data class MessageV2(
     @ColumnInfo(name = "linked_message_id")
     val linkedMessageId: Int = 0,
 
+    @ColumnInfo(name = "parent_message_id", defaultValue = "0")
+    val parentMessageId: Int = 0,
+
+    @ColumnInfo(name = "sibling_index", defaultValue = "0")
+    val siblingIndex: Int = 0,
+
+    @ColumnInfo(name = "is_active_sibling", defaultValue = "1")
+    val isActiveSibling: Boolean = true,
+
     @ColumnInfo(name = "platform_type")
     val platformType: String?,
 

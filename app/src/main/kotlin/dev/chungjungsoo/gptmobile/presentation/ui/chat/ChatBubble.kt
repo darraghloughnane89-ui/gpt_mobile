@@ -57,6 +57,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -82,6 +83,12 @@ fun UserChatBubble(
     files: List<String> = emptyList(),
     contentIdentity: Any = text,
     canEdit: Boolean = false,
+    branchPosition: Int? = null,
+    branchTotal: Int? = null,
+    onPreviousBranch: () -> Unit = {},
+    onNextBranch: () -> Unit = {},
+    canBranchIntoNewChat: Boolean = false,
+    onBranchIntoNewChat: () -> Unit = {},
     onCopyClick: () -> Unit = {},
     onEditClick: () -> Unit = {}
 ) {
@@ -119,6 +126,14 @@ fun UserChatBubble(
             files = files,
             modifier = Modifier.padding(top = 8.dp)
         )
+        if (branchPosition != null && branchTotal != null && branchTotal > 1) {
+            BranchSwitcher(
+                position = branchPosition,
+                total = branchTotal,
+                onPrevious = onPreviousBranch,
+                onNext = onNextBranch
+            )
+        }
     }
 
     if (isActionsSheetOpen) {
@@ -126,6 +141,7 @@ fun UserChatBubble(
             canEdit = canEdit,
             onCopy = onCopyClick,
             onEdit = onEditClick,
+            onBranchIntoNewChat = if (canBranchIntoNewChat) onBranchIntoNewChat else null,
             onDismissRequest = { isActionsSheetOpen = false }
         )
     }
@@ -147,15 +163,19 @@ fun OpponentChatBubble(
     contentIdentity: Any = text,
     canEdit: Boolean = false,
     revisionIndexLabel: String? = null,
+    branchPosition: Int? = null,
+    branchTotal: Int? = null,
     canShowPreviousRevision: Boolean = false,
     canShowNextRevision: Boolean = false,
+    canBranchIntoNewChat: Boolean = false,
     onCopyClick: () -> Unit = {},
     onSelectClick: () -> Unit = {},
     onViewFull: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
     onEditClick: () -> Unit = {},
     onShowPreviousRevision: () -> Unit = {},
-    onShowNextRevision: () -> Unit = {}
+    onShowNextRevision: () -> Unit = {},
+    onBranchIntoNewChat: () -> Unit = {}
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.background,
@@ -289,36 +309,92 @@ fun OpponentChatBubble(
                 )
             }
 
-            revisionIndexLabel?.let { label ->
-                Row(
-                    modifier = Modifier.padding(start = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        enabled = canShowPreviousRevision,
-                        onClick = onShowPreviousRevision
+            val switchPosition = branchPosition
+            val switchTotal = branchTotal
+            if (switchPosition != null && switchTotal != null && switchTotal > 1) {
+                BranchSwitcher(
+                    position = switchPosition,
+                    total = switchTotal,
+                    onPrevious = onShowPreviousRevision,
+                    onNext = onShowNextRevision,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            } else {
+                revisionIndexLabel?.let { label ->
+                    Row(
+                        modifier = Modifier.padding(start = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = stringResource(R.string.previous_revision)
+                        IconButton(
+                            enabled = canShowPreviousRevision,
+                            onClick = onShowPreviousRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = stringResource(R.string.previous_revision)
+                            )
+                        }
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(
-                        enabled = canShowNextRevision,
-                        onClick = onShowNextRevision
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = stringResource(R.string.next_revision)
-                        )
+                        IconButton(
+                            enabled = canShowNextRevision,
+                            onClick = onShowNextRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = stringResource(R.string.next_revision)
+                            )
+                        }
                     }
                 }
             }
+            if (canBranchIntoNewChat) {
+                TextButton(onClick = onBranchIntoNewChat) {
+                    Text(stringResource(R.string.branch_into_new_chat))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BranchSwitcher(
+    position: Int,
+    total: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val switcherDescription = stringResource(R.string.branch_switcher_description, position, total)
+    val previousDescription = stringResource(R.string.previous_branch)
+    val nextDescription = stringResource(R.string.next_branch)
+    Row(
+        modifier = modifier.semantics {
+            contentDescription = switcherDescription
+        },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(
+            onClick = onPrevious,
+            enabled = position > 1,
+            modifier = Modifier.semantics { contentDescription = previousDescription }
+        ) {
+            Text(stringResource(R.string.branch_previous_symbol))
+        }
+        Text(
+            text = stringResource(R.string.branch_counter, position, total),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TextButton(
+            onClick = onNext,
+            enabled = position < total,
+            modifier = Modifier.semantics { contentDescription = nextDescription }
+        ) {
+            Text(stringResource(R.string.branch_next_symbol))
         }
     }
 }

@@ -52,7 +52,8 @@ internal fun MessageActionsSheet(
     canEdit: Boolean,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit,
+    onBranchIntoNewChat: (() -> Unit)? = null
 ) {
     fun runAction(action: () -> Unit) {
         onDismissRequest()
@@ -85,6 +86,14 @@ internal fun MessageActionsSheet(
                 showTrailingIcon = false,
                 showLeadingIcon = false
             )
+            if (onBranchIntoNewChat != null) {
+                SettingItem(
+                    title = stringResource(R.string.branch_into_new_chat),
+                    onItemClick = { runAction(onBranchIntoNewChat) },
+                    showTrailingIcon = false,
+                    showLeadingIcon = false
+                )
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
