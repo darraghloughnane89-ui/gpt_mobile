@@ -146,9 +146,23 @@ private class QueueChatRepository(
     }
     override suspend fun getModelContextSettings(platform: PlatformV2): ModelContextSettings = error("unused")
     override suspend fun saveModelContextSettings(platform: PlatformV2, contextWindowTokens: Int?, resumableReplies: Boolean) = error("unused")
-    override suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult = error("unused")
-    override suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult? = error("unused")
-    override suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2, runId: String): Flow<ApiState> = error("unused")
+    override suspend fun compactNow(
+        chatId: Int,
+        platform: PlatformV2,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): CompactionResult = error("unused")
+    override suspend fun validateDraftCapacity(
+        platform: PlatformV2,
+        message: MessageV2,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): CompactionResult? = error("unused")
+    override suspend fun completeChat(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2,
+        runId: String,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): Flow<ApiState> = error("unused")
     override fun observeMessagesV2(chatId: Int): Flow<List<MessageV2>> = error("unused")
     override fun observeAgentRuns(chatId: Int): Flow<List<AgentRun>> = error("unused")
     override fun observeToolEvents(chatId: Int): Flow<List<ToolEvent>> = error("unused")

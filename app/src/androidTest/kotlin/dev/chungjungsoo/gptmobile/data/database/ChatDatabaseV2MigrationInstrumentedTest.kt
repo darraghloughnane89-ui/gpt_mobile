@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.database
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -443,6 +444,39 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         database.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate11To12_addsNullableBotUidAndSeedsBuiltInBots() {
+        helper.createDatabase(BOT_DATABASE, 11).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) " +
+                    "VALUES (4, 'Kept chat', 'profile-1', 1, 2)"
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            BOT_DATABASE,
+            12,
+            true,
+            BotDatabaseV2Migration.MIGRATION_11_12
+        )
+
+        database.query("SELECT bot_uid FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.isNull(0))
+        }
+        database.query("SELECT name FROM bots ORDER BY name").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Assistant", cursor.getString(0))
+            assertTrue(cursor.moveToNext())
+            assertEquals("Coder", cursor.getString(0))
+            assertFalse(cursor.moveToNext())
+        }
+        assertCount(database, "bot_tool_bindings", 4)
+        database.close()
+    }
+
     private fun assertCount(
         database: androidx.sqlite.db.SupportSQLiteDatabase,
         table: String,
@@ -461,5 +495,6 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val TIMELINE_DATABASE = "agent-migration-timeline-test"
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
         const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
+        const val BOT_DATABASE = "bot-migration-11-12-test"
     }
 }
