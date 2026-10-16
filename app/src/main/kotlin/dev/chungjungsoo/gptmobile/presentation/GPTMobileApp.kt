@@ -19,9 +19,11 @@ import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
 import dev.chungjungsoo.gptmobile.data.localmodel.PendingLocalPlatformActivator
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
+import dev.chungjungsoo.gptmobile.data.plugin.PluginOAuthCompleter
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.routine.RoutineScheduler
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +80,10 @@ class GPTMobileApp :
             }
             startup.localModelRepository().reconcile()
             startup.localModelRepository().awaitActiveDownloadScheduling()
+            runCatching { startup.pluginOAuthCompleter().start(applicationScope) }
+                .onFailure { error -> Log.e(TAG, "Unable to finish plugin sign-in.", error) }
+            runCatching { startup.routineScheduler().restore() }
+                .onFailure { error -> Log.e(TAG, "Unable to restore routines.", error) }
         }
     }
 
@@ -112,6 +118,8 @@ interface StartupDependencies {
     fun agentRunDao(): AgentRunDao
     fun agentPersistenceDao(): AgentPersistenceDao
     fun localRuntime(): LocalRuntime
+    fun pluginOAuthCompleter(): PluginOAuthCompleter
+    fun routineScheduler(): RoutineScheduler
 }
 
 object StartupRecoveryGate {

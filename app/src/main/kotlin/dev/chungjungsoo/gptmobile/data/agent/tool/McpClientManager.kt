@@ -1,10 +1,12 @@
 package dev.chungjungsoo.gptmobile.data.agent.tool
 
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.util.AppBrand
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.modelcontextprotocol.kotlin.sdk.client.Client
+import io.modelcontextprotocol.kotlin.sdk.client.SseClientTransport
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
@@ -22,11 +24,17 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
+enum class McpClientTransport {
+    STREAMABLE_HTTP,
+    SSE
+}
+
 class McpConnectionConfig(
     val connectionUid: String,
     val endpointUrl: String,
     val allowCleartext: Boolean,
-    val authorizationHeader: String? = null
+    val authorizationHeader: String? = null,
+    val transport: McpClientTransport = McpClientTransport.STREAMABLE_HTTP
 )
 
 @Singleton
@@ -119,8 +127,13 @@ class McpClientManager internal constructor(
             withContext(NonCancellable) { stale?.let { runCatching { it.client.close() } } }
 
             val result = runCatching {
-                val transport = StreamableHttpClientTransport(httpClient, config.endpointUrl) {
-                    config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
+                val transport = when (config.transport) {
+                    McpClientTransport.STREAMABLE_HTTP -> StreamableHttpClientTransport(httpClient, config.endpointUrl) {
+                        config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
+                    }
+                    McpClientTransport.SSE -> SseClientTransport(httpClient, config.endpointUrl) {
+                        config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
+                    }
                 }
                 val client = Client(Implementation(name = CLIENT_NAME, version = CLIENT_VERSION))
                 try {
@@ -182,15 +195,15 @@ class McpClientManager internal constructor(
         require(authorizationHeader == null || authorizationHeader.length <= MAX_AUTHORIZATION_HEADER_LENGTH) {
             "MCP authorization header is too long."
         }
-        return "$endpointUrl|${authorizationHeader.orEmpty().sha256()}"
+        return "${transport.name}|$endpointUrl|${authorizationHeader.orEmpty().sha256()}"
     }
 
     private data class Session(val key: String, val client: Client)
     private data class InFlight(val key: String, val deferred: CompletableDeferred<Session>)
 
     private companion object {
-        const val CLIENT_NAME = "gpt-mobile"
-        const val CLIENT_VERSION = "0.8.0"
+        const val CLIENT_NAME = AppBrand.MCP_CLIENT_NAME
+        const val CLIENT_VERSION = AppBrand.MCP_CLIENT_VERSION
         const val MAX_TOOL_PAGES = 100
         const val MAX_DISCOVERED_TOOLS = 512
         const val MAX_ENDPOINT_LENGTH = 4 * 1024

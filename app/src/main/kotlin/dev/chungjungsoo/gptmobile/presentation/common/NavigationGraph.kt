@@ -27,7 +27,9 @@ import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.plugin.PluginsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
+import dev.chungjungsoo.gptmobile.presentation.ui.routine.RoutinesScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -240,6 +242,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
+                onNavigateToPlugins = { navController.navigate(Route.PLUGINS) },
+                onNavigateToRoutines = { navController.navigate(Route.ROUTINES) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
@@ -297,6 +301,12 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigationClick = { navController.navigateUp() },
                 onSaveComplete = { navController.navigateUp() }
             )
+        }
+        composable(Route.PLUGINS) {
+            PluginsScreen(onNavigationClick = { navController.navigateUp() })
+        }
+        composable(Route.ROUTINES) {
+            RoutinesScreen(onNavigationClick = { navController.navigateUp() })
         }
         botNavigation(navController)
         composable(Route.ABOUT_PAGE) {

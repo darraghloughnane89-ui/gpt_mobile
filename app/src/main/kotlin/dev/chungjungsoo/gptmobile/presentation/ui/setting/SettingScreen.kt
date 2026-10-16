@@ -61,6 +61,8 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
+    onNavigateToPlugins: () -> Unit = {},
+    onNavigateToRoutines: () -> Unit = {},
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -155,6 +157,20 @@ fun SettingScreen(
                     title = stringResource(R.string.web_tools),
                     description = stringResource(R.string.web_tools_description),
                     onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.plugins),
+                    description = stringResource(R.string.plugins_description),
+                    onItemClick = onNavigateToPlugins,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.routines),
+                    description = stringResource(R.string.routines_description),
+                    onItemClick = onNavigateToRoutines,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

@@ -42,6 +42,8 @@ object Route {
     const val BOT_CREATE = "bots/create"
     const val BOT_EDITOR = "bots/edit/{botUid}"
     const val TOOL_CONNECTIONS = "tool_connections"
+    const val PLUGINS = "plugins"
+    const val ROUTINES = "routines"
     const val ADD_TOOL_CONNECTION = "tool_connections/add"
     const val EDIT_TOOL_CONNECTION = "tool_connections/edit/{connectionUid}"
     const val PLATFORM_SETTINGS = "platform_settings/{platformUid}"

@@ -82,6 +82,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
+                    android:host="oauth"
+                    android:pathPrefix="/plugin/"
+                    android:scheme="dev.chungjungsoo.gptmobile" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
                     android:host="phone"
                     android:scheme="dev.chungjungsoo.gptmobile" />
             </intent-filter>

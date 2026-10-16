@@ -26,6 +26,7 @@ import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -65,6 +66,7 @@ object ChatRepositoryModule {
         deviceSocModel: String,
         compactionDao: CompactionDao,
         networkClient: NetworkClient,
+        pluginToolRegistry: ToolRegistry,
         instructionComposer: InstructionStackComposer,
         botToolResolver: BotToolResolver
     ): ChatRepository = ChatRepositoryImpl(
@@ -91,6 +93,7 @@ object ChatRepositoryModule {
         deviceSocModel,
         RoomCompactionStore(compactionDao),
         HttpRemoteContextWindowLookup(networkClient),
+        pluginToolRegistry,
         instructionComposer,
         botToolResolver
     )

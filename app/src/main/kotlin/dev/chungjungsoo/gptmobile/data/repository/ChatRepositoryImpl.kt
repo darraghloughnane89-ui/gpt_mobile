@@ -109,6 +109,7 @@ class ChatRepositoryImpl @Inject constructor(
     @param:DeviceSocModel private val deviceSocModel: String,
     private val compactionStore: CompactionStore,
     private val remoteContextWindowLookup: RemoteContextWindowLookup,
+    private val pluginToolRegistry: dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry = dev.chungjungsoo.gptmobile.data.plugin.EmptyToolRegistry,
     private val instructionComposer: InstructionStackComposer = InstructionStackComposer(NullProjectInstructionSource),
     private val botCompletionTools: BotCompletionTools = BotCompletionTools.PlatformOnly
 ) : ChatRepository {
@@ -187,7 +188,7 @@ class ChatRepositoryImpl @Inject constructor(
         try {
             val chatId = userMessages.firstOrNull()?.chatId ?: completion.chatId
             val platform = applyInstructionStack(platform, completion, chatId)
-            val resolvedTools = resolveCompletionTools(platform, completion)
+            val resolvedTools = resolveTools(platform, runId, completion)
             val toolEvidence = loadToolEvidence(assistantMessages, platform)
             val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
             val outputReserve = outputReserveTokens(platform, resolvedTools.isNotEmpty())
@@ -680,7 +681,7 @@ class ChatRepositoryImpl @Inject constructor(
     ): CompactionResult {
         val platform = applyInstructionStack(platform, completion, chatId)
         val grouped = groupPersistedConversation(messageV2Dao.loadMessages(chatId))
-        val resolvedTools = resolveCompletionTools(platform, completion)
+        val resolvedTools = resolveTools(platform, completion = completion)
         val outcome = compactionCoordinator.prepare(
             chatId = chatId,
             userMessages = grouped.first,
@@ -702,7 +703,7 @@ class ChatRepositoryImpl @Inject constructor(
     ): CompactionResult? {
         val chatId = message.chatId.takeIf { it > 0 } ?: completion.chatId
         val platform = applyInstructionStack(platform, completion, chatId)
-        val resolvedTools = resolveCompletionTools(platform, completion)
+        val resolvedTools = resolveTools(platform, completion = completion)
         val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
         return compactionCoordinator.validateDraft(platform, message, toolDefinitionTokens, outputReserveTokens(platform, resolvedTools.isNotEmpty()))?.toResult()
     }
@@ -742,6 +743,24 @@ class ChatRepositoryImpl @Inject constructor(
             }
         }
         return text.toString()
+    }
+
+    private suspend fun resolveTools(
+        platform: PlatformV2,
+        runId: String = "",
+        completion: ChatCompletionContext = ChatCompletionContext()
+    ): List<ResolvedAgentTool> {
+        val pluginTools = pluginToolRegistry.toolsFor(
+            dev.chungjungsoo.gptmobile.data.plugin.ToolScope(
+                platformUid = platform.uid,
+                includeHandoff = dev.chungjungsoo.gptmobile.data.plugin.includeAgentHandoff(
+                    runId = runId,
+                    unattended = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.UnattendedToolCall] != null
+                ),
+                pluginUidFilter = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.PluginToolFilter]?.pluginUids
+            )
+        )
+        return (resolveCompletionTools(platform, completion) + pluginTools).distinctBy { it.modelToolName }
     }
 
     private fun estimateAssignedToolDefinitionTokens(resolvedTools: List<ResolvedAgentTool>): Int = resolvedTools.sumOf { tool ->

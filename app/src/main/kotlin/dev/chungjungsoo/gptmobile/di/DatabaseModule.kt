@@ -21,9 +21,11 @@ import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.PluginRoutineDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
+import dev.chungjungsoo.gptmobile.data.database.migration.PluginRoutineMigrations
 import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
 import javax.inject.Singleton
 
@@ -53,6 +55,9 @@ object DatabaseModule {
 
     @Provides
     fun provideProjectDao(chatDatabaseV2: ChatDatabaseV2): ProjectDao = chatDatabaseV2.projectDao()
+
+    @Provides
+    fun providePluginRoutineDao(chatDatabaseV2: ChatDatabaseV2): PluginRoutineDao = chatDatabaseV2.pluginRoutineDao()
 
     @Provides
     fun provideChatPlatformModelV2Dao(chatDatabaseV2: ChatDatabaseV2): ChatPlatformModelV2Dao = chatDatabaseV2.chatPlatformModelDao()
@@ -98,7 +103,8 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_9_10,
         ChatDatabaseV2Migrations.MIGRATION_10_11,
         BotDatabaseV2Migration.MIGRATION_11_12,
-        ProjectMigrations.MIGRATION_12_13
+        ProjectMigrations.MIGRATION_12_13,
+        PluginRoutineMigrations.MIGRATION_13_20
     ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
         .addCallback(BotDatabaseV2Migration.SEED_CALLBACK)
         .build()

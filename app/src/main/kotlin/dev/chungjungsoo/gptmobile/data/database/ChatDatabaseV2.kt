@@ -12,6 +12,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.PluginRoutineDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
@@ -28,8 +29,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ModelCapacityEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PluginEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.PluginScopeSelectionEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.PluginToolEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.database.entity.ProjectFile
+import dev.chungjungsoo.gptmobile.data.database.entity.RoutineEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.RoutineRunEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
@@ -50,9 +56,14 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         Bot::class,
         BotToolBinding::class,
         Project::class,
-        ProjectFile::class
+        ProjectFile::class,
+        PluginEntity::class,
+        PluginToolEntity::class,
+        PluginScopeSelectionEntity::class,
+        RoutineEntity::class,
+        RoutineRunEntity::class
     ],
-    version = 13,
+    version = 20,
     exportSchema = true
 )
 @TypeConverters(
@@ -74,4 +85,5 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun compactionDao(): CompactionDao
     abstract fun botDao(): BotDao
     abstract fun projectDao(): ProjectDao
+    abstract fun pluginRoutineDao(): PluginRoutineDao
 }
