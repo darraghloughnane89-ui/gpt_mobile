@@ -42,6 +42,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceSettingsScreen
 
 @Composable
 fun SetupNavGraph(
@@ -226,8 +227,12 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToVoice = { navController.navigate(Route.VOICE_SETTINGS) }
             )
+        }
+        composable(Route.VOICE_SETTINGS) {
+            VoiceSettingsScreen(onNavigationClick = { navController.navigateUp() })
         }
         composable(Route.ADD_PLATFORM) {
             val parentEntry = remember(it) {

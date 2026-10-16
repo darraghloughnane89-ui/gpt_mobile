@@ -681,4 +681,21 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="voice">Voice</string>
+    <string name="voice_settings">Voice</string>
+    <string name="voice_settings_description">MiMo speech, or on-device recognition and playback</string>
+    <string name="voice_use_mimo">Use MiMo speech</string>
+    <string name="voice_backend_mimo">MiMo speech recognition and spoken replies</string>
+    <string name="voice_backend_device">On-device speech recognition and playback</string>
+    <string name="voice_backend_missing_key">On-device speech. Add a MiMo key to use MiMo.</string>
+    <string name="voice_api_key">MiMo API key</string>
+    <string name="voice_api_key_hint">Stored in the secret vault</string>
+    <string name="voice_save_key">Save key</string>
+    <string name="voice_clear_key">Remove key</string>
+    <string name="voice_key_saved">Key saved</string>
+    <string name="voice_builtin_voice">MiMo voice</string>
+    <string name="voice_play_sample">Play sample</string>
+    <string name="voice_stop_sample">Stop</string>
+    <string name="voice_sample">This is a spoken reply. Start talking to interrupt it.</string>
+    <string name="voice_fallback_note">MiMo uses the Europe token plan. If it is off, or the key is missing, speech stays on this phone.</string>
 </resources>
