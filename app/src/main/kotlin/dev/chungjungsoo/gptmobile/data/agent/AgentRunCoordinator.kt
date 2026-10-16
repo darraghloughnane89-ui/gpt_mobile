@@ -11,6 +11,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.appendChronologicalText
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
+import dev.chungjungsoo.gptmobile.data.diagnostics.DiagnosticsStore
+import dev.chungjungsoo.gptmobile.data.diagnostics.recordProviderFailure
 import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.presentation.service.AgentRunForegroundService
@@ -70,7 +72,8 @@ data class AgentRunNotice(
 @Singleton
 class AgentRunCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val diagnosticsStore: DiagnosticsStore
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val jobs = ConcurrentHashMap<String, Job>()
@@ -261,6 +264,7 @@ class AgentRunCoordinator @Inject constructor(
     private suspend fun execute(request: AgentRunRequest) {
         val startedAt = currentEpochSeconds()
         var assistantMessage = request.assistantMessage
+        var providerFailure: String? = null
         try {
             if (!withContext(NonCancellable) { chatRepository.markAgentRunRunning(request.runId, startedAt) }) return
             val outcome = collectGenerationOutcome(
@@ -298,6 +302,9 @@ class AgentRunCoordinator @Inject constructor(
                 )
             }
             val terminal = outcome.toTerminalUpdate()
+            if (terminal.status == AgentRunStatus.FAILED) {
+                providerFailure = terminal.error
+            }
             val completedAt = currentEpochSeconds()
             commitStreamTerminal(
                 chatId = request.chatId,
@@ -335,6 +342,7 @@ class AgentRunCoordinator @Inject constructor(
             withContext(NonCancellable) {
                 val completedAt = currentEpochSeconds()
                 val message = error.message ?: "Unknown provider error."
+                providerFailure = message
                 commitStreamTerminal(
                     chatId = request.chatId,
                     runId = request.runId,
@@ -347,6 +355,15 @@ class AgentRunCoordinator @Inject constructor(
                             message
                         )
                     }
+                )
+            }
+        } finally {
+            providerFailure?.let { message ->
+                recordProviderFailure(
+                    store = diagnosticsStore,
+                    platformName = request.platform.name,
+                    model = request.platform.model,
+                    message = message
                 )
             }
         }

@@ -45,8 +45,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.diagnostics.ProviderFailureKind
 import dev.chungjungsoo.gptmobile.data.voice.VoicePhase
 import dev.chungjungsoo.gptmobile.data.voice.VoiceSessionState
+import dev.chungjungsoo.gptmobile.presentation.ui.chat.ProviderFailureCard
 
 @Composable
 fun VoiceScreen(
@@ -58,6 +60,8 @@ fun VoiceScreen(
     onEnd: () -> Unit,
     onOrbClick: () -> Unit,
     onGrantPermission: () -> Unit,
+    failureKind: ProviderFailureKind? = null,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -115,6 +119,14 @@ fun VoiceScreen(
                     .testTag("voice_partial")
             )
             Spacer(Modifier.height(16.dp))
+            if (failureKind != null) {
+                ProviderFailureCard(
+                    kind = failureKind,
+                    canRetry = onRetry != null,
+                    onRetryClick = { onRetry?.invoke() },
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
             Text(
                 text = state.replyText,
                 style = MaterialTheme.typography.bodyLarge,

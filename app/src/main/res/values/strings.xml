@@ -739,4 +739,24 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="diagnostics_description">Crashes and provider errors stored on this device</string>
+    <string name="diagnostics_intro">Reports stay on this device. Nothing is uploaded until you share a report yourself.</string>
+    <string name="diagnostics_crashes">Crashes</string>
+    <string name="diagnostics_provider_errors">Provider errors</string>
+    <string name="diagnostics_empty_crashes">No crashes recorded.</string>
+    <string name="diagnostics_empty_provider_errors">No provider errors recorded.</string>
+    <string name="diagnostics_share">Share redacted report</string>
+    <string name="diagnostics_share_chooser">Share diagnostics report</string>
+    <string name="diagnostics_share_subject">Robin diagnostics report</string>
+    <string name="diagnostics_share_failed">Couldn’t share the diagnostics report.</string>
+    <string name="diagnostics_provider_error">Provider error</string>
+    <string name="chat_error_rate_limit_title">Rate limited</string>
+    <string name="chat_error_rate_limit_body">The provider is limiting requests. Wait a moment, then try again.</string>
+    <string name="chat_error_auth_title">Credentials rejected</string>
+    <string name="chat_error_auth_body">The provider rejected this platform’s credentials. Check the API key in Settings, then retry.</string>
+    <string name="chat_error_timeout_title">Timed out</string>
+    <string name="chat_error_timeout_body">The provider took too long to respond. Check your connection and try again.</string>
+    <string name="chat_error_network_title">Can’t reach the provider</string>
+    <string name="chat_error_network_body">The network request failed. Check your connection and try again.</string>
 </resources>

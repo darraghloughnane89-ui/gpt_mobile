@@ -17,6 +17,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.backup.SanitizedChatBackup
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
+import dev.chungjungsoo.gptmobile.data.diagnostics.installLocalUncaughtExceptionHandler
 import dev.chungjungsoo.gptmobile.data.localmodel.PendingLocalPlatformActivator
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -49,6 +50,7 @@ class GPTMobileApp :
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
+        installLocalUncaughtExceptionHandler(this)
         SanitizedChatBackup.restoreIfPresent(this)
         super.onCreate()
         registerActivityLifecycleCallbacks(AppForegroundTracker)

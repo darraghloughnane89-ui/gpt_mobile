@@ -20,6 +20,8 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunTerminalError
+import dev.chungjungsoo.gptmobile.data.diagnostics.DiagnosticRedactor
+import dev.chungjungsoo.gptmobile.data.diagnostics.ProviderFailureClassifier
 
 @Composable
 fun RunNoticeChips(notices: List<String>, modifier: Modifier = Modifier) {
@@ -92,9 +94,15 @@ fun AgentRunStatusBlock(run: AgentRun?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun agentRunTerminalErrorText(error: String): String = when (error) {
-    AgentRunTerminalError.SERVICE_STOPPED -> stringResource(R.string.agent_run_error_service_stopped)
-    else -> error
+private fun agentRunTerminalErrorText(error: String): String {
+    val kind = ProviderFailureClassifier.classify(error)
+    if (kind != null && kind.showsFriendlyState) {
+        return providerFailureBody(kind)
+    }
+    return when (error) {
+        AgentRunTerminalError.SERVICE_STOPPED -> stringResource(R.string.agent_run_error_service_stopped)
+        else -> DiagnosticRedactor.redact(error)
+    }
 }
 
 internal fun agentRunDurationSeconds(run: AgentRun): Long? {
