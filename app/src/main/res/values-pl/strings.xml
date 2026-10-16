@@ -71,7 +71,6 @@
     <string name="token_set">Ustawiono token %s*****</string>
     <string name="close">Zamknij</string>
     <string name="delete">Usuń</string>
-    <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">Logo startowe GPTMobile</string>
     <string name="sample_item_title">Pozycja 1</string>
     <string name="sample_item_description">Opis pozycji</string>

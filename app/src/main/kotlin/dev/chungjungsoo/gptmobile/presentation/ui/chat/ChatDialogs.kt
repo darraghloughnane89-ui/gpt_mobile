@@ -52,6 +52,7 @@ internal fun MessageActionsSheet(
     canEdit: Boolean,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
+    onSendToHermes: (() -> Unit)? = null,
     onDismissRequest: () -> Unit
 ) {
     fun runAction(action: () -> Unit) {
@@ -85,6 +86,14 @@ internal fun MessageActionsSheet(
                 showTrailingIcon = false,
                 showLeadingIcon = false
             )
+            if (onSendToHermes != null) {
+                SettingItem(
+                    title = stringResource(R.string.hermes_send_message),
+                    onItemClick = { runAction(onSendToHermes) },
+                    showTrailingIcon = false,
+                    showLeadingIcon = false
+                )
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
