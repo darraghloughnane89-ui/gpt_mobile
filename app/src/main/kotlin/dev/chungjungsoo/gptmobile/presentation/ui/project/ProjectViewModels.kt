@@ -17,13 +17,18 @@ import dev.chungjungsoo.gptmobile.data.project.ProjectContextLimits
 import dev.chungjungsoo.gptmobile.data.project.ProjectIcons
 import dev.chungjungsoo.gptmobile.data.project.ProjectImportError
 import dev.chungjungsoo.gptmobile.data.project.ProjectRepository
+import dev.chungjungsoo.gptmobile.data.project.archive.ImportSkipReason
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectArchiveFailure
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectArchiveGateway
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectArchiveOutcome
+import dev.chungjungsoo.gptmobile.data.project.archive.ProjectArchiveResult
+import dev.chungjungsoo.gptmobile.data.project.archive.ProjectImportOptions
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectTransferProgress
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectTransferStage
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,20 +55,29 @@ class ProjectsViewModel @Inject constructor(
     private val _transfer = MutableStateFlow<ProjectTransferUi?>(null)
     val transfer = _transfer.asStateFlow()
 
+    private val _summary = MutableStateFlow<ProjectArchiveResult?>(null)
+    val summary = _summary.asStateFlow()
+
+    private var transferJob: Job? = null
+
     fun delete(project: Project) {
         viewModelScope.launch { projectRepository.deleteProject(project.id) }
     }
 
-    fun importZip(uri: Uri) {
+    fun importZip(uri: Uri, options: ProjectImportOptions = ProjectImportOptions()) {
         transfer(context.getString(R.string.project_import)) {
-            archiveGateway.importZip(uri, ::publish)
+            archiveGateway.importZip(uri, options, ::publish)
         }
     }
 
-    fun importFolder(uri: Uri) {
+    fun importFolder(uri: Uri, options: ProjectImportOptions = ProjectImportOptions()) {
         transfer(context.getString(R.string.project_import)) {
-            archiveGateway.importFolder(uri, ::publish)
+            archiveGateway.importFolder(uri, options, ::publish)
         }
+    }
+
+    fun cancelTransfer() {
+        transferJob?.cancel()
     }
 
     fun dismissTransfer() {
@@ -71,28 +85,35 @@ class ProjectsViewModel @Inject constructor(
         _transfer.value = null
     }
 
+    fun dismissSummary() {
+        _summary.value = null
+    }
+
     private fun transfer(title: String, block: suspend () -> ProjectArchiveOutcome) {
         if (_transfer.value?.running == true) return
-        viewModelScope.launch {
+        transferJob = viewModelScope.launch {
             _transfer.value = ProjectTransferUi(
                 running = true,
                 title = title,
                 detail = context.getString(R.string.project_import_reading)
             )
-            _transfer.value = when (val outcome = block()) {
-                is ProjectArchiveOutcome.Success -> ProjectTransferUi(
-                    running = false,
-                    title = title,
-                    detail = context.getString(
-                        R.string.project_import_done,
-                        outcome.result.createdProjects + outcome.result.updatedProjects,
-                        outcome.result.chatCount
+            try {
+                when (val outcome = block()) {
+                    is ProjectArchiveOutcome.Success -> {
+                        _summary.value = outcome.result
+                        _transfer.value = null
+                    }
+                    is ProjectArchiveOutcome.Failure -> _transfer.value = ProjectTransferUi(
+                        running = false,
+                        title = title,
+                        detail = context.archiveFailure(outcome.failure)
                     )
-                )
-                is ProjectArchiveOutcome.Failure -> ProjectTransferUi(
+                }
+            } catch (_: CancellationException) {
+                _transfer.value = ProjectTransferUi(
                     running = false,
                     title = title,
-                    detail = context.archiveFailure(outcome.failure)
+                    detail = context.getString(R.string.project_import_cancelled)
                 )
             }
         }
@@ -343,10 +364,22 @@ class ProjectDetailViewModel @Inject constructor(
 }
 
 private fun Context.describeTransfer(progress: ProjectTransferProgress): String = when (progress.stage) {
-    ProjectTransferStage.READING -> getString(R.string.project_import_reading)
+    ProjectTransferStage.READING -> if (progress.label.isBlank()) {
+        getString(R.string.project_import_reading)
+    } else {
+        getString(R.string.project_import_reading_item, progress.label)
+    }
     ProjectTransferStage.PARSING -> getString(R.string.project_import_parsing)
     ProjectTransferStage.WRITING -> getString(R.string.project_import_writing, progress.label.ifBlank { "…" })
     ProjectTransferStage.EXPORTING -> getString(R.string.project_export_writing)
+}
+
+fun Context.importSkipReason(reason: ImportSkipReason): String = when (reason) {
+    ImportSkipReason.UNSUPPORTED -> getString(R.string.project_import_skip_unsupported)
+    ImportSkipReason.TOO_LARGE -> getString(R.string.project_import_skip_too_large)
+    ImportSkipReason.EMPTY -> getString(R.string.project_import_skip_empty)
+    ImportSkipReason.UNREADABLE -> getString(R.string.project_import_skip_unreadable)
+    ImportSkipReason.TOO_DEEP -> getString(R.string.project_import_skip_too_deep)
 }
 
 private fun Context.archiveFailure(failure: ProjectArchiveFailure): String = when (failure) {

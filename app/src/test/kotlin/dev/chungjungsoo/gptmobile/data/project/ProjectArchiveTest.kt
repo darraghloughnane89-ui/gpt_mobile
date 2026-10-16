@@ -431,7 +431,7 @@ class ProjectArchiveTest {
     """.trimIndent()
 }
 
-private class MemoryArchiveSink(
+internal class MemoryArchiveSink(
     private val enabled: List<String> = listOf("platform-a", "platform-b")
 ) : ProjectArchiveSink {
     val projects = mutableListOf<ArchiveProjectRecord>()

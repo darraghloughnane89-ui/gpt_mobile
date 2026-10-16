@@ -22,6 +22,36 @@ enum class ProjectArchiveFailure {
     TOO_LARGE
 }
 
+enum class ImportSkipReason {
+    UNSUPPORTED,
+    TOO_LARGE,
+    EMPTY,
+    UNREADABLE,
+    TOO_DEEP
+}
+
+data class ImportSkip(
+    val path: String,
+    val reason: ImportSkipReason
+)
+
+data class ProjectImportOptions(
+    val keepOriginalImages: Boolean = false,
+    val stripGps: Boolean = true
+)
+
+data class ArchiveHints(
+    val hasProjectFiles: Boolean = false,
+    val filePaths: List<String> = emptyList()
+)
+
+data class ArchivedProjectRef(
+    val id: Int,
+    val name: String,
+    val created: Boolean,
+    val source: ImportSource
+)
+
 enum class ProjectTransferStage {
     READING,
     PARSING,
@@ -78,7 +108,10 @@ data class ProjectArchiveResult(
     val createdProjects: Int,
     val updatedProjects: Int,
     val chatCount: Int,
-    val fileCount: Int
+    val fileCount: Int,
+    val imageCount: Int = 0,
+    val skipped: List<ImportSkip> = emptyList(),
+    val projects: List<ArchivedProjectRef> = emptyList()
 )
 
 sealed class ProjectArchiveOutcome {

@@ -12,9 +12,21 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 object ProjectArchiveZip {
+    /** One stored file. Images can be larger on disk only after the caller opts to keep the original, and still only up to this cap. */
     const val MAX_ENTRY_BYTES = 32 * 1024 * 1024
-    const val MAX_ENTRIES = 2_000
-    const val MAX_TOTAL_BYTES = 128 * 1024 * 1024
+
+    /** Chat JSON and markdown that have to be parsed as a document. */
+    const val MAX_CATALOG_BYTES = 256 * 1024 * 1024
+
+    /** Uncompressed bytes for the whole import, including files expanded out of nested zips. */
+    const val MAX_TOTAL_BYTES = 1024L * 1024L * 1024L
+    const val MAX_ENTRIES = 5_000
+    const val MAX_IMAGE_EDGE = 2048
+    const val MAX_TABLE_ROWS = 200
+    const val MAX_TABLE_COLS = 20
+    const val MAX_TABLE_SHEETS = 8
+    const val MAX_CELL_CHARS = 400
+    const val MAX_ZIP_DEPTH = 4
 
     private val json = Json { prettyPrint = true }
 

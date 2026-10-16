@@ -23,33 +23,27 @@ object ProjectArchiveParser {
         isLenient = true
     }
 
-    fun parse(entries: List<ArchiveEntry>): List<ImportedProject> {
+    fun parse(entries: List<ArchiveEntry>, hints: ArchiveHints = ArchiveHints()): List<ImportedProject> {
         val normalized = normalize(entries)
-        if (normalized.isEmpty()) throw ProjectArchiveException(ProjectArchiveFailure.EMPTY)
+        if (normalized.isEmpty() && !hints.hasProjectFiles) throw ProjectArchiveException(ProjectArchiveFailure.EMPTY)
         return when {
-            hasRobinManifest(normalized) -> listOf(parseRobin(normalized))
+            hasRobinManifest(normalized) -> listOf(parseRobin(normalized, hints))
             isChatGpt(normalized) -> listOf(parseChatGpt(normalized))
             isClaude(normalized) -> parseClaude(normalized)
             isGrok(normalized) -> listOf(parseGrok(normalized))
-            isRobinLayout(normalized) -> listOf(parseRobin(normalized))
+            isGrokMarkdown(normalized) -> listOf(parseGrokMarkdown(normalized))
+            isRobinLayout(normalized) || hints.hasProjectFiles -> listOf(parseRobin(normalized, hints))
             else -> throw ProjectArchiveException(ProjectArchiveFailure.UNRECOGNIZED)
         }
     }
 
     fun normalize(entries: List<ArchiveEntry>): List<ArchiveEntry> {
         val cleaned = entries.mapNotNull { entry ->
-            val path = entry.path.replace('\\', '/').trim().trimStart('/')
-            if (path.isEmpty() || path.endsWith("/")) return@mapNotNull null
-            val parts = path.split('/')
-            if (parts.any { it.isEmpty() || it == "." || it == ".." }) return@mapNotNull null
-            val name = parts.last()
-            if (name == ".DS_Store" || parts.first() == "__MACOSX") return@mapNotNull null
+            val path = ArchivePaths.normalize(entry.path) ?: return@mapNotNull null
             ArchiveEntry(path, entry.bytes)
         }
-        val roots = cleaned.map { it.path.substringBefore('/') }.toSet()
-        val nested = cleaned.isNotEmpty() && cleaned.all { it.path.contains('/') } && roots.size == 1
-        if (!nested) return cleaned
-        val prefix = roots.single() + "/"
+        val prefix = ArchivePaths.topFolderPrefix(cleaned.map { it.path })
+        if (prefix.isEmpty()) return cleaned
         return cleaned.map { ArchiveEntry(it.path.removePrefix(prefix), it.bytes) }
     }
 
@@ -78,7 +72,16 @@ object ProjectArchiveParser {
 
     private fun isGrok(entries: List<ArchiveEntry>): Boolean = grokPayload(entries) != null
 
-    private fun parseRobin(entries: List<ArchiveEntry>): ImportedProject {
+    private fun isGrokMarkdown(entries: List<ArchiveEntry>): Boolean {
+        if (entries.any { it.path.equals("instructions.md", ignoreCase = true) }) return false
+        val docs = entries.filter { entry ->
+            ArchivePaths.extension(entry.path) == "md" && !entry.path.startsWith("files/")
+        }
+        if (docs.isEmpty()) return false
+        return docs.all { GrokMarkdownChat.isGrokMarkdown(it.bytes.toString(Charsets.UTF_8)) }
+    }
+
+    private fun parseRobin(entries: List<ArchiveEntry>, hints: ArchiveHints): ImportedProject {
         val manifest = jsonAt(entries, "manifest.json") as? JsonObject
         val instructions = textAt(entries, "instructions.md")
         val files = entries.filter { entry ->
@@ -97,7 +100,7 @@ object ProjectArchiveParser {
         val icon = manifest?.get("icon")?.text()?.takeIf { it in ProjectIcons.all } ?: ProjectIcons.FOLDER
         val color = colorOf(manifest?.get("color"))
         val key = manifest?.get("importKey")?.text()?.trim()?.takeIf { it.isNotEmpty() }
-            ?: derivedKey(name, chats.map { it.externalId }, files.map { it.relativePath })
+            ?: derivedKey(name, chats.map { it.externalId }, (files.map { it.relativePath } + hints.filePaths).distinct())
         return ImportedProject(
             importKey = key,
             name = name,
@@ -112,7 +115,14 @@ object ProjectArchiveParser {
 
     private fun parseRobinChat(entry: ArchiveEntry): ImportedChat? {
         val fileName = entry.path.substringAfterLast('/').substringBeforeLast('.')
-        if (entry.path.endsWith(".md")) return parseMarkdownChat(fileName, entry.bytes.toString(Charsets.UTF_8))
+        if (entry.path.endsWith(".md")) {
+            val text = entry.bytes.toString(Charsets.UTF_8)
+            return if (GrokMarkdownChat.isGrokMarkdown(text)) {
+                GrokMarkdownChat.parse(fileName, text)
+            } else {
+                parseMarkdownChat(fileName, text)
+            }
+        }
         val obj = parseJson(entry.bytes) as? JsonObject ?: return null
         val id = obj["id"]?.text()?.trim()?.ifBlank { null } ?: fileName
         val created = epochSeconds(obj["createdAt"], 0L)
@@ -347,6 +357,27 @@ object ProjectArchiveParser {
                 else -> null
             }
         }.filter { it.isNotBlank() }.joinToString("\n")
+    }
+
+    private fun parseGrokMarkdown(entries: List<ArchiveEntry>): ImportedProject {
+        val chats = entries.filter { entry ->
+            ArchivePaths.extension(entry.path) == "md" && !entry.path.startsWith("files/")
+        }.map { entry ->
+            val name = entry.path.substringAfterLast('/').substringBeforeLast('.')
+            GrokMarkdownChat.parse(name, entry.bytes.toString(Charsets.UTF_8))
+        }
+        val key = if (chats.size == 1) {
+            "grok:${chats.first().externalId}"
+        } else {
+            derivedKey("Grok", chats.map { it.externalId }, emptyList())
+        }
+        return ImportedProject(
+            importKey = key,
+            name = "Grok",
+            source = ImportSource.GROK,
+            files = filesUnder(entries),
+            chats = chats
+        )
     }
 
     private fun parseGrok(entries: List<ArchiveEntry>): ImportedProject {

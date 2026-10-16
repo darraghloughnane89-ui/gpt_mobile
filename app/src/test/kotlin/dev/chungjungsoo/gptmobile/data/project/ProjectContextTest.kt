@@ -96,6 +96,9 @@ class ProjectContextTest {
         assertEquals(ProjectFileKind.PDF, ProjectFileTypes.classify("application/octet-stream", "paper.PDF"))
         assertEquals(ProjectFileKind.TEXT, ProjectFileTypes.classify(null, "notes.md"))
         assertEquals(ProjectFileKind.IMAGE, ProjectFileTypes.classify("image/jpeg", "shot.jpg"))
+        assertEquals(ProjectFileKind.TEXT, ProjectFileTypes.classify("text/html", "page.html"))
+        assertEquals(ProjectFileKind.TEXT, ProjectFileTypes.classify(null, "app.js"))
+        assertEquals(ProjectFileKind.TEXT, ProjectFileTypes.classify("application/json", "data.bin"))
         assertNull(ProjectFileTypes.classify("application/zip", "bundle.zip"))
     }
 

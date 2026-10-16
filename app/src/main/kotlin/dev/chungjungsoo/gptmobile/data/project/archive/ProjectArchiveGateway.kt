@@ -2,7 +2,6 @@ package dev.chungjungsoo.gptmobile.data.project.archive
 
 import android.content.Context
 import android.net.Uri
-import android.provider.DocumentsContract
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
@@ -15,8 +14,10 @@ import dev.chungjungsoo.gptmobile.data.project.ProjectFileStore
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
@@ -36,20 +37,45 @@ class ProjectArchiveGateway @Inject constructor(
         enabledPlatforms = { settingRepository.fetchPlatformV2s().filter { it.enabled }.map { it.uid } }
     )
 
-    suspend fun importZip(uri: Uri, onProgress: (ProjectTransferProgress) -> Unit = {}): ProjectArchiveOutcome =
-        guarded {
-            onProgress(ProjectTransferProgress(ProjectTransferStage.READING, 0, 0))
-            val stream = context.contentResolver.openInputStream(uri)
-                ?: throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
-            val entries = stream.use { ProjectArchiveZip.read(it) }
-            importEntries(entries, onProgress)
-        }
+    suspend fun importZip(
+        uri: Uri,
+        options: ProjectImportOptions = ProjectImportOptions(),
+        onProgress: (ProjectTransferProgress) -> Unit = {}
+    ): ProjectArchiveOutcome = guarded {
+        val active = coroutineContext
+        ProjectArchiveSession.import(
+            open = {
+                context.contentResolver.openInputStream(uri)
+                    ?: throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
+            },
+            sink = sink,
+            options = options,
+            imageProcessor = AndroidProjectImageProcessor(),
+            onProgress = onProgress,
+            isActive = { active.isActive }
+        )
+    }
 
-    suspend fun importFolder(uri: Uri, onProgress: (ProjectTransferProgress) -> Unit = {}): ProjectArchiveOutcome =
-        guarded {
-            val entries = readTree(uri, onProgress)
-            importEntries(entries, onProgress)
+    suspend fun importFolder(
+        uri: Uri,
+        options: ProjectImportOptions = ProjectImportOptions(),
+        onProgress: (ProjectTransferProgress) -> Unit = {}
+    ): ProjectArchiveOutcome = guarded {
+        val active = coroutineContext
+        val staged = ProjectFolderStage.stage(context, uri, onProgress, isActive = { active.isActive })
+        try {
+            ProjectArchiveSession.importStaged(
+                staged = staged,
+                sink = sink,
+                options = options,
+                imageProcessor = AndroidProjectImageProcessor(),
+                onProgress = onProgress,
+                isActive = { active.isActive }
+            )
+        } finally {
+            staged.close()
         }
+    }
 
     suspend fun exportProject(projectId: Int, uri: Uri, onProgress: (ProjectTransferProgress) -> Unit = {}): ProjectArchiveOutcome =
         guarded {
@@ -88,15 +114,6 @@ class ProjectArchiveGateway @Inject constructor(
             )
         }
 
-    private suspend fun importEntries(
-        entries: List<ArchiveEntry>,
-        onProgress: (ProjectTransferProgress) -> Unit
-    ): ProjectArchiveResult {
-        onProgress(ProjectTransferProgress(ProjectTransferStage.PARSING, 0, entries.size))
-        val projects = ProjectArchiveParser.parse(entries)
-        return ProjectArchiveImporter.import(projects, sink, onProgress)
-    }
-
     private suspend fun guarded(
         block: suspend () -> ProjectArchiveResult
     ): ProjectArchiveOutcome = withContext(Dispatchers.IO) {
@@ -109,64 +126,6 @@ class ProjectArchiveGateway @Inject constructor(
         } catch (_: Exception) {
             ProjectArchiveOutcome.Failure(ProjectArchiveFailure.UNREADABLE)
         }
-    }
-
-    private fun readTree(uri: Uri, onProgress: (ProjectTransferProgress) -> Unit): List<ArchiveEntry> {
-        val rootId = try {
-            DocumentsContract.getTreeDocumentId(uri)
-        } catch (_: Exception) {
-            throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
-        }
-        val entries = mutableListOf<ArchiveEntry>()
-        var total = 0L
-        fun walk(documentId: String, prefix: String, depth: Int) {
-            if (depth > 8) return
-            val children = DocumentsContract.buildChildDocumentsUriUsingTree(uri, documentId)
-            val cursor = context.contentResolver.query(
-                children,
-                arrayOf(
-                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                    DocumentsContract.Document.COLUMN_MIME_TYPE
-                ),
-                null,
-                null,
-                null
-            ) ?: throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
-            cursor.use { rows ->
-                val idIndex = rows.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                val nameIndex = rows.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                val mimeIndex = rows.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
-                while (rows.moveToNext()) {
-                    if (entries.size >= ProjectArchiveZip.MAX_ENTRIES) {
-                        throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
-                    }
-                    val childId = if (idIndex >= 0) rows.getString(idIndex) else null
-                    if (childId.isNullOrBlank()) continue
-                    val name = if (nameIndex >= 0) rows.getString(nameIndex)?.trim().orEmpty() else ""
-                    if (name.isEmpty() || name == ".DS_Store") continue
-                    val mime = if (mimeIndex >= 0) rows.getString(mimeIndex) else null
-                    val path = if (prefix.isEmpty()) name else "$prefix/$name"
-                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        walk(childId, path, depth + 1)
-                    } else {
-                        val document = DocumentsContract.buildDocumentUriUsingTree(uri, childId)
-                        val stream = context.contentResolver.openInputStream(document)
-                            ?: throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
-                        val bytes = stream.use { ProjectArchiveZip.readCapped(it, ProjectArchiveZip.MAX_ENTRY_BYTES) }
-                            ?: throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
-                        total += bytes.size
-                        if (total > ProjectArchiveZip.MAX_TOTAL_BYTES) {
-                            throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
-                        }
-                        entries += ArchiveEntry(path, bytes)
-                        onProgress(ProjectTransferProgress(ProjectTransferStage.READING, entries.size, entries.size, name))
-                    }
-                }
-            }
-        }
-        walk(rootId, "", 0)
-        return entries
     }
 }
 

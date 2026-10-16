@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +59,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.project.ProjectColors
 import dev.chungjungsoo.gptmobile.data.project.ProjectIcons
+import dev.chungjungsoo.gptmobile.data.project.archive.ProjectArchiveResult
+import dev.chungjungsoo.gptmobile.data.project.archive.ProjectImportOptions
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.ui.home.SelectPlatformDialog
 
@@ -71,13 +74,30 @@ fun ProjectsScreen(
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val transfer by viewModel.transfer.collectAsStateWithLifecycle()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<Project?>(null) }
     var importMenu by remember { mutableStateOf(false) }
+    var pendingImport by remember { mutableStateOf<Boolean?>(null) }
+    var keepOriginalImages by remember { mutableStateOf(false) }
+    var keepPhotoLocations by remember { mutableStateOf(false) }
+    val importOptions = ProjectImportOptions(
+        keepOriginalImages = keepOriginalImages,
+        stripGps = !keepPhotoLocations
+    )
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) viewModel.importZip(uri)
+        if (uri != null) viewModel.importZip(uri, importOptions)
     }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) viewModel.importFolder(uri)
+        if (uri != null) viewModel.importFolder(uri, importOptions)
+    }
+    val currentSummary = summary
+    if (currentSummary != null) {
+        ProjectImportSummaryScreen(
+            summary = currentSummary,
+            onBack = viewModel::dismissSummary,
+            onOpenProject = onOpenProject
+        )
+        return
     }
 
     Scaffold(
@@ -99,14 +119,14 @@ fun ProjectsScreen(
                                 text = { Text(stringResource(R.string.project_import_zip)) },
                                 onClick = {
                                     importMenu = false
-                                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                                    pendingImport = true
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.project_import_folder)) },
                                 onClick = {
                                     importMenu = false
-                                    folderPicker.launch(null)
+                                    pendingImport = false
                                 }
                             )
                         }
@@ -184,7 +204,30 @@ fun ProjectsScreen(
     }
 
     transfer?.let { state ->
-        ProjectTransferDialog(state = state, onDismiss = viewModel::dismissTransfer)
+        ProjectTransferDialog(
+            state = state,
+            onDismiss = viewModel::dismissTransfer,
+            onCancel = viewModel::cancelTransfer
+        )
+    }
+
+    if (pendingImport != null) {
+        ImportOptionsDialog(
+            keepOriginalImages = keepOriginalImages,
+            keepPhotoLocations = keepPhotoLocations,
+            onKeepOriginalImages = { keepOriginalImages = it },
+            onKeepPhotoLocations = { keepPhotoLocations = it },
+            onDismiss = { pendingImport = null },
+            onConfirm = {
+                val zip = pendingImport == true
+                pendingImport = null
+                if (zip) {
+                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                } else {
+                    folderPicker.launch(null)
+                }
+            }
+        )
     }
 }
 
@@ -476,12 +519,16 @@ fun ProjectDetailScreen(
     }
 
     transfer?.let { state ->
-        ProjectTransferDialog(state = state, onDismiss = viewModel::dismissTransfer)
+        ProjectTransferDialog(state = state, onDismiss = viewModel::dismissTransfer, onCancel = null)
     }
 }
 
 @Composable
-private fun ProjectTransferDialog(state: ProjectTransferUi, onDismiss: () -> Unit) {
+private fun ProjectTransferDialog(
+    state: ProjectTransferUi,
+    onDismiss: () -> Unit,
+    onCancel: (() -> Unit)?
+) {
     val fraction = if (state.total > 0) state.completed.toFloat() / state.total.toFloat() else null
     AlertDialog(
         onDismissRequest = { if (!state.running) onDismiss() },
@@ -502,11 +549,142 @@ private fun ProjectTransferDialog(state: ProjectTransferUi, onDismiss: () -> Uni
             }
         },
         confirmButton = {
-            if (!state.running) {
+            if (state.running && onCancel != null) {
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+            } else if (!state.running) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProjectImportSummaryScreen(
+    summary: ProjectArchiveResult,
+    onBack: () -> Unit,
+    onOpenProject: (Int) -> Unit
+) {
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.project_import_summary)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(modifier = Modifier.padding(innerPadding), contentPadding = PaddingValues(bottom = 32.dp)) {
+            item {
+                Text(
+                    text = stringResource(
+                        R.string.project_import_summary_projects,
+                        summary.createdProjects,
+                        summary.updatedProjects
+                    ),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(
+                        R.string.project_import_summary_counts,
+                        summary.chatCount,
+                        summary.fileCount,
+                        summary.imageCount
+                    ),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+            items(summary.projects, key = { it.id }) { project ->
+                ListItem(
+                    headlineContent = { Text(project.name) },
+                    supportingContent = {
+                        Text(if (project.created) stringResource(R.string.project_new) else stringResource(R.string.project_edit))
+                    },
+                    trailingContent = {
+                        TextButton(onClick = { onOpenProject(project.id) }) {
+                            Text(stringResource(R.string.project_import_open_project))
+                        }
+                    }
+                )
+            }
+            item {
+                Text(
+                    text = stringResource(R.string.project_import_skipped),
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (summary.skipped.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.project_import_skipped_none),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            items(summary.skipped) { skip ->
+                ListItem(
+                    headlineContent = { Text(skip.path, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = { Text(context.importSkipReason(skip.reason)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImportOptionsDialog(
+    keepOriginalImages: Boolean,
+    keepPhotoLocations: Boolean,
+    onKeepOriginalImages: (Boolean) -> Unit,
+    onKeepPhotoLocations: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.project_import_options_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OptionRow(
+                    checked = keepOriginalImages,
+                    title = stringResource(R.string.project_import_keep_originals),
+                    body = stringResource(R.string.project_import_keep_originals_body),
+                    onChecked = onKeepOriginalImages
+                )
+                OptionRow(
+                    checked = keepPhotoLocations,
+                    title = stringResource(R.string.project_import_keep_location),
+                    body = stringResource(R.string.project_import_keep_location_body),
+                    onChecked = onKeepPhotoLocations
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.project_import)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun OptionRow(checked: Boolean, title: String, body: String, onChecked: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChecked)
+        Column(modifier = Modifier.padding(start = 8.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 private fun projectZipName(name: String): String {

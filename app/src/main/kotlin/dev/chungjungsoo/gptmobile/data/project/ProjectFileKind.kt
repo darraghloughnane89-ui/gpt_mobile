@@ -13,11 +13,28 @@ object ProjectFileTypes {
         return when {
             mime == "application/pdf" || extension == "pdf" -> ProjectFileKind.PDF
             mime.startsWith("image/") || extension in IMAGE_EXTENSIONS -> ProjectFileKind.IMAGE
-            mime.startsWith("text/") || extension in TEXT_EXTENSIONS -> ProjectFileKind.TEXT
+            mime.startsWith("text/") ||
+                mime == "application/json" ||
+                mime == "application/javascript" ||
+                mime == "text/javascript" ||
+                extension in TEXT_EXTENSIONS -> ProjectFileKind.TEXT
             else -> null
         }
     }
 
-    private val TEXT_EXTENSIONS = setOf("txt", "md", "markdown", "text", "csv", "json", "log")
+    private val TEXT_EXTENSIONS = setOf(
+        "txt",
+        "md",
+        "markdown",
+        "text",
+        "csv",
+        "json",
+        "log",
+        "html",
+        "htm",
+        "js",
+        "mjs",
+        "cjs"
+    )
     private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif")
 }
