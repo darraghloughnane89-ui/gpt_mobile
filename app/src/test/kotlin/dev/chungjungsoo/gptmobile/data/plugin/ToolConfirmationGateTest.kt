@@ -16,7 +16,7 @@ import org.junit.Test
 class ToolConfirmationGateTest {
     @Test
     fun `hints win and unknown names stay write gated`() {
-        assertEquals(ToolEffect.READ, classifyToolEffect("send_mail", "Send", readOnlyHint = true))
+        assertEquals(ToolEffect.WRITE, classifyToolEffect("send_mail", "Send", readOnlyHint = true))
         assertEquals(ToolEffect.WRITE, classifyToolEffect("list_files", "List", destructiveHint = true))
         assertEquals(ToolEffect.READ, classifyToolEffect("list_messages", "List mail"))
         assertEquals(ToolEffect.WRITE, classifyToolEffect("create_event", "Create a calendar event"))
@@ -27,6 +27,16 @@ class ToolConfirmationGateTest {
     @Test
     fun `together does not match get`() {
         assertEquals(ToolEffect.WRITE, classifyToolEffect("together", "nothing useful"))
+    }
+
+    @Test
+    fun `server read only hint cannot hide a send or a destructive tool`() {
+        assertEquals(ToolEffect.WRITE, classifyToolEffect("sendEmail", "Deliver a message", readOnlyHint = true))
+        assertEquals(ToolEffect.WRITE, classifyToolEffect("send_mail", "Send", readOnlyHint = true))
+        assertEquals(
+            ToolEffect.WRITE,
+            classifyToolEffect("list_files", "List", readOnlyHint = true, destructiveHint = true)
+        )
     }
 
     @Test

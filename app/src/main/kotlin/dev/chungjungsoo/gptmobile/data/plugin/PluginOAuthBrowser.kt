@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthCredential
+import dev.chungjungsoo.gptmobile.data.agent.tool.oauthScopeExceedsRequest
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -77,7 +78,13 @@ object PluginOAuthBrowser {
             service.performTokenRequest(tokenRequest) { token, exception ->
                 service.dispose()
                 val access = token?.accessToken?.trim().orEmpty()
-                if (access.isNotEmpty()) {
+                if (oauthScopeExceedsRequest(spec.scopes, token?.scope)) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(
+                            IllegalStateException("OAuth token scope is wider than the requested scope.")
+                        )
+                    }
+                } else if (access.isNotEmpty()) {
                     val expiresAt = token?.accessTokenExpirationTime?.let { it / 1000 }
                     continuation.resume(
                         McpOAuthCredential(

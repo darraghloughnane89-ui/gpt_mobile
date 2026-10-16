@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.hermes.HermesDefaults
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.coroutines.coroutineContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -104,9 +105,31 @@ class ChatAgentReplySource @Inject constructor(
 
 class DelegateTaskTool(
     private val executor: AgentHandoffExecutor,
-    override val definition: AgentToolDefinition
+    override val definition: AgentToolDefinition,
+    private val prompter: ToolConfirmPrompter = AllowToolConfirmPrompter
 ) : AgentTool {
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
+        if (coroutineContext[UnattendedToolCall] != null) {
+            return AgentToolResult(
+                callId = callId,
+                content = ToolResultContent.Text("Handoff was blocked because this run is unattended."),
+                isError = true
+            )
+        }
+        val allowed = prompter.confirm(
+            ToolConfirmRequest(
+                toolName = definition.name,
+                pluginName = "Agents",
+                detail = "Hand this task to another agent?"
+            )
+        )
+        if (!allowed) {
+            return AgentToolResult(
+                callId = callId,
+                content = ToolResultContent.Text("Handoff was not confirmed."),
+                isError = true
+            )
+        }
         val target = (arguments["target_id"] as? JsonPrimitive)?.contentOrNull.orEmpty()
         val task = (arguments["task"] as? JsonPrimitive)?.contentOrNull.orEmpty()
         val reply = executor.handoff(target, task)
@@ -119,7 +142,11 @@ class DelegateTaskTool(
     }
 }
 
-suspend fun delegateTool(executor: AgentHandoffExecutor, targets: AgentTargetSource): DelegateTaskTool {
+suspend fun delegateTool(
+    executor: AgentHandoffExecutor,
+    targets: AgentTargetSource,
+    prompter: ToolConfirmPrompter = AllowToolConfirmPrompter
+): DelegateTaskTool {
     val listed = targets.list().joinToString { "${it.label} (${it.id})" }
     val description = "Hand a task to another bot or platform and wait for the reply. " +
         "Use target_id ${PluginCatalog.HERMES_TARGET} for Hermes. Hermes uses the API server saved in Settings → Hermes " +
@@ -127,6 +154,7 @@ suspend fun delegateTool(executor: AgentHandoffExecutor, targets: AgentTargetSou
         "Other targets: ${listed.ifBlank { "none saved yet" }}."
     return DelegateTaskTool(
         executor = executor,
+        prompter = prompter,
         definition = AgentToolDefinition(
             name = DELEGATE_TOOL_NAME,
             description = description,

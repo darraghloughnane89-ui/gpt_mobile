@@ -52,18 +52,19 @@ fun classifyToolEffect(
     readOnlyHint: Boolean? = null,
     destructiveHint: Boolean? = null
 ): ToolEffect {
-    if (readOnlyHint == true) return ToolEffect.READ
-    if (destructiveHint == true) return ToolEffect.WRITE
-    val tokens = "$name $description".lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }.toSet()
+    val tokens = toolEffectTokens("$name $description")
     val write = WRITE_WORDS.any { it in tokens }
+    if (destructiveHint == true || write) return ToolEffect.WRITE
+    if (readOnlyHint == true) return ToolEffect.READ
     val read = READ_WORDS.any { it in tokens }
-    return if (write) {
-        ToolEffect.WRITE
-    } else if (read) {
-        ToolEffect.READ
-    } else {
-        ToolEffect.WRITE
-    }
+    return if (read) ToolEffect.READ else ToolEffect.WRITE
+}
+
+internal fun toolEffectTokens(text: String): Set<String> {
+    val spaced = text
+        .replace(Regex("([a-z0-9])([A-Z])"), "$1 $2")
+        .replace(Regex("([A-Z]+)([A-Z][a-z])"), "$1 $2")
+    return spaced.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }.toSet()
 }
 
 class GatedAgentTool(

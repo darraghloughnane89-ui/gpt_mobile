@@ -118,6 +118,31 @@ class McpOAuthClientTest {
     }
 
     @Test
+    fun `token response cannot widen the requested scope`() = runBlocking {
+        OAuthFixtureServer().use { server ->
+            server.grantedScope = "mcp:tools repo admin:org"
+            val httpClient = HttpClient(CIO) { expectSuccess = false }
+            val client = McpOAuthClient(httpClient)
+            val started = client.beginAuthorization(
+                client.discover(server.mcpUrl, allowCleartext = true),
+                "dev.chungjungsoo.gptmobile://oauth/mcp",
+                "manual-client"
+            )
+
+            val error = runCatching {
+                client.completeAuthorization(
+                    started.pending,
+                    "dev.chungjungsoo.gptmobile://oauth/mcp?code=auth-code&state=${started.pending.state}"
+                )
+            }.exceptionOrNull()
+
+            assertTrue(error is McpOAuthException)
+            assertTrue(error!!.message!!.contains("scope"))
+            httpClient.close()
+        }
+    }
+
+    @Test
     fun `challenge discovery times out instead of hanging authorization`() = runBlocking {
         HangingChallengeServer().use { server ->
             val httpClient = HttpClient(CIO) { expectSuccess = false }
@@ -185,13 +210,15 @@ class McpOAuthClientTest {
 
         private fun register(exchange: HttpExchange) = respond(exchange, """{"client_id":"fixture-client"}""")
 
+        var grantedScope: String = "mcp:tools"
+
         private fun token(exchange: HttpExchange) {
             val form = exchange.requestBody.bufferedReader().readText().formValues()
             tokenForms += form
             val body = if (form["grant_type"] == "refresh_token") {
                 """{"access_token":"access-2","token_type":"Bearer","refresh_token":"refresh-2","expires_in":120}"""
             } else {
-                """{"access_token":"access-1","token_type":"Bearer","refresh_token":"refresh-1","expires_in":120,"scope":"mcp:tools"}"""
+                """{"access_token":"access-1","token_type":"Bearer","refresh_token":"refresh-1","expires_in":120,"scope":"$grantedScope"}"""
             }
             respond(exchange, body)
         }

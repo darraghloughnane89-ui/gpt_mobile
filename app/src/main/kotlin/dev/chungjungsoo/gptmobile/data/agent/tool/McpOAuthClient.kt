@@ -53,7 +53,8 @@ data class McpOAuthPending(
     val resource: String,
     val redirectUri: String,
     val state: String,
-    val codeVerifier: String
+    val codeVerifier: String,
+    val requestedScopes: List<String> = emptyList()
 )
 
 data class McpOAuthStart(
@@ -144,7 +145,7 @@ class McpOAuthClient internal constructor(
         val registrationEndpoint = authorizationMetadata.string("registration_endpoint")?.also {
             it.validatedUrl(allowCleartext, "OAuth registration endpoint")
         }
-        val scopes = resourceMetadata.stringList("scopes_supported")
+        val scopes = resourceMetadata.stringList("scopes_supported").filter { it.isNotBlank() && it != "*" }
         if (scopes.size > MAX_SCOPES || scopes.any { it.length > MAX_SCOPE_ITEM_LENGTH || it.any(Char::isISOControl) }) {
             throw McpOAuthException("OAuth protected-resource scopes are invalid.")
         }
@@ -189,7 +190,8 @@ class McpOAuthClient internal constructor(
                 resource = discovery.resource,
                 redirectUri = redirectUri,
                 state = state,
-                codeVerifier = verifier
+                codeVerifier = verifier,
+                requestedScopes = discovery.scopes
             )
         )
     }
@@ -224,7 +226,8 @@ class McpOAuthClient internal constructor(
             },
             clientId = pending.clientId,
             resource = pending.resource,
-            previousRefreshToken = null
+            previousRefreshToken = null,
+            allowedScopes = pending.requestedScopes
         )
     }
 
@@ -241,7 +244,8 @@ class McpOAuthClient internal constructor(
             },
             clientId = credential.clientId,
             resource = credential.resource,
-            previousRefreshToken = refreshToken
+            previousRefreshToken = refreshToken,
+            allowedScopes = credential.scope?.split(Regex("\\s+")).orEmpty().filter { it.isNotEmpty() }
         )
     }
 
@@ -274,7 +278,8 @@ class McpOAuthClient internal constructor(
         parameters: Parameters,
         clientId: String,
         resource: String,
-        previousRefreshToken: String?
+        previousRefreshToken: String?,
+        allowedScopes: List<String>
     ): McpOAuthCredential {
         val response = httpClient.post(endpoint) {
             contentType(ContentType.Application.FormUrlEncoded)
@@ -292,6 +297,9 @@ class McpOAuthClient internal constructor(
         val refreshToken = (response.string("refresh_token") ?: previousRefreshToken)?.validatedToken("refresh token")
         val scope = response.string("scope")?.also {
             if (it.length > MAX_SCOPE_LENGTH) throw McpOAuthException("OAuth token scope is too long.")
+            if (oauthScopeExceedsRequest(allowedScopes, it)) {
+                throw McpOAuthException("OAuth token scope is wider than the requested scope.")
+            }
         }
         return McpOAuthCredential(
             clientId = clientId,
@@ -393,6 +401,12 @@ private fun URI.effectivePort(): Int = when {
     scheme.equals("https", ignoreCase = true) -> 443
     scheme.equals("http", ignoreCase = true) -> 80
     else -> -1
+}
+
+fun oauthScopeExceedsRequest(requested: Collection<String>, granted: String?): Boolean {
+    if (granted.isNullOrBlank() || requested.isEmpty()) return false
+    val allowed = requested.flatMap { it.split(Regex("\\s+")) }.filter { it.isNotEmpty() }.toSet()
+    return granted.split(Regex("\\s+")).any { it.isNotEmpty() && it !in allowed }
 }
 
 private fun String.resourceMetadataUrl(): String? = RESOURCE_METADATA_PATTERN.find(this)?.groupValues?.get(1)?.ifBlank { null }
