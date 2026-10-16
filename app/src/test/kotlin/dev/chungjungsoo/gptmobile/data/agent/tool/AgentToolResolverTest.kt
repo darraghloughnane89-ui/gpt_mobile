@@ -98,7 +98,8 @@ class AgentToolResolverTest {
             assertEquals("search-$index", resolved.connectionUid)
             assertEquals("Search $index", resolved.connectionName)
             assertEquals(expectedProvider, config.provider)
-            assertEquals("token-$index", config.bearerToken)
+            assertEquals("", config.bearerToken)
+            assertEquals("secret-$index", config.secretRef)
             assertEquals(defaultEndpoint, config.endpointUrl)
             assertTrue(vault.lastReadBytes!!.all { it == 0.toByte() })
         }
@@ -217,7 +218,7 @@ class AgentToolResolverTest {
             val dao = ResolverFakeToolConnectionDao()
             val vault = ResolverFakeSecretVault(mapOf("connection_mcp-1" to "secret-token".encodeToByteArray()))
             val repository = ToolConnectionRepository(dao, vault)
-            val networkClient = NetworkClient(CIO)
+            val networkClient = NetworkClient(CIO, secretVault = vault)
             val manager = McpClientManager(networkClient())
             val resolver = AgentToolResolver(
                 repository,

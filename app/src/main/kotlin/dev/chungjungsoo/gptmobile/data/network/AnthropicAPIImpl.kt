@@ -66,8 +66,8 @@ class AnthropicAPIImpl @Inject constructor(
                     }
                 )
             )
+            authorizeProvider(config, ProviderAuthStyle.X_API_KEY)
             headers {
-                append(API_KEY_HEADER, config.token ?: "")
                 append(VERSION_HEADER, ANTHROPIC_VERSION)
                 append(BETA_HEADER, ANTHROPIC_FILES_BETA)
             }
@@ -86,8 +86,8 @@ class AnthropicAPIImpl @Inject constructor(
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files/$fileId" else "$apiUrl/files/$fileId"
         return try {
             networkClient().prepareGet(endpoint) {
+                authorizeProvider(config, ProviderAuthStyle.X_API_KEY)
                 headers {
-                    append(API_KEY_HEADER, config.token ?: "")
                     append(VERSION_HEADER, ANTHROPIC_VERSION)
                     append(BETA_HEADER, ANTHROPIC_FILES_BETA)
                 }
@@ -114,8 +114,8 @@ class AnthropicAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(json.encodeToString(messageRequest))
                 accept(ContentType.Text.EventStream)
+                authorizeProvider(config, ProviderAuthStyle.X_API_KEY)
                 headers {
-                    append(API_KEY_HEADER, config.token ?: "")
                     append(VERSION_HEADER, ANTHROPIC_VERSION)
                     append(BETA_HEADER, anthropicBetaHeader(config.anthropicBetaFeatures))
                 }
@@ -170,7 +170,6 @@ class AnthropicAPIImpl @Inject constructor(
     }.flowOn(Dispatchers.IO)
 
     companion object {
-        private const val API_KEY_HEADER = "x-api-key"
         private const val VERSION_HEADER = "anthropic-version"
         private const val BETA_HEADER = "anthropic-beta"
         private const val ANTHROPIC_VERSION = "2023-06-01"

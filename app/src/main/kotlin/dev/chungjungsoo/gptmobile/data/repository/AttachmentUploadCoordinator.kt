@@ -12,6 +12,7 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.withInjectedSecret
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import java.io.File
 import javax.inject.Inject
@@ -41,7 +42,7 @@ class AttachmentUploadCoordinator @Inject constructor(
 
     suspend fun ensureMessageAttachmentsForPlatform(message: MessageV2, platform: PlatformV2): MessageV2 {
         if (message.attachments.isEmpty()) return message
-        val config = ProviderRequestConfig(platform.apiUrl, platform.token)
+        val config = platform.withInjectedSecret()
         val updatedAttachments = when (platform.compatibleType) {
             ClientType.OPENAI -> message.attachments.map { ensureOpenAIRef(it, platform.uid, config) }
             ClientType.ANTHROPIC -> message.attachments.map { ensureAnthropicRef(it, platform.uid, config) }

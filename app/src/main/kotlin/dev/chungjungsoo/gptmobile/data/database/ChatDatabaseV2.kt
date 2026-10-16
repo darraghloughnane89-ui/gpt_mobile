@@ -27,6 +27,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
+import dev.chungjungsoo.gptmobile.data.memory.ChatMemorySetting
+import dev.chungjungsoo.gptmobile.data.memory.Memory
+import dev.chungjungsoo.gptmobile.data.memory.MemoryDao
+import dev.chungjungsoo.gptmobile.data.usage.ModelPrice
+import dev.chungjungsoo.gptmobile.data.usage.UsageDao
+import dev.chungjungsoo.gptmobile.data.usage.UsageEvent
 
 @Database(
     entities = [
@@ -40,9 +46,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         ToolEvent::class,
         LocalModel::class,
         ContextCheckpointEntity::class,
-        ModelCapacityEntity::class
+        ModelCapacityEntity::class,
+        Memory::class,
+        ChatMemorySetting::class,
+        UsageEvent::class,
+        ModelPrice::class
     ],
-    version = 11,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(
@@ -62,4 +72,6 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun toolConnectionDao(): ToolConnectionDao
     abstract fun localModelDao(): LocalModelDao
     abstract fun compactionDao(): CompactionDao
+    abstract fun memoryDao(): MemoryDao
+    abstract fun usageDao(): UsageDao
 }

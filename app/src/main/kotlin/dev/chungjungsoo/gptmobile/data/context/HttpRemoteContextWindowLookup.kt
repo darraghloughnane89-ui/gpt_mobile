@@ -3,10 +3,12 @@ package dev.chungjungsoo.gptmobile.data.context
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.data.network.ProviderAuthStyle
+import dev.chungjungsoo.gptmobile.data.network.authorizeProvider
 import dev.chungjungsoo.gptmobile.data.network.googleApiRoot
+import dev.chungjungsoo.gptmobile.data.network.withInjectedSecret
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
@@ -44,36 +46,36 @@ class HttpRemoteContextWindowLookup @Inject constructor(
     private suspend fun fetchGemini(platform: PlatformV2): Int? {
         val endpoint = googleApiRoot(platform.apiUrl) + "/v1beta/models/" + encodedModel(platform.model)
         val body = get(endpoint) { builder ->
-            builder.header("x-goog-api-key", platform.token ?: "")
+            builder.authorize(platform)
         } ?: return null
         return RemoteContextWindowParser.geminiInputTokenLimit(body)
     }
 
     private suspend fun fetchOpenRouter(platform: PlatformV2): Int? {
         val directBody = get(modelsUrl(platform, platform.model)) { builder ->
-            platform.token?.let { builder.bearerAuth(it) }
+            builder.authorize(platform)
         }
         RemoteContextWindowParser.openRouterContextLength(directBody.orEmpty(), platform.model)?.let { return it }
         val listBody = get(modelsUrl(platform)) { builder ->
-            platform.token?.let { builder.bearerAuth(it) }
+            builder.authorize(platform)
         } ?: return null
         return RemoteContextWindowParser.openRouterContextLength(listBody, platform.model)
     }
 
     private suspend fun fetchGroq(platform: PlatformV2): Int? {
         val directBody = get(modelsUrl(platform, platform.model)) { builder ->
-            platform.token?.let { builder.bearerAuth(it) }
+            builder.authorize(platform)
         }
         RemoteContextWindowParser.groqContextWindow(directBody.orEmpty(), platform.model)?.let { return it }
         val listBody = get(modelsUrl(platform)) { builder ->
-            platform.token?.let { builder.bearerAuth(it) }
+            builder.authorize(platform)
         } ?: return null
         return RemoteContextWindowParser.groqContextWindow(listBody, platform.model)
     }
 
     private suspend fun fetchAnthropic(platform: PlatformV2): Int? {
         val body = get(modelsUrl(platform, platform.model)) { builder ->
-            builder.header("x-api-key", platform.token ?: "")
+            builder.authorize(platform)
             builder.header("anthropic-version", "2023-06-01")
         } ?: return null
         return RemoteContextWindowParser.anthropicMaxInputTokens(body, platform.model)
@@ -98,6 +100,15 @@ class HttpRemoteContextWindowLookup @Inject constructor(
 
     private fun encodedModel(model: String): String = model.split("/").joinToString("/") { part ->
         java.net.URLEncoder.encode(part, Charsets.UTF_8.name()).replace("+", "%20")
+    }
+
+    private fun HttpRequestBuilder.authorize(platform: PlatformV2) {
+        val style = when (platform.compatibleType) {
+            ClientType.GOOGLE -> ProviderAuthStyle.X_GOOG_API_KEY
+            ClientType.ANTHROPIC -> ProviderAuthStyle.X_API_KEY
+            else -> ProviderAuthStyle.BEARER
+        }
+        authorizeProvider(platform.withInjectedSecret(), style)
     }
 
     private suspend fun get(

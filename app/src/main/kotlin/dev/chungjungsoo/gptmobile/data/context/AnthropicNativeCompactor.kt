@@ -13,7 +13,7 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
-import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.withInjectedSecret
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
@@ -52,9 +52,7 @@ class AnthropicNativeCompactor(
         api.streamChatMessage(
             request,
             input.platform.timeout,
-            ProviderRequestConfig(
-                apiUrl = input.platform.apiUrl,
-                token = input.platform.token,
+            input.platform.withInjectedSecret(
                 anthropicBetaFeatures = setOf(BETA)
             )
         ).collect { chunk ->

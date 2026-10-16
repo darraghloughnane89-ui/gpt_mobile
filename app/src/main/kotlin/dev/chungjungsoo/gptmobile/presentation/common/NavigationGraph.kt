@@ -216,7 +216,11 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToMemory = { navController.navigate(Route.MEMORY) },
+                onNavigateToUsage = { navController.navigate(Route.USAGE) },
+                onNavigateToAppLock = { navController.navigate(Route.APP_LOCK) },
+                onNavigateToKeyManager = { navController.navigate(Route.KEY_MANAGER) }
             )
         }
         composable(Route.ADD_PLATFORM) {
@@ -283,5 +287,6 @@ fun NavGraphBuilder.settingNavigation(
         composable(Route.LICENSE) {
             LicenseScreen(onNavigationClick = { navController.navigateUp() })
         }
+        privacyNavigation(navController)
     }
 }

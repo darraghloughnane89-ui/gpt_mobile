@@ -1,9 +1,11 @@
 package dev.chungjungsoo.gptmobile.data.security
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -24,26 +26,45 @@ interface SecretVault {
     suspend fun put(secretRef: String, secret: ByteArray)
     suspend fun read(secretRef: String): ByteArray?
     suspend fun delete(secretRef: String)
+
+    suspend fun store(entry: SecretEntry, secret: ByteArray): SecretEntry {
+        put(entry.id, secret)
+        return entry.copy(
+            masked = SecretMask.of(secret),
+            updatedAtEpochMs = System.currentTimeMillis()
+        )
+    }
+
+    suspend fun entries(): List<SecretEntry> = emptyList()
 }
 
-class SecretVaultException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class SecretVaultException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 class AndroidSecretVault private constructor(
     private val directory: File,
-    private val keyAlias: String
+    private val keyAlias: String,
+    private val preferStrongBox: Boolean,
+    private val requireUserAuth: Boolean
 ) : SecretVault {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(
+    constructor(
+        @ApplicationContext context: Context
+    ) : this(
         directory = File(context.noBackupFilesDir, DEFAULT_DIRECTORY_NAME),
-        keyAlias = DEFAULT_KEY_ALIAS
+        keyAlias = DEFAULT_KEY_ALIAS,
+        preferStrongBox = context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE),
+        requireUserAuth = false
     )
 
     internal constructor(context: Context, keyAlias: String, directoryName: String) : this(
         directory = File(context.noBackupFilesDir, directoryName),
-        keyAlias = keyAlias
+        keyAlias = keyAlias,
+        preferStrongBox = false,
+        requireUserAuth = false
     )
 
     private val mutex = Mutex()
+    private val metadata = SecretMetadataStore(directory)
 
     override suspend fun put(secretRef: String, secret: ByteArray) = withContext(Dispatchers.IO) {
         requireValidReference(secretRef)
@@ -120,24 +141,64 @@ class AndroidSecretVault private constructor(
 
     override suspend fun delete(secretRef: String) = withContext(Dispatchers.IO) {
         requireValidReference(secretRef)
-        mutex.withLock { AtomicFile(recordFile(secretRef)).delete() }
+        mutex.withLock {
+            AtomicFile(recordFile(secretRef)).delete()
+            metadata.delete(secretRef)
+        }
+    }
+
+    override suspend fun store(entry: SecretEntry, secret: ByteArray): SecretEntry = withContext(Dispatchers.IO) {
+        put(entry.id, secret)
+        val stored = entry.copy(
+            masked = SecretMask.of(secret),
+            updatedAtEpochMs = System.currentTimeMillis()
+        )
+        mutex.withLock { metadata.write(stored) }
+        stored
+    }
+
+    override suspend fun entries(): List<SecretEntry> = withContext(Dispatchers.IO) {
+        mutex.withLock { metadata.list() }
     }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
 
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER).run {
-            init(
-                KeyGenParameterSpec.Builder(
-                    keyAlias,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-                )
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setRandomizedEncryptionRequired(true)
-                    .build()
+        var lastError: Exception? = null
+        for ((strongBox, userAuth) in VaultKeyPolicy.attempts(preferStrongBox, requireUserAuth)) {
+            try {
+                return generateKey(strongBox, userAuth)
+            } catch (error: StrongBoxUnavailableException) {
+                lastError = error
+            } catch (error: Exception) {
+                lastError = error
+                if (!strongBox && !userAuth) break
+            }
+        }
+        throw SecretVaultException("Unable to create the vault key.", lastError)
+    }
+
+    private fun generateKey(strongBox: Boolean, userAuth: Boolean): SecretKey {
+        val builder = KeyGenParameterSpec.Builder(
+            keyAlias,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setRandomizedEncryptionRequired(true)
+            .setInvalidatedByBiometricEnrollment(false)
+        if (strongBox) builder.setIsStrongBoxBacked(true)
+        if (userAuth) {
+            builder.setUserAuthenticationRequired(true)
+            builder.setUserAuthenticationParameters(
+                VaultKeyPolicy.AUTH_VALIDITY_SECONDS,
+                USER_AUTHENTICATORS
             )
+        }
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER).run {
+            init(builder.build())
             generateKey()
         }
     }
@@ -225,6 +286,8 @@ class AndroidSecretVault private constructor(
         private const val MIN_RECORD_BYTES = HEADER_BYTES + MIN_IV_BYTES + MIN_CIPHERTEXT_BYTES
         private const val MAX_RECORD_BYTES = HEADER_BYTES + MAX_IV_BYTES + MAX_CIPHERTEXT_BYTES
         private const val RECORD_VERSION: Byte = 1
+        private const val USER_AUTHENTICATORS = KeyProperties.AUTH_BIOMETRIC_STRONG or
+            KeyProperties.AUTH_DEVICE_CREDENTIAL
         private val MAGIC = byteArrayOf(0x47, 0x50, 0x54, 0x56)
         private val SECRET_REF_PATTERN = Regex("[A-Za-z0-9_-]{1,128}")
     }

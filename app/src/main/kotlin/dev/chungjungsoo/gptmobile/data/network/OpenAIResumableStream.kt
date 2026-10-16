@@ -11,7 +11,6 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.accept
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
@@ -105,14 +104,14 @@ internal fun NetworkClient.streamResumableResponses(
                         contentType(ContentType.Application.Json)
                         setBody(body)
                         accept(ContentType.Text.EventStream)
-                        config.token?.let { bearerAuth(it) }
+                        authorizeProvider(config, ProviderAuthStyle.BEARER)
                     }
                 } else {
                     client.prepareGet(resumeUrl(responsesUrl, id, lastSequence)) {
                         retryGenerationRequest()
                         applyPlatformStreamingTimeout(timeoutSeconds)
                         accept(ContentType.Text.EventStream)
-                        config.token?.let { bearerAuth(it) }
+                        authorizeProvider(config, ProviderAuthStyle.BEARER)
                     }
                 }
 
@@ -323,7 +322,7 @@ private suspend fun cancelRemoteResponse(
                 socketTimeoutMillis = REMOTE_CANCEL_TIMEOUT_MS
             }
             contentType(ContentType.Application.Json)
-            config.token?.let { bearerAuth(it) }
+            authorizeProvider(config, ProviderAuthStyle.BEARER)
             setBody("{}")
         }.execute { response ->
             val body = response.body<String>()

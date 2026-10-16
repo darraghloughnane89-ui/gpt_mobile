@@ -111,6 +111,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.ui.memory.MemorySuggestionDialog
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -158,6 +159,9 @@ fun ChatScreen(
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
+    val memoryEnabled by chatViewModel.memoryEnabled.collectAsStateWithLifecycle()
+    val pendingMemorySuggestion by chatViewModel.pendingMemorySuggestion.collectAsStateWithLifecycle()
+    val memoryNotice by chatViewModel.memoryNotice.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusy
@@ -232,6 +236,13 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(memoryNotice) {
+        memoryNotice?.let { notice ->
+            Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+            chatViewModel.consumeMemoryNotice()
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .clickable(
@@ -249,6 +260,8 @@ fun ChatScreen(
                 chatViewModel::openChatTitleDialog,
                 chatViewModel::openChatModelDialog,
                 onExportChatItemClick = { exportChat(context, chatViewModel) },
+                memoryEnabled = memoryEnabled,
+                onToggleMemory = { chatViewModel.setMemoryEnabled(!memoryEnabled) },
                 onChatContextItemClick = {
                     val selected = chatViewModel.enabledPlatformsInChat
                     if (selected.size == 1) {
@@ -466,6 +479,13 @@ fun ChatScreen(
                 }
             }
         }
+    }
+    pendingMemorySuggestion?.let { suggestion ->
+        MemorySuggestionDialog(
+            fact = suggestion.text,
+            onConfirm = chatViewModel::confirmMemorySuggestion,
+            onDismiss = chatViewModel::dismissMemorySuggestion
+        )
     }
 }
 
@@ -689,6 +709,8 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
+    memoryEnabled: Boolean,
+    onToggleMemory: () -> Unit,
     onChatContextItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
@@ -727,6 +749,8 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
+                memoryEnabled = memoryEnabled,
+                onToggleMemory = onToggleMemory,
                 onChatContextItemClick = onChatContextItemClick
             )
         },
@@ -741,6 +765,8 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
+    memoryEnabled: Boolean = true,
+    onToggleMemory: () -> Unit = {},
     onChatContextItemClick: () -> Unit = {}
 ) {
     DropdownMenu(
@@ -766,6 +792,19 @@ fun ChatDropdownMenu(
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
                 onExportChatItemClick()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            text = {
+                Text(
+                    text = stringResource(
+                        if (memoryEnabled) R.string.memory_chat_on else R.string.memory_chat_off
+                    )
+                )
+            },
+            onClick = {
+                onToggleMemory()
                 onDismissRequest()
             }
         )

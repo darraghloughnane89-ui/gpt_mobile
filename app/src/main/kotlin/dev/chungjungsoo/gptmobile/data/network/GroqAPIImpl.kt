@@ -9,7 +9,6 @@ import dev.chungjungsoo.gptmobile.util.applyPlatformStreamingTimeout
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.accept
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
@@ -44,7 +43,7 @@ class GroqAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
                 accept(if (request.stream) ContentType.Text.EventStream else ContentType.Application.Json)
-                config.token?.let { bearerAuth(it) }
+                authorizeProvider(config, ProviderAuthStyle.BEARER)
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()

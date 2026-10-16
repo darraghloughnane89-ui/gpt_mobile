@@ -57,7 +57,7 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
-import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.withInjectedSecret
 import dev.chungjungsoo.gptmobile.data.repository.GroqReasoningParser
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -83,9 +83,7 @@ class OpenAIResponsesAdapter @Inject constructor(
         val encodedTail = attachmentEncoder.responsesInput(turns, platform.uid)
         val nativeItems = parseOpenAiNativeItems(prepared?.nativeItemsJson)
         val initialInput: List<ResponseInputItem> = if (nativeItems.isNotEmpty()) nativeItems + encodedTail else encodedTail
-        val config = ProviderRequestConfig(
-            apiUrl = platform.apiUrl,
-            token = platform.token,
+        val config = platform.withInjectedSecret(
             resumableReplies = platform.resumableReplies &&
                 ModelCapacityResolver.supportsResumableReplies(platform),
             onUnconfirmedRemoteCancellation = onUnconfirmedRemoteCancellation
@@ -154,7 +152,7 @@ class OpenAICompatibleAdapter @Inject constructor(
 ) {
     suspend fun openSession(turns: List<ConversationTurn>, platform: PlatformV2): AgentProviderSession {
         val initialMessages = attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt)
-        val config = ProviderRequestConfig(platform.apiUrl, platform.token)
+        val config = platform.withInjectedSecret()
         return object : AgentProviderSession {
             override fun streamRound(
                 tools: List<AgentToolDefinition>,
@@ -287,9 +285,7 @@ class AnthropicMessagesAdapter @Inject constructor(
                 api.streamChatMessage(
                     request,
                     platform.timeout,
-                    ProviderRequestConfig(
-                        apiUrl = platform.apiUrl,
-                        token = platform.token,
+                    platform.withInjectedSecret(
                         anthropicBetaFeatures = thinkingPolicy.betaFeatures
                     )
                 ).collect { chunk ->
@@ -383,7 +379,7 @@ class GeminiAdapter @Inject constructor(
 ) {
     suspend fun openSession(turns: List<ConversationTurn>, platform: PlatformV2): AgentProviderSession {
         val initialContents = attachmentEncoder.googleContents(turns, platform.uid)
-        val config = ProviderRequestConfig(platform.apiUrl, platform.token)
+        val config = platform.withInjectedSecret()
         val modelPartsByRound = mutableMapOf<Int, List<Part>>()
         return object : AgentProviderSession {
             override fun streamRound(

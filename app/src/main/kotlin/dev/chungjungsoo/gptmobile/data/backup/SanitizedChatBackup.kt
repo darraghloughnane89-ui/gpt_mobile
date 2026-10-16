@@ -8,6 +8,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.os.ParcelFileDescriptor
 import android.util.AtomicFile
+import dev.chungjungsoo.gptmobile.data.security.SecretSyncPolicy
 import java.io.File
 
 class SanitizedChatBackupAgent : BackupAgent() {
@@ -71,7 +72,7 @@ object SanitizedChatBackup {
             database.execSQL("VACUUM INTO '$escapedDestination'")
         }
         SQLiteDatabase.openDatabase(destination.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
-            database.execSQL("UPDATE platform_v2 SET token = NULL")
+            database.execSQL(SecretSyncPolicy.CLEAR_PROVIDER_TOKENS_SQL)
         }
     }
 
