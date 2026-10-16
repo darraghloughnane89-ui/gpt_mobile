@@ -62,6 +62,15 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.image.GeneratedImageDirectoryProvider
+import dev.chungjungsoo.gptmobile.data.image.GeneratedImageStore
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationClient
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationResult
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationTarget
+import dev.chungjungsoo.gptmobile.data.image.ImageModelCapability
+import dev.chungjungsoo.gptmobile.data.image.ImageStyleCommands
+import dev.chungjungsoo.gptmobile.data.image.ImageStylePreference
+import dev.chungjungsoo.gptmobile.data.image.redactSecrets
 import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
 import dev.chungjungsoo.gptmobile.data.instruction.NullProjectInstructionSource
@@ -73,9 +82,11 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -110,7 +121,13 @@ class ChatRepositoryImpl @Inject constructor(
     private val compactionStore: CompactionStore,
     private val remoteContextWindowLookup: RemoteContextWindowLookup,
     private val instructionComposer: InstructionStackComposer = InstructionStackComposer(NullProjectInstructionSource),
-    private val botCompletionTools: BotCompletionTools = BotCompletionTools.PlatformOnly
+    private val botCompletionTools: BotCompletionTools = BotCompletionTools.PlatformOnly,
+    private val imageGenerationClient: ImageGenerationClient = ImageGenerationClient { _, _, _, _ ->
+        ImageGenerationResult.Failure("Image generation is not configured.")
+    },
+    private val generatedImageDirectoryProvider: GeneratedImageDirectoryProvider = GeneratedImageDirectoryProvider {
+        File(System.getProperty("java.io.tmpdir") ?: ".", "gptmobile-generated-images")
+    }
 ) : ChatRepository {
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
@@ -185,6 +202,11 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = flow {
         emit(ApiState.Loading)
         try {
+            val imageTarget = ImageModelCapability.detect(platform.compatibleType, platform.apiUrl, platform.model)
+            if (imageTarget != null) {
+                emitImageGeneration(userMessages, platform, completion, imageTarget) { emit(it) }
+                return@flow
+            }
             val chatId = userMessages.firstOrNull()?.chatId ?: completion.chatId
             val platform = applyInstructionStack(platform, completion, chatId)
             val resolvedTools = resolveCompletionTools(platform, completion)
@@ -830,6 +852,63 @@ class ChatRepositoryImpl @Inject constructor(
         is CompactionOutcome.Failed -> CompactionResult(CompactionStatus.FAILED, message, checkpoint = preservedCheckpoint)
         is CompactionOutcome.InputTooLarge -> CompactionResult(CompactionStatus.INPUT_TOO_LARGE, message)
     }
+    private suspend fun emitImageGeneration(
+        userMessages: List<MessageV2>,
+        platform: PlatformV2,
+        completion: ChatCompletionContext,
+        target: ImageGenerationTarget,
+        emitState: suspend (ApiState) -> Unit
+    ) {
+        val prompt = ImageStyleCommands.styledPrompt(
+            prompt = userMessages.lastOrNull()?.effectiveContent().orEmpty(),
+            preference = ImageStylePreference(
+                enabled = completion.imageGenerationEnabled,
+                style = completion.imageStyle
+            )
+        )
+        if (prompt.isBlank()) {
+            emitState(ApiState.Error(contextString(R.string.image_prompt_required, "Enter a prompt to generate an image.")))
+            return
+        }
+        val token = imageApiToken(platform)
+        if (token.isNullOrBlank()) {
+            emitState(ApiState.Error(contextString(R.string.image_api_key_missing, "Add an API key for this platform before generating images.")))
+            return
+        }
+        val result = try {
+            imageGenerationClient.generate(
+                target = target,
+                prompt = prompt,
+                timeoutSeconds = platform.timeout,
+                config = ProviderRequestConfig(apiUrl = platform.apiUrl, token = token)
+            )
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            ImageGenerationResult.Failure(redactSecrets(error.message ?: "Image generation failed.", token))
+        }
+        when (result) {
+            is ImageGenerationResult.Failure -> emitState(ApiState.Error(redactSecrets(result.message, token)))
+            is ImageGenerationResult.Success -> {
+                val caption = redactSecrets(result.caption, token).ifBlank {
+                    contextString(R.string.generated_image, "Generated image")
+                }
+                val attachment = GeneratedImageStore(generatedImageDirectoryProvider.directory()).save(result.bytes, result.mimeType)
+                emitState(ApiState.Success(caption))
+                emitState(ApiState.GeneratedImage(attachment))
+            }
+        }
+    }
+
+    private suspend fun imageApiToken(platform: PlatformV2): String? {
+        platform.token?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        return settingRepository.fetchPlatformV2s()
+            .firstOrNull { it.uid == platform.uid }
+            ?.token
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
     private fun contextString(resId: Int, fallback: String): String = runCatching { context.getString(resId) }.getOrDefault(fallback)
 }
 

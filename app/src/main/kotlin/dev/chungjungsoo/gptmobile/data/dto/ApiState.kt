@@ -1,11 +1,13 @@
 package dev.chungjungsoo.gptmobile.data.dto
 
 import dev.chungjungsoo.gptmobile.data.context.ApiErrorKind
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 
 sealed class ApiState {
     data object Loading : ApiState()
     data class Thinking(val thinkingChunk: String) : ApiState()
     data class Success(val textChunk: String) : ApiState()
+    data class GeneratedImage(val attachment: ChatAttachment) : ApiState()
     data class ToolCall(val toolSequence: Int) : ApiState()
     data class Notice(val message: String, val persistent: Boolean = false) : ApiState()
     data class Compaction(val active: Boolean) : ApiState()

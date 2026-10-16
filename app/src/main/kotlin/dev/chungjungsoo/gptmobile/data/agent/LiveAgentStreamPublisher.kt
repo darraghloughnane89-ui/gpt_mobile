@@ -28,7 +28,8 @@ data class LiveAgentResponseSnapshot(
 private data class PersistableStream(
     val content: String,
     val thoughts: String,
-    val timeline: List<AssistantTimelineItem>
+    val timeline: List<AssistantTimelineItem>,
+    val attachmentPaths: List<String>
 )
 
 internal class LiveAgentStreamPublisher(
@@ -153,5 +154,6 @@ internal fun MessageV2.toLiveSnapshot(runId: String) = LiveAgentResponseSnapshot
 private fun persistable(message: MessageV2) = PersistableStream(
     content = message.content,
     thoughts = message.thoughts,
-    timeline = message.timeline
+    timeline = message.timeline,
+    attachmentPaths = message.attachments.map { it.filePathForDisplay }
 )

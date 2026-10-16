@@ -9,4 +9,7 @@
     <files-path
         name="attachments"
         path="attachments/" />
+    <files-path
+        name="generated_images"
+        path="generated-images/" />
 </paths>

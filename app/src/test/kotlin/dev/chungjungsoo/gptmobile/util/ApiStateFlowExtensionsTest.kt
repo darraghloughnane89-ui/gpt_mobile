@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,32 @@ class ApiStateFlowExtensionsTest {
 
         assertEquals(ApiStateFlowOutcome.Completed, outcome)
         assertEquals("Final answer" to "Checking", updates.last())
+    }
+
+    @Test
+    fun `collectApiStateUpdates reports a generated image after its caption`() = runBlocking {
+        val images = mutableListOf<String>()
+        val updates = mutableListOf<String>()
+        val attachment = ChatAttachment(
+            localFilePath = "/tmp/generated.png",
+            preparedFilePath = "/tmp/generated.png",
+            displayName = "generated.png",
+            mimeType = "image/png",
+            sizeBytes = 4
+        )
+
+        flowOf(
+            ApiState.Success("Generated image"),
+            ApiState.GeneratedImage(attachment),
+            ApiState.Done
+        ).collectApiStateUpdates(
+            onUpdate = { content, _, _ -> updates += content },
+            onGeneratedImage = { images += it.localFilePath },
+            nanoTimeProvider = { 1L }
+        )
+
+        assertEquals(listOf("Generated image"), updates)
+        assertEquals(listOf("/tmp/generated.png"), images)
     }
 
     @Test

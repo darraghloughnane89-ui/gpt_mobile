@@ -666,10 +666,14 @@ internal fun MessageFileThumbnailRow(
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
         validFiles.forEach { filePath ->
-            MessageFileThumbnail(
-                filePath = filePath,
-                usePrimaryColors = usePrimaryColors
-            )
+            if (isImageFile(File(filePath).extension)) {
+                InlineChatImage(filePath = filePath)
+            } else {
+                MessageFileThumbnail(
+                    filePath = filePath,
+                    usePrimaryColors = usePrimaryColors
+                )
+            }
         }
     }
 }

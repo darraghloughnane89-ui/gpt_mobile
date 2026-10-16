@@ -294,6 +294,10 @@ class AgentRunCoordinator @Inject constructor(
                                 key = "compaction"
                             )
                         )
+                    },
+                    onGeneratedImage = { attachment ->
+                        assistantMessage = assistantMessage.copy(attachments = listOf(attachment))
+                        streamPublisher.publish(request.runId, assistantMessage)
                     }
                 )
             }

@@ -482,6 +482,7 @@ private fun dev.chungjungsoo.gptmobile.data.dto.ApiState.toProviderEvent(): Prov
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Loading -> null
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Done -> null
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.ToolCall -> null
+    is dev.chungjungsoo.gptmobile.data.dto.ApiState.GeneratedImage -> null
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Error -> ProviderEvent.Failed(message)
 }
 

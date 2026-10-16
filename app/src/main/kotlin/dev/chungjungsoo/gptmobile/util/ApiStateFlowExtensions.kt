@@ -5,6 +5,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.updateAssistantSlot
 import kotlinx.coroutines.flow.Flow
@@ -66,7 +67,8 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     onNotice: (String, Boolean) -> Unit = { _, _ -> },
     nanoTimeProvider: () -> Long = System::nanoTime,
     publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS,
-    onCompactionState: (Boolean) -> Unit = {}
+    onCompactionState: (Boolean) -> Unit = {},
+    onGeneratedImage: suspend (ChatAttachment) -> Unit = {}
 ): ApiStateFlowOutcome {
     val buffer = StreamingMessageBuffer(nanoTimeProvider, publishIntervalMillis)
     var isCompletedSuccessfully = false
@@ -85,6 +87,11 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                 is ApiState.Success -> {
                     buffer.appendContent(chunk.textChunk)
                     buffer.publishIfDue(onUpdate)
+                }
+
+                is ApiState.GeneratedImage -> {
+                    buffer.flush(onUpdate)
+                    onGeneratedImage(chunk.attachment)
                 }
 
                 is ApiState.ToolCall -> {

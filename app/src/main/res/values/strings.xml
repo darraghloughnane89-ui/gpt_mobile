@@ -739,4 +739,17 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="generated_image">Generated image</string>
+    <string name="image_actions">Image actions</string>
+    <string name="share_image">Share image</string>
+    <string name="save_image_to_gallery">Save to gallery</string>
+    <string name="image_saved_to_gallery">Image saved to gallery.</string>
+    <string name="image_save_failed">Couldn’t save the image.</string>
+    <string name="image_prompt_required">Enter a prompt to generate an image.</string>
+    <string name="image_api_key_missing">Add an API key for this platform before generating images.</string>
+    <string name="image_style_on">Image style is on. It applies when the selected model can generate images.</string>
+    <string name="image_style_off">Image style is off.</string>
+    <string name="image_style_set">Image style set to %1$s.</string>
+    <string name="image_style_chip">Image style: %1$s</string>
+    <string name="image_style_chip_on">Image generation style on</string>
 </resources>

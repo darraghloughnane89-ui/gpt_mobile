@@ -38,6 +38,10 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Choice
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Delta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
+import dev.chungjungsoo.gptmobile.data.image.GeneratedImageDirectoryProvider
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationClient
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationResult
+import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeEvent
@@ -608,6 +612,45 @@ class ChatRepositoryImplTest {
         assertTrue(states.contains(ApiState.Compaction(true)))
     }
 
+    @Test
+    fun `image models save bytes from the configured provider without exposing the api key`() = runBlocking {
+        val directory = File(System.getProperty("java.io.tmpdir"), "image-gen-${UUID.randomUUID()}").apply { mkdirs() }
+        val client = RecordingImageClient(
+            ImageGenerationResult.Success(
+                bytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47),
+                mimeType = "image/png",
+                caption = "A red cube"
+            )
+        )
+        val repository = createRepository(
+            imageGenerationClient = client,
+            generatedImageDirectoryProvider = GeneratedImageDirectoryProvider { directory }
+        )
+        val states = repository.completeChat(
+            listOf(MessageV2(chatId = 3, content = "a red cube", platformType = null)),
+            emptyList(),
+            customPlatform().copy(
+                compatibleType = ClientType.OPENAI,
+                apiUrl = "https://api.openai.com/v1/",
+                model = "gpt-image-1",
+                token = "sk-test-secret"
+            ),
+            "image-run",
+            ChatCompletionContext(imageGenerationEnabled = true, imageStyle = "watercolor")
+        ).toList()
+
+        assertEquals("sk-test-secret", client.config?.token)
+        assertEquals("https://api.openai.com/v1/", client.config?.apiUrl)
+        assertTrue(client.prompt.orEmpty().contains("Style: watercolor"))
+        assertFalse(states.joinToString { it.toString() }.contains("sk-test-secret"))
+        val image = states.filterIsInstance<ApiState.GeneratedImage>().single()
+        assertTrue(File(image.attachment.localFilePath).isFile)
+        assertTrue(image.attachment.localFilePath.startsWith(directory.canonicalPath))
+        assertEquals("A red cube", states.filterIsInstance<ApiState.Success>().single().textChunk)
+        directory.deleteRecursively()
+        Unit
+    }
+
     private fun createRepository(
         groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
         openAIAPI: OpenAIAPI = RecordingOpenAIAPI(),
@@ -618,7 +661,13 @@ class ChatRepositoryImplTest {
         localModelRepository: LocalModelRepository = FakeLocalModelRepository(),
         modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
         contextLimit: Int = 128_000,
-        compactionStore: dev.chungjungsoo.gptmobile.data.context.CompactionStore = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
+        compactionStore: dev.chungjungsoo.gptmobile.data.context.CompactionStore = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore(),
+        imageGenerationClient: ImageGenerationClient = ImageGenerationClient { _, _, _, _ ->
+            ImageGenerationResult.Failure("unused")
+        },
+        generatedImageDirectoryProvider: GeneratedImageDirectoryProvider = GeneratedImageDirectoryProvider {
+            File(System.getProperty("java.io.tmpdir") ?: ".", "unused-images")
+        }
     ): ChatRepository = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomDao = proxy(),
@@ -648,8 +697,28 @@ class ChatRepositoryImplTest {
         compactionStore = compactionStore,
         remoteContextWindowLookup = dev.chungjungsoo.gptmobile.data.context.RemoteContextWindowLookup { platform ->
             if (platform.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM) null else contextLimit
-        }
+        },
+        imageGenerationClient = imageGenerationClient,
+        generatedImageDirectoryProvider = generatedImageDirectoryProvider
     )
+
+    private class RecordingImageClient(
+        private val result: ImageGenerationResult
+    ) : ImageGenerationClient {
+        var prompt: String? = null
+        var config: ProviderRequestConfig? = null
+
+        override suspend fun generate(
+            target: dev.chungjungsoo.gptmobile.data.image.ImageGenerationTarget,
+            prompt: String,
+            timeoutSeconds: Int,
+            config: ProviderRequestConfig
+        ): ImageGenerationResult {
+            this.prompt = prompt
+            this.config = config
+            return result
+        }
+    }
 
     private fun emptyToolResolver(): AgentToolResolver {
         val vault = MapSecretVault(emptyMap())

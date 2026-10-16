@@ -40,6 +40,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.rebuildAssistantTimelineF
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
+import dev.chungjungsoo.gptmobile.data.image.ImageStyleCommand
+import dev.chungjungsoo.gptmobile.data.image.ImageStyleCommands
+import dev.chungjungsoo.gptmobile.data.image.ImageStylePreference
+import dev.chungjungsoo.gptmobile.data.image.ImageStyleStore
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.phone.PhoneHandoffStore
 import dev.chungjungsoo.gptmobile.data.project.ProjectInstructionBinder
@@ -58,6 +62,7 @@ import dev.chungjungsoo.gptmobile.util.buildAssistantErrorContent
 import dev.chungjungsoo.gptmobile.util.determineLocalNetworkAccessRequirement
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 import dev.chungjungsoo.gptmobile.util.requiresLocalNetworkAccess
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -239,7 +244,12 @@ class ChatViewModel @Inject constructor(
 
     private var pendingQuestionText: String? = null
 
+    private val imageStyleStore = ImageStyleStore(File(context.filesDir, "image-styles"))
+    private val _imageStyle = MutableStateFlow(ImageStylePreference())
+    val imageStyle = _imageStyle.asStateFlow()
+
     init {
+        _imageStyle.value = runCatching { imageStyleStore.load(chatRoomId) }.getOrDefault(ImageStylePreference())
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
@@ -288,6 +298,7 @@ class ChatViewModel @Inject constructor(
 
     fun askQuestion() {
         val questionText = question.text.toString()
+        if (tryHandleImageStyleCommand(questionText)) return
         val hasReadyAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Ready }
         val hasPreparingAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Preparing }
         if (questionText.isBlank() && !hasReadyAttachments && !hasPreparingAttachments) return
@@ -858,6 +869,7 @@ class ChatViewModel @Inject constructor(
                 },
                 startProvider = { persisted ->
                     _chatRoom.update { persisted.chatRoom }
+                    imageStyleStore.save(persisted.chatRoom.id, _imageStyle.value)
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
                             userMessages = groupedMessages.userMessages.toMutableList().apply {
@@ -1224,7 +1236,40 @@ class ChatViewModel @Inject constructor(
         return groupPersistedMessages(messages, enabledPlatformsInChat, chatId)
     }
 
-    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id)
+    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id).copy(
+        imageGenerationEnabled = _imageStyle.value.enabled,
+        imageStyle = _imageStyle.value.style
+    )
+
+    private fun tryHandleImageStyleCommand(questionText: String): Boolean {
+        if (_selectedAttachments.value.isNotEmpty()) return false
+        val command = ImageStyleCommands.parse(questionText) ?: return false
+        val next = ImageStyleCommands.apply(command, _imageStyle.value)
+        _imageStyle.value = next
+        val chatId = _chatRoom.value.id.takeIf { it > 0 } ?: chatRoomId
+        runCatching { imageStyleStore.save(chatId, next) }
+        _attachmentNotice.value = imageStyleNotice(next, command)
+        question.clearText()
+        return true
+    }
+
+    private fun imageStyleNotice(state: ImageStylePreference, command: ImageStyleCommand): String {
+        val style = state.style.orEmpty()
+        return when (command) {
+            ImageStyleCommand.Off -> context.getString(R.string.image_style_off)
+            is ImageStyleCommand.Set -> context.getString(R.string.image_style_set, style)
+            ImageStyleCommand.On -> if (style.isBlank()) {
+                context.getString(R.string.image_style_on)
+            } else {
+                context.getString(R.string.image_style_set, style)
+            }
+            ImageStyleCommand.Toggle -> if (state.enabled) {
+                if (style.isBlank()) context.getString(R.string.image_style_on) else context.getString(R.string.image_style_set, style)
+            } else {
+                context.getString(R.string.image_style_off)
+            }
+        }
+    }
 
     private fun applyNewChatBotModel() {
         if (chatRoomId != 0 || _chatRoom.value.id != 0) return

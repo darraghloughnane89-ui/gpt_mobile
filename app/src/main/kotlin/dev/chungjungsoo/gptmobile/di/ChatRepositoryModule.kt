@@ -19,11 +19,15 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.image.ContextGeneratedImageDirectoryProvider
+import dev.chungjungsoo.gptmobile.data.image.GeneratedImageDirectoryProvider
+import dev.chungjungsoo.gptmobile.data.image.ImageGenerationClient
 import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
+import dev.chungjungsoo.gptmobile.data.network.ImageGenerationClientImpl
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
@@ -66,7 +70,9 @@ object ChatRepositoryModule {
         compactionDao: CompactionDao,
         networkClient: NetworkClient,
         instructionComposer: InstructionStackComposer,
-        botToolResolver: BotToolResolver
+        botToolResolver: BotToolResolver,
+        imageGenerationClient: ImageGenerationClient,
+        generatedImageDirectoryProvider: GeneratedImageDirectoryProvider
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -92,6 +98,18 @@ object ChatRepositoryModule {
         RoomCompactionStore(compactionDao),
         HttpRemoteContextWindowLookup(networkClient),
         instructionComposer,
-        botToolResolver
+        botToolResolver,
+        imageGenerationClient,
+        generatedImageDirectoryProvider
     )
+
+    @Provides
+    @Singleton
+    fun provideImageGenerationClient(networkClient: NetworkClient): ImageGenerationClient = ImageGenerationClientImpl(networkClient)
+
+    @Provides
+    @Singleton
+    fun provideGeneratedImageDirectoryProvider(
+        @ApplicationContext context: Context
+    ): GeneratedImageDirectoryProvider = ContextGeneratedImageDirectoryProvider(context)
 }

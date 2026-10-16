@@ -163,6 +163,13 @@ fun ChatScreen(
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
+    val imageStyle by chatViewModel.imageStyle.collectAsStateWithLifecycle()
+    val activeImageStyle = imageStyle.style
+    val imageStyleLabel = when {
+        imageStyle.enabled && !activeImageStyle.isNullOrBlank() -> stringResource(R.string.image_style_chip, activeImageStyle)
+        imageStyle.enabled -> stringResource(R.string.image_style_chip_on)
+        else -> null
+    }
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
     val launchCamera by chatViewModel.launchCamera.collectAsStateWithLifecycle()
     ChatCameraCapture(
@@ -377,6 +384,7 @@ fun ChatScreen(
                     onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                     onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
                     onCancelButtonClick = chatViewModel::cancelActiveRuns,
+                    imageStyleLabel = imageStyleLabel,
                     onVoiceClick = if (canUseChat) {
                         { showVoice = true }
                     } else {
@@ -925,6 +933,7 @@ fun ChatInputBox(
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
+    imageStyleLabel: String? = null,
     onVoiceClick: (() -> Unit)? = null,
     onSendButtonClick: () -> Unit = {}
 ) {
@@ -958,6 +967,14 @@ fun ChatInputBox(
         shadowElevation = 2.dp
     ) {
         Column {
+            if (!imageStyleLabel.isNullOrBlank()) {
+                Text(
+                    text = imageStyleLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
+                )
+            }
             if (selectedAttachments.isNotEmpty()) {
                 FileThumbnailRow(
                     selectedAttachments = selectedAttachments,
