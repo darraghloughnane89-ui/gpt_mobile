@@ -83,7 +83,8 @@ fun UserChatBubble(
     contentIdentity: Any = text,
     canEdit: Boolean = false,
     onCopyClick: () -> Unit = {},
-    onEditClick: () -> Unit = {}
+    onEditClick: () -> Unit = {},
+    onSendToHermes: (() -> Unit)? = null
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -126,6 +127,7 @@ fun UserChatBubble(
             canEdit = canEdit,
             onCopy = onCopyClick,
             onEdit = onEditClick,
+            onSendToHermes = onSendToHermes,
             onDismissRequest = { isActionsSheetOpen = false }
         )
     }
@@ -155,7 +157,8 @@ fun OpponentChatBubble(
     onRetryClick: () -> Unit = {},
     onEditClick: () -> Unit = {},
     onShowPreviousRevision: () -> Unit = {},
-    onShowNextRevision: () -> Unit = {}
+    onShowNextRevision: () -> Unit = {},
+    onSendToHermes: (() -> Unit)? = null
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.background,
@@ -270,6 +273,12 @@ fun OpponentChatBubble(
                     CopyTextIcon(onCopyClick)
                     Spacer(modifier = Modifier.width(8.dp))
                     SelectTextIcon(onSelectClick)
+                    if (onSendToHermes != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = onSendToHermes) {
+                            Text(stringResource(R.string.hermes_send_message))
+                        }
+                    }
                     if (canEdit) {
                         Spacer(modifier = Modifier.width(8.dp))
                         EditTextIcon(onEditClick)

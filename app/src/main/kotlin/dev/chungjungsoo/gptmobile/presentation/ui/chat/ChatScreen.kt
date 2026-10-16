@@ -62,6 +62,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -111,6 +112,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.HermesAskDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.HermesChatSendDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.HermesViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.hermesChatRequest
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.hermesMessageRequest
+import dev.chungjungsoo.gptmobile.presentation.ui.hermes.hermesTaskRequest
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -197,6 +204,21 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val hermesViewModel: HermesViewModel = hiltViewModel()
+    var hermesChatDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var hermesAskDialogOpen by rememberSaveable { mutableStateOf(false) }
+    fun queueHermes(request: dev.chungjungsoo.gptmobile.data.hermes.HermesHandoffRequest) {
+        scope.launch {
+            val result = hermesViewModel.handoff(request)
+            val message = when (result) {
+                dev.chungjungsoo.gptmobile.data.hermes.HermesHandoffResult.QUEUED ->
+                    context.getString(R.string.hermes_queued)
+                dev.chungjungsoo.gptmobile.data.hermes.HermesHandoffResult.QUEUED_NEEDS_SETUP ->
+                    context.getString(R.string.hermes_queued_needs_setup)
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
@@ -249,6 +271,7 @@ fun ChatScreen(
                 chatViewModel::openChatTitleDialog,
                 chatViewModel::openChatModelDialog,
                 onExportChatItemClick = { exportChat(context, chatViewModel) },
+                onSendChatToHermes = { hermesChatDialogOpen = true },
                 onChatContextItemClick = {
                     val selected = chatViewModel.enabledPlatformsInChat
                     if (selected.size == 1) {
@@ -306,6 +329,19 @@ fun ChatScreen(
                             onPlatformClick = chatViewModel::updateChatPlatformIndex,
                             onSelectText = chatViewModel::openSelectTextSheet,
                             onRetry = chatViewModel::retryChat,
+                            onSendUserToHermes = {
+                                queueHermes(hermesMessageRequest(message.content, message.attachments))
+                            },
+                            onSendAssistantToHermes = {
+                                val assistant = groupedMessages.assistantMessages.getOrNull(index)
+                                    ?.getOrNull(indexStates.getOrElse(index) { 0 })
+                                queueHermes(
+                                    hermesMessageRequest(
+                                        assistant?.effectiveContent().orEmpty(),
+                                        assistant?.attachments.orEmpty()
+                                    )
+                                )
+                            },
                             onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
                             onShowNextRevision = chatViewModel::showNextAssistantRevision
                         )
@@ -342,7 +378,8 @@ fun ChatScreen(
                 selectedAttachments = selectedAttachments,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                 onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
-                onCancelButtonClick = chatViewModel::cancelActiveRuns
+                onCancelButtonClick = chatViewModel::cancelActiveRuns,
+                onAskHermes = { hermesAskDialogOpen = true }
             ) {
                 if (!requestedNotificationPermission &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -466,6 +503,44 @@ fun ChatScreen(
                 }
             }
         }
+
+        if (hermesChatDialogOpen) {
+            HermesChatSendDialog(
+                onDismiss = { hermesChatDialogOpen = false },
+                onTranscript = {
+                    hermesChatDialogOpen = false
+                    queueHermes(
+                        hermesChatRequest(
+                            title = chatRoom.title,
+                            userMessages = groupedMessages.userMessages,
+                            assistantMessages = groupedMessages.assistantMessages,
+                            summary = false
+                        )
+                    )
+                },
+                onSummary = {
+                    hermesChatDialogOpen = false
+                    queueHermes(
+                        hermesChatRequest(
+                            title = chatRoom.title,
+                            userMessages = groupedMessages.userMessages,
+                            assistantMessages = groupedMessages.assistantMessages,
+                            summary = true
+                        )
+                    )
+                }
+            )
+        }
+        if (hermesAskDialogOpen) {
+            HermesAskDialog(
+                initialText = chatViewModel.question.text.toString(),
+                onDismiss = { hermesAskDialogOpen = false },
+                onSend = { task ->
+                    hermesAskDialogOpen = false
+                    queueHermes(hermesTaskRequest(task, selectedAttachments))
+                }
+            )
+        }
     }
 }
 
@@ -492,6 +567,8 @@ private fun ChatMessagePair(
     onPlatformClick: (Int, Int) -> Unit,
     onSelectText: (String) -> Unit,
     onRetry: (Int, Int) -> Unit,
+    onSendUserToHermes: () -> Unit = {},
+    onSendAssistantToHermes: () -> Unit = {},
     onShowPreviousRevision: (Int, Int) -> Unit,
     onShowNextRevision: (Int, Int) -> Unit
 ) {
@@ -531,7 +608,8 @@ private fun ChatMessagePair(
                 contentIdentity = chatMessagePairKey(message, messageIndex),
                 canEdit = canEdit,
                 onCopyClick = { onCopyText(message.content) },
-                onEditClick = { onEditQuestion(message) }
+                onEditClick = { onEditQuestion(message) },
+                onSendToHermes = onSendUserToHermes
             )
         }
 
@@ -611,7 +689,8 @@ private fun ChatMessagePair(
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
                 onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
-                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
+                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) },
+                onSendToHermes = onSendAssistantToHermes
             )
         }
     }
@@ -689,6 +768,7 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
+    onSendChatToHermes: () -> Unit = {},
     onChatContextItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
@@ -727,6 +807,7 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
+                onSendChatToHermes = onSendChatToHermes,
                 onChatContextItemClick = onChatContextItemClick
             )
         },
@@ -741,6 +822,7 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
+    onSendChatToHermes: () -> Unit = {},
     onChatContextItemClick: () -> Unit = {}
 ) {
     DropdownMenu(
@@ -766,6 +848,14 @@ fun ChatDropdownMenu(
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
                 onExportChatItemClick()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(text = stringResource(R.string.hermes_send_chat)) },
+            onClick = {
+                onSendChatToHermes()
                 onDismissRequest()
             }
         )
@@ -836,6 +926,7 @@ fun ChatInputBox(
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
+    onAskHermes: (() -> Unit)? = null,
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
@@ -895,6 +986,14 @@ fun ChatInputBox(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
                                 contentDescription = stringResource(R.string.attach_file)
                             )
+                        }
+                        if (onAskHermes != null) {
+                            TextButton(
+                                enabled = chatEnabled && !isRunning,
+                                onClick = onAskHermes
+                            ) {
+                                Text(stringResource(R.string.hermes_ask))
+                            }
                         }
                         Box(
                             modifier = Modifier

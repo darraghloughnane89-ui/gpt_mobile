@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile Tanıtım Logosu</string>
     <string name="welcome_title">Akıllı telefonunuzda\nalabileceğiniz en iyi\nyapay zeka asistanı.</string>
     <string name="welcome_description">Size en uygun modeli\nkullanın. İstediğiniz her şeyi sorun!</string>

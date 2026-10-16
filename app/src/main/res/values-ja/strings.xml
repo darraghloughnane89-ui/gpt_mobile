@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTモバイル</string>
     <string name="gpt_mobile_introduction_logo">GPTモバイル紹介ロゴ</string>
     <string name="welcome_title">あなたのスマートフォンで\n使える最高の\nAIアシスタント。</string>
     <string name="welcome_description">あなたにピッタリのモデルを使えます。\n何でも聞きましょう！</string>

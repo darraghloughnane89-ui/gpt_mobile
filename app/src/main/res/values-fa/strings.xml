@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">جی‌پی‌تی موبایل</string>
     <string name="gpt_mobile_introduction_logo">لوگوی معرفی جی‌پی‌تی موبایل</string>
     <string name="welcome_title">بهترین دستیار هوش مصنوعی\nکه میتونی داشته باشی روی\nگوشیت</string>
     <string name="gemini_safety_settings">تنظیمات ایمنی Gemini</string>

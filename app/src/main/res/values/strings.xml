@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">GPTMobile</string>
+    <!-- Product name. Rename the app by changing this one string (Robin, Rocco, …). -->
+    <string name="brand_name" translatable="false">Robin</string>
+    <string name="app_name" translatable="false">@string/brand_name</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile Introduction Logo</string>
     <string name="welcome_title">The best AI assistant\nyou can get in your\nsmartphone.</string>
     <string name="welcome_description">Use the model that suits you\nthe most. Ask anything you want!</string>
@@ -594,4 +596,56 @@
     <string name="chat_context_timeout">Compaction timed out. The transcript and last valid checkpoint were kept.</string>
     <string name="agent_run_timeout">The response timed out. Partial output was kept.</string>
     <string name="agent_run_save_failed">Could not save this reply.</string>
+    <string name="hermes_settings_title">Hermes</string>
+    <string name="hermes_settings_description">Hand a message, file, or task from %1$s straight to the Hermes agent.</string>
+    <string name="hermes_endpoint">Endpoint URL</string>
+    <string name="hermes_endpoint_supporting">Tailscale or LAN address, for example http://100.x.x.x:8642</string>
+    <string name="hermes_token">API key</string>
+    <string name="hermes_token_saved">A key is saved in the Android Keystore.</string>
+    <string name="hermes_token_supporting">API_SERVER_KEY from the Hermes profile. It stays in the Keystore and is left out of chat backup.</string>
+    <string name="hermes_profile">Profile</string>
+    <string name="hermes_profile_supporting">Hermes profile. The default is cbre-admin.</string>
+    <string name="hermes_test_connection">Test connection</string>
+    <string name="hermes_testing">Testing…</string>
+    <string name="hermes_save">Save</string>
+    <string name="hermes_chat_model">Show Hermes as a chat model</string>
+    <string name="hermes_chat_model_description">Adds an OpenAI-compatible platform so a chat can talk to this agent directly.</string>
+    <string name="hermes_open_thread">Open Hermes thread</string>
+    <string name="hermes_thread_title">Hermes</string>
+    <string name="hermes_empty_thread">Nothing sent yet. Use Send to Hermes on a message, or Ask Hermes from the composer.</string>
+    <string name="hermes_new_thread">New thread</string>
+    <string name="hermes_status_queued">Queued</string>
+    <string name="hermes_status_sending">Sending</string>
+    <string name="hermes_status_streaming">Streaming</string>
+    <string name="hermes_status_delivered">Delivered</string>
+    <string name="hermes_status_failed">Failed</string>
+    <string name="hermes_status_interrupted">Interrupted</string>
+    <string name="hermes_retry">Retry</string>
+    <string name="hermes_send_message">Send to Hermes</string>
+    <string name="hermes_send_chat">Send chat to Hermes</string>
+    <string name="hermes_send_transcript">Full transcript</string>
+    <string name="hermes_send_summary">Short summary</string>
+    <string name="hermes_ask">Ask Hermes</string>
+    <string name="hermes_ask_title">Ask Hermes to…</string>
+    <string name="hermes_ask_confirm">Send to Hermes</string>
+    <string name="hermes_queued">Queued for Hermes. It sends when the computer is reachable.</string>
+    <string name="hermes_queued_needs_setup">Queued. Add the Hermes endpoint and API key in Settings before it can send.</string>
+    <string name="hermes_share_label">Send to Hermes</string>
+    <string name="hermes_share_empty">Nothing to send.</string>
+    <string name="hermes_notification_channel">Hermes delivery</string>
+    <string name="hermes_notification_channel_description">Status while a message is delivered to Hermes</string>
+    <string name="hermes_notification_title">Sending to Hermes</string>
+    <string name="hermes_notification_body">Waiting for the Hermes agent.</string>
+    <string name="hermes_reachability">The phone has to reach the Mac on the same Wi-Fi, over Tailscale (recommended), or you can message the Hermes Telegram bot when the API server is not reachable. Offline sends stay queued and retry.</string>
+    <string name="hermes_you">You</string>
+    <string name="hermes_agent_name">Hermes</string>
+    <string name="hermes_probe_ok">Connected. Route %1$s, model %2$s.</string>
+    <string name="hermes_probe_ok_streaming">Connected. Route %1$s, model %2$s. Streaming is available.</string>
+    <string name="hermes_probe_unreachable">Could not reach Hermes. %1$s</string>
+    <string name="hermes_probe_unauthorized">Hermes rejected the API key.</string>
+    <string name="hermes_probe_profile_mismatch">The key was rejected for profile %1$s. The unprefixed API accepted it, which is a different profile. Put API_SERVER_KEY in that profile, or point the endpoint at that profile’s own port.</string>
+    <string name="hermes_probe_needs_key">The endpoint answered. Save an API key to finish the test.</string>
+    <string name="hermes_probe_failed">Hermes did not accept the connection. %1$s</string>
+    <string name="hermes_endpoint_invalid">Enter an http or https endpoint, including the port.</string>
+    <string name="hermes_profile_invalid">Use a profile name such as cbre-admin.</string>
 </resources>

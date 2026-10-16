@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile Einführung Logo</string>
     <string name="welcome_title">Der beste KI-Assistent,\nden du auf deinem\nSmartphone haben kannst.</string>
     <string name="welcome_description">Verwende das Modell, das am besten zu dir passt.\nFrag einfach, was du möchtest!</string>

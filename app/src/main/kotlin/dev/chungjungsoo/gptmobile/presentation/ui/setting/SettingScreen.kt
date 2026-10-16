@@ -60,6 +60,7 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
+    onNavigateToHermes: () -> Unit = {},
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -145,6 +146,18 @@ fun SettingScreen(
                     title = stringResource(R.string.web_tools),
                     description = stringResource(R.string.web_tools_description),
                     onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+            }
+            SettingsSection(title = stringResource(R.string.hermes_settings_title)) {
+                SettingItem(
+                    title = stringResource(R.string.hermes_settings_title),
+                    description = stringResource(
+                        R.string.hermes_settings_description,
+                        stringResource(R.string.brand_name)
+                    ),
+                    onItemClick = onNavigateToHermes,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

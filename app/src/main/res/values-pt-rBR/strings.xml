@@ -99,7 +99,6 @@
     <string name="groq_setting">Configurações do Groq</string>
     <string name="groq_description">Inferência rápida de IA para modelos disponíveis abertamente.</string>
     <string name="groq_api_key">Chave API Groq</string>
-    <string name="app_name">GPTMovel</string>
     <string name="welcome_title">O melhor assistente de IA\nque você pode ter no seu\nsmartphone.</string>
     <string name="openai_description">Criador do ChatGPT.</string>
     <string name="next">Próximo</string>

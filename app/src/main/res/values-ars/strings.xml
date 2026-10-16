@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">جي بي تي موبايل</string>
     <string name="gpt_mobile_introduction_logo">شعار مقدمة GPT Mobile</string>
     <string name="get_started">البدء</string>
     <string name="platform_select_description">اختر النظام الأساسي الذي تريد استخدامه. يمكنك تغيير هذا لاحقًا في الإعدادات. سيتم دعم المزيد من المنصات.</string>

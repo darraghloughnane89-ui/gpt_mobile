@@ -2,7 +2,6 @@
 <resources>
     <string name="clear_token">נקה אסימון</string>
     <string name="welcome_description">השתמש במודל שהכי מתאים לך.\nתשאל כל מה שאתה רוצה!</string>
-    <string name="app_name">GPTMobile</string>
     <string name="welcome_title">עוזר הבינה המלאכותית הטוב ביותר\nשאתה יכול לקבל\nבסמארטפון שלך.</string>
     <string name="get_started">התחל</string>
     <string name="sample_item_title">פריט 1</string>
