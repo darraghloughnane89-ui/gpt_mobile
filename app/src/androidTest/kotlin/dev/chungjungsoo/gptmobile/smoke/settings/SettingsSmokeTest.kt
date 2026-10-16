@@ -15,11 +15,11 @@ class SettingsSmokeTest : SmokeActivityTest("settings") {
     @Test
     fun settings_showsSeededProviderAndAppearance() {
         launchSeededHome()
-        waitForText(targetContext.getString(R.string.new_chat), timeoutMs = 45_000)
+        waitForHome()
         clickContentDescription(targetContext.getString(R.string.settings))
         waitForText(targetContext.getString(R.string.appearance))
         waitForText("Fake LLM", timeoutMs = 45_000)
         clickContentDescription(targetContext.getString(R.string.go_back))
-        waitForText(targetContext.getString(R.string.new_chat))
+        waitForHome()
     }
 }

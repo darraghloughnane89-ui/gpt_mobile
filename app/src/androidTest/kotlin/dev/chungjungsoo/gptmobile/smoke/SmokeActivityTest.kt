@@ -135,14 +135,31 @@ abstract class SmokeActivityTest(private val feature: String) {
         composeRule.waitForIdle()
     }
 
+    protected fun waitForHome() {
+        val projects = targetContext.getString(R.string.projects)
+        val startChat = targetContext.getString(R.string.start_a_chat)
+        val newChat = targetContext.getString(R.string.new_chat)
+        composeRule.waitUntil(HOME_TIMEOUT_MS) {
+            hasText(projects) ||
+                hasText(startChat) ||
+                hasText(newChat) ||
+                deviceHasText(projects) ||
+                deviceHasText(startChat) ||
+                deviceHasText(newChat)
+        }
+    }
+
     protected fun openNewChat() {
         val newChat = targetContext.getString(R.string.new_chat)
+        val startChat = targetContext.getString(R.string.start_a_chat)
         val ask = targetContext.getString(R.string.ask_a_question)
         val selectPlatform = targetContext.getString(R.string.select_platform)
         val confirm = targetContext.getString(R.string.confirm)
         val cancel = targetContext.getString(R.string.cancel)
         repeat(3) {
-            clickText(newChat, HOME_TIMEOUT_MS)
+            waitForHome()
+            val label = if (hasText(newChat) || deviceHasText(newChat)) newChat else startChat
+            clickText(label, HOME_TIMEOUT_MS)
             composeRule.waitUntil(HOME_TIMEOUT_MS) {
                 hasText(ask) || hasText(selectPlatform) || deviceHasText(ask) || deviceHasText(selectPlatform)
             }

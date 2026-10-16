@@ -30,7 +30,7 @@ class ProjectCreateImportSmokeTest : SmokeActivityTest("projects") {
         val newProject = assumeFeature("project_new")
         val projects = assumeFeature("projects")
         launchSeededHome()
-        waitForText(targetContext.getString(R.string.new_chat), timeoutMs = 45_000)
+        waitForHome()
         clickText(projects)
         clickText(newProject)
         composeRule.onNode(hasSetTextAction()).performTextInput("Harness Project")
@@ -48,7 +48,7 @@ class ProjectCreateImportSmokeTest : SmokeActivityTest("projects") {
         val import = assumeFeature("project_import")
         val projects = assumeFeature("projects")
         launchSeededHome()
-        waitForText(targetContext.getString(R.string.new_chat), timeoutMs = 45_000)
+        waitForHome()
         clickText(projects)
         var intentsReady = false
         try {

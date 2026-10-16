@@ -18,7 +18,7 @@ class VaultSyncSmokeTest : SmokeActivityTest("vault") {
         val syncNow = assumeFeature("obsidian_sync_now")
         val heading = assumeFeature("obsidian_github_heading")
         launchSeededHome()
-        waitForText(targetContext.getString(R.string.new_chat), timeoutMs = 45_000)
+        waitForHome()
         clickContentDescription(targetContext.getString(R.string.settings))
         waitForText(targetContext.getString(R.string.appearance))
         val rowLabel = settingsRow.substringAfterLast(" ").ifBlank { "vault" }
