@@ -89,6 +89,14 @@ data class PersistAgentTurnRequest(
     val chatPlatformModels: Map<String, String>
 )
 
+data class PersistBranchedTurnRequest(
+    val chatRoom: ChatRoomV2,
+    val existingMessages: List<MessageV2>,
+    val userMessage: MessageV2,
+    val runs: List<AgentRunDraft>,
+    val chatPlatformModels: Map<String, String>
+)
+
 data class PersistAgentTurnResult(
     val chatRoom: ChatRoomV2,
     val userMessage: MessageV2,

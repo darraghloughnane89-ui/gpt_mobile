@@ -390,6 +390,13 @@
     <string name="at_least_one_platform_required">Add at least one platform to continue</string>
     <string name="remove">Remove</string>
     <string name="revision_counter">Revision %1$d/%2$d</string>
+    <string name="branch_counter">%1$d/%2$d</string>
+    <string name="branch_previous_symbol" translatable="false">&lt;</string>
+    <string name="branch_next_symbol" translatable="false">&gt;</string>
+    <string name="branch_switcher_description">Branch %1$d of %2$d</string>
+    <string name="previous_branch">Previous branch</string>
+    <string name="next_branch">Next branch</string>
+    <string name="branch_into_new_chat">Branch into new chat</string>
     <string name="previous_revision">Previous revision</string>
     <string name="next_revision">Next revision</string>
     <string name="web_tools">Tool connections</string>

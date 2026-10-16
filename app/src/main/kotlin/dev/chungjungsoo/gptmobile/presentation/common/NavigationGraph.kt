@@ -212,7 +212,16 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onOpenBranchedChat = { chatRoom ->
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = chatRoom.id,
+                        enabledPlatforms = chatRoom.enabledPlatform.joinToString(","),
+                        projectId = chatRoom.projectId ?: -1
+                    )
+                )
+            }
         )
     }
 }

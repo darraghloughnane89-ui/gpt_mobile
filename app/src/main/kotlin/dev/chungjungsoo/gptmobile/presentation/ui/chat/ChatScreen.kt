@@ -105,9 +105,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
+import dev.chungjungsoo.gptmobile.data.context.BranchSwitchState
+import dev.chungjungsoo.gptmobile.data.context.assistantRevisionSwitch
+import dev.chungjungsoo.gptmobile.data.context.userBranchSwitch
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
@@ -131,7 +134,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onOpenBranchedChat: (ChatRoomV2) -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -181,6 +185,10 @@ fun ChatScreen(
     val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusy
     val context = LocalContext.current
     val lastMessageIndex = groupedMessages.userMessages.lastIndex
+    val branchCandidates = groupedMessages.userMessages + groupedMessages.archivedMessages
+    LaunchedEffect(chatViewModel) {
+        chatViewModel.branchedChat.collect(onOpenBranchedChat)
+    }
     var requestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var sendAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var sendAfterLocalNetworkPermission by rememberSaveable { mutableStateOf(false) }
@@ -331,7 +339,12 @@ fun ChatScreen(
                             onSelectText = chatViewModel::openSelectTextSheet,
                             onRetry = chatViewModel::retryChat,
                             onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
-                            onShowNextRevision = chatViewModel::showNextAssistantRevision
+                            onShowNextRevision = chatViewModel::showNextAssistantRevision,
+                            onShowPreviousUserBranch = chatViewModel::showPreviousUserBranch,
+                            onShowNextUserBranch = chatViewModel::showNextUserBranch,
+                            onBranchIntoNewChat = chatViewModel::branchIntoNewChat,
+                            userBranch = userBranchSwitch(message, branchCandidates),
+                            canBranchIntoNewChat = chatRoom.id > 0 && isIdle
                         )
                     }
                     if (groupedMessages.userMessages.isNotEmpty()) {
@@ -532,7 +545,12 @@ private fun ChatMessagePair(
     onSelectText: (String) -> Unit,
     onRetry: (Int, Int) -> Unit,
     onShowPreviousRevision: (Int, Int) -> Unit,
-    onShowNextRevision: (Int, Int) -> Unit
+    onShowNextRevision: (Int, Int) -> Unit,
+    onShowPreviousUserBranch: (Int) -> Unit,
+    onShowNextUserBranch: (Int) -> Unit,
+    onBranchIntoNewChat: (Int) -> Unit,
+    userBranch: BranchSwitchState?,
+    canBranchIntoNewChat: Boolean
 ) {
     val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
     val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
@@ -541,14 +559,7 @@ private fun ChatMessagePair(
     val selectedRunId = selectedAssistantMessage?.effectiveRunId()
     val agentRun = selectedRunId?.let(agentRunsById::get)
     val toolEvents = selectedRunId?.let(toolEventsByRun::get).orEmpty()
-    val canShowPreviousRevision = selectedAssistantMessage?.let { assistantMessage ->
-        assistantMessage.revisions.isNotEmpty() &&
-            assistantMessage.activeRevisionIndex < assistantMessage.revisions.lastIndex
-    } ?: false
-    val canShowNextRevision = selectedAssistantMessage?.let { assistantMessage ->
-        assistantMessage.revisions.isNotEmpty() &&
-            assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
-    } ?: false
+    val assistantBranch = selectedAssistantMessage?.let(::assistantRevisionSwitch)
     val selectedPlatformUid = enabledPlatformsInChat.getOrElse(platformIndexState) { "" }
     val isCurrentPlatformLoading =
         loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
@@ -569,6 +580,12 @@ private fun ChatMessagePair(
                 files = message.attachments.map { it.filePathForDisplay },
                 contentIdentity = chatMessagePairKey(message, messageIndex),
                 canEdit = canEdit,
+                branchPosition = userBranch?.position,
+                branchTotal = userBranch?.total,
+                onPreviousBranch = { if (isIdle) onShowPreviousUserBranch(messageIndex) },
+                onNextBranch = { if (isIdle) onShowNextUserBranch(messageIndex) },
+                canBranchIntoNewChat = canBranchIntoNewChat && message.id > 0,
+                onBranchIntoNewChat = { onBranchIntoNewChat(messageIndex) },
                 onCopyClick = { onCopyText(message.content) },
                 onEditClick = { onEditQuestion(message) }
             )
@@ -626,31 +643,17 @@ private fun ChatMessagePair(
                 runNotices = selectedRunId?.let(runNoticesById::get).orEmpty(),
                 toolEvents = toolEvents,
                 contentIdentity = "$messageIndex:$selectedPlatformUid:${selectedRunId.orEmpty()}:${selectedAssistantMessage?.activeRevisionIndex}",
-                revisionIndexLabel = selectedAssistantMessage?.let { assistantMessage ->
-                    val totalRevisions = assistantMessage.revisions.size + 1
-                    if (assistantMessage.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
-                        stringResource(
-                            R.string.revision_counter,
-                            totalRevisions,
-                            totalRevisions
-                        )
-                    } else {
-                        stringResource(
-                            R.string.revision_counter,
-                            assistantMessage.revisions.size - assistantMessage.activeRevisionIndex,
-                            totalRevisions
-                        )
-                    }
-                },
-                canShowPreviousRevision = canShowPreviousRevision,
-                canShowNextRevision = canShowNextRevision,
+                branchPosition = assistantBranch?.position,
+                branchTotal = assistantBranch?.total,
+                canBranchIntoNewChat = canBranchIntoNewChat && (selectedAssistantMessage?.id ?: 0) > 0,
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
                 onViewFull = onSelectText,
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
                 onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
-                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
+                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) },
+                onBranchIntoNewChat = { onBranchIntoNewChat(messageIndex) }
             )
         }
     }

@@ -38,8 +38,9 @@ import dev.chungjungsoo.gptmobile.data.context.RemoteContextWindowLookup
 import dev.chungjungsoo.gptmobile.data.context.TextContextCompactor
 import dev.chungjungsoo.gptmobile.data.context.TokenEstimator
 import dev.chungjungsoo.gptmobile.data.context.ToolEvidence
+import dev.chungjungsoo.gptmobile.data.context.activeTranscript
 import dev.chungjungsoo.gptmobile.data.context.attributedTurnsForCompaction
-import dev.chungjungsoo.gptmobile.data.context.groupPersistedConversation
+import dev.chungjungsoo.gptmobile.data.context.branchedChatTitle
 import dev.chungjungsoo.gptmobile.data.context.outputReserveTokens
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
@@ -57,6 +58,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
+import dev.chungjungsoo.gptmobile.data.database.entity.PersistBranchedTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
@@ -496,6 +498,23 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun persistAgentTurn(request: PersistAgentTurnRequest): PersistAgentTurnResult = agentPersistenceDao.persistAgentTurn(request)
 
+    override suspend fun persistBranchedTurn(request: PersistBranchedTurnRequest): PersistAgentTurnResult = agentPersistenceDao.persistBranchedTurn(request)
+
+    override suspend fun updateMessages(messages: List<MessageV2>) {
+        agentPersistenceDao.updateMessages(messages)
+    }
+
+    override suspend fun branchIntoNewChat(chatRoom: ChatRoomV2, messageIds: List<Int>): ChatRoomV2 {
+        require(chatRoom.id > 0)
+        require(messageIds.isNotEmpty())
+        return agentPersistenceDao.branchIntoNewChat(
+            sourceChatId = chatRoom.id,
+            title = branchedChatTitle(chatRoom.title),
+            timestamp = System.currentTimeMillis() / 1000,
+            includedMessageIds = messageIds.toSet()
+        )
+    }
+
     override suspend fun persistAgentRetry(request: PersistAgentRetryRequest): PersistAgentRetryResult = agentPersistenceDao.persistAgentRetry(request)
 
     override suspend fun markAgentRunRunning(runId: String, startedAt: Long): Boolean = agentRunDao.markRunning(runId, startedAt) == 1
@@ -679,14 +698,14 @@ class ChatRepositoryImpl @Inject constructor(
         completion: ChatCompletionContext
     ): CompactionResult {
         val platform = applyInstructionStack(platform, completion, chatId)
-        val grouped = groupPersistedConversation(messageV2Dao.loadMessages(chatId))
+        val transcript = activeTranscript(messageV2Dao.loadMessages(chatId))
         val resolvedTools = resolveCompletionTools(platform, completion)
         val outcome = compactionCoordinator.prepare(
             chatId = chatId,
-            userMessages = grouped.first,
-            assistantMessages = grouped.second,
+            userMessages = transcript.activeUsers,
+            assistantMessages = transcript.activeAssistants,
             platform = platform,
-            toolEvidence = loadToolEvidence(grouped.second, platform),
+            toolEvidence = loadToolEvidence(transcript.activeAssistants, platform),
             toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools),
             toolDefinitionNames = resolvedTools.map { it.tool.definition.name },
             force = true,

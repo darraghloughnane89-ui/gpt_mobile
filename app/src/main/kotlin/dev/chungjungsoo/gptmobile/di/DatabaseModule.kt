@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
+import dev.chungjungsoo.gptmobile.data.database.migration.ConversationBranchMigrations
 import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
 import javax.inject.Singleton
 
@@ -98,7 +99,8 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_9_10,
         ChatDatabaseV2Migrations.MIGRATION_10_11,
         BotDatabaseV2Migration.MIGRATION_11_12,
-        ProjectMigrations.MIGRATION_12_13
+        ProjectMigrations.MIGRATION_12_13,
+        ConversationBranchMigrations.MIGRATION_13_23
     ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
         .addCallback(BotDatabaseV2Migration.SEED_CALLBACK)
         .build()

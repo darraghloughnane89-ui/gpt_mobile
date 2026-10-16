@@ -17,7 +17,10 @@ import dev.chungjungsoo.gptmobile.data.bot.ChatBotSession
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
 import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
-import dev.chungjungsoo.gptmobile.data.context.groupPersistedConversation
+import dev.chungjungsoo.gptmobile.data.context.activePathMessageIds
+import dev.chungjungsoo.gptmobile.data.context.activeTranscript
+import dev.chungjungsoo.gptmobile.data.context.applyUserEditBranch
+import dev.chungjungsoo.gptmobile.data.context.selectActiveSibling
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunDraft
@@ -29,6 +32,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.LEGACY_ORDER_NOTICE
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
+import dev.chungjungsoo.gptmobile.data.database.entity.PersistBranchedTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
@@ -63,9 +67,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -99,7 +106,8 @@ class ChatViewModel @Inject constructor(
 
     data class GroupedMessages(
         val userMessages: List<MessageV2> = listOf(),
-        val assistantMessages: List<List<MessageV2>> = listOf()
+        val assistantMessages: List<List<MessageV2>> = listOf(),
+        val archivedMessages: List<MessageV2> = listOf()
     )
 
     enum class MessageEditRole {
@@ -206,6 +214,9 @@ class ChatViewModel @Inject constructor(
     val needsLocalNetworkAccess = _needsLocalNetworkAccess.asStateFlow()
 
     // Chat messages currently in the chat room
+    private val _branchedChat = MutableSharedFlow<ChatRoomV2>(extraBufferCapacity = 1)
+    val branchedChat: SharedFlow<ChatRoomV2> = _branchedChat.asSharedFlow()
+
     private val _groupedMessages = MutableStateFlow(GroupedMessages())
     private val liveHighWater = MutableStateFlow<Map<String, LiveAgentResponseSnapshot>>(emptyMap())
     val groupedMessages = combine(_groupedMessages, liveHighWater) { persisted, live ->
@@ -628,6 +639,28 @@ class ChatViewModel @Inject constructor(
         val messageIndex = userMessages.indexOfFirst { it.id == editedMessage.id }
         if (messageIndex == -1) return false
 
+        val branch = applyUserEditBranch(
+            messages = storedMessages(_groupedMessages.value),
+            editedUserId = editedMessage.id,
+            content = editedMessage.content,
+            attachments = attachments.mapNotNull { it.attachment },
+            timestamp = currentTimeStamp
+        )
+        if (branch != null && _chatRoom.value.id > 0) {
+            val grouped = groupPersistedMessages(
+                messages = branch.messages,
+                enabledPlatformsInChat = enabledPlatformsInChat,
+                chatId = _chatRoom.value.id
+            )
+            _groupedMessages.update { grouped }
+            _indexStates.update { current ->
+                List(grouped.userMessages.size) { index -> current.getOrElse(index) { 0 } }
+            }
+            cancelActiveRuns()
+            completeChat(branchedExistingMessages = branch.messages.filter { it.id > 0 })
+            return true
+        }
+
         // Update the message content
         val updatedUserMessages = userMessages.toMutableList()
         updatedUserMessages[messageIndex] = editedMessage.copy(
@@ -734,6 +767,31 @@ class ChatViewModel @Inject constructor(
         return true
     }
 
+    fun showPreviousUserBranch(turnIndex: Int) {
+        switchUserBranch(turnIndex, direction = -1)
+    }
+
+    fun showNextUserBranch(turnIndex: Int) {
+        switchUserBranch(turnIndex, direction = 1)
+    }
+
+    fun branchIntoNewChat(turnIndex: Int) {
+        val chatRoom = _chatRoom.value
+        if (chatRoom.id <= 0) return
+        val grouped = _groupedMessages.value
+        val messageIds = activePathMessageIds(
+            userMessages = grouped.userMessages,
+            assistantMessages = grouped.assistantMessages,
+            turnIndex = turnIndex,
+            includeAssistantTurn = true
+        )
+        if (messageIds.isEmpty()) return
+        viewModelScope.launch {
+            val created = chatRepository.branchIntoNewChat(chatRoom, messageIds)
+            _branchedChat.emit(created)
+        }
+    }
+
     fun showPreviousAssistantRevision(turnIndex: Int, platformIndex: Int) {
         updateAssistantRevisionSelection(turnIndex, platformIndex) { message ->
             when {
@@ -788,7 +846,10 @@ class ChatViewModel @Inject constructor(
         return Pair(fileName, chatHistoryMarkdown)
     }
 
-    private fun completeChat(persistSnapshotFirst: Boolean = false) {
+    private fun completeChat(
+        persistSnapshotFirst: Boolean = false,
+        branchedExistingMessages: List<MessageV2>? = null
+    ) {
         // Update all the platform loading states to Loading
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
         val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
@@ -831,21 +892,33 @@ class ChatViewModel @Inject constructor(
             )
             persistBeforeProvider(
                 persist = {
-                    if (persistSnapshotFirst && _chatRoom.value.id > 0) {
-                        chatRepository.saveChat(
-                            chatRoom = _chatRoom.value,
-                            messages = persistableMessages(_groupedMessages.value),
-                            chatPlatformModels = _chatPlatformModels.value
+                    if (branchedExistingMessages != null) {
+                        chatRepository.persistBranchedTurn(
+                            PersistBranchedTurnRequest(
+                                chatRoom = chatRoom,
+                                existingMessages = branchedExistingMessages,
+                                userMessage = userMessage,
+                                runs = runs,
+                                chatPlatformModels = _chatPlatformModels.value.filterKeys { it in chatRoom.enabledPlatform }
+                            )
+                        )
+                    } else {
+                        if (persistSnapshotFirst && _chatRoom.value.id > 0) {
+                            chatRepository.saveChat(
+                                chatRoom = _chatRoom.value,
+                                messages = persistableMessages(_groupedMessages.value),
+                                chatPlatformModels = _chatPlatformModels.value
+                            )
+                        }
+                        chatRepository.persistAgentTurn(
+                            PersistAgentTurnRequest(
+                                chatRoom = chatRoom,
+                                userMessage = userMessage,
+                                runs = runs,
+                                chatPlatformModels = _chatPlatformModels.value.filterKeys { it in chatRoom.enabledPlatform }
+                            )
                         )
                     }
-                    chatRepository.persistAgentTurn(
-                        PersistAgentTurnRequest(
-                            chatRoom = chatRoom,
-                            userMessage = userMessage,
-                            runs = runs,
-                            chatPlatformModels = _chatPlatformModels.value.filterKeys { it in chatRoom.enabledPlatform }
-                        )
-                    )
                 },
                 startProvider = { persisted ->
                     _chatRoom.update { persisted.chatRoom }
@@ -1157,6 +1230,40 @@ class ChatViewModel @Inject constructor(
         attachment.preparedFilePath
             ?.takeIf { it != attachment.sourceFilePath }
             ?.let { java.io.File(it).delete() }
+    }
+
+    private fun switchUserBranch(turnIndex: Int, direction: Int) {
+        val grouped = _groupedMessages.value
+        val current = grouped.userMessages.getOrNull(turnIndex) ?: return
+        if (current.id <= 0) return
+        val stored = storedMessages(grouped)
+        val siblings = stored
+            .filter { it.platformType == null && it.parentMessageId == current.parentMessageId }
+            .sortedWith { left, right ->
+                val byIndex = left.siblingIndex.compareTo(right.siblingIndex)
+                if (byIndex != 0) byIndex else left.id.compareTo(right.id)
+            }
+        val index = siblings.indexOfFirst { it.id == current.id }
+        val target = siblings.getOrNull(index + direction) ?: return
+        val updated = selectActiveSibling(stored, current.parentMessageId, target.siblingIndex)
+        replaceGroupedMessages(updated)
+        viewModelScope.launch {
+            chatRepository.updateMessages(
+                updated.filter { message ->
+                    message.id > 0 &&
+                        message.platformType == null &&
+                        message.parentMessageId == current.parentMessageId
+                }
+            )
+        }
+    }
+
+    private fun replaceGroupedMessages(messages: List<MessageV2>) {
+        val grouped = groupPersistedMessages(messages, enabledPlatformsInChat, _chatRoom.value.id)
+        _groupedMessages.update { grouped }
+        _indexStates.update { current ->
+            List(grouped.userMessages.size) { index -> current.getOrElse(index) { 0 } }
+        }
     }
 
     /**
@@ -1494,17 +1601,24 @@ internal fun loadingStatesForLatestAssistant(
     }
 }
 
+internal fun storedMessages(groupedMessages: ChatViewModel.GroupedMessages): List<MessageV2> {
+    val active = groupedMessages.userMessages.filter { it.id > 0 } +
+        groupedMessages.assistantMessages.flatten().filter { it.id > 0 }
+    return active + groupedMessages.archivedMessages.filter { it.id > 0 }
+}
+
 internal fun groupPersistedMessages(
     messages: List<MessageV2>,
     enabledPlatformsInChat: List<String>,
     chatId: Int
 ): ChatViewModel.GroupedMessages {
-    val (userMessages, assistantMessages) = groupPersistedConversation(messages)
+    val transcript = activeTranscript(messages)
     return ChatViewModel.GroupedMessages(
-        userMessages = userMessages,
-        assistantMessages = assistantMessages.map { row ->
+        userMessages = transcript.activeUsers,
+        assistantMessages = transcript.activeAssistants.map { row ->
             normalizeAssistantRow(row, enabledPlatformsInChat, chatId)
-        }
+        },
+        archivedMessages = transcript.archived
     )
 }
 
@@ -1513,7 +1627,8 @@ internal fun groupedMessagesThroughTurn(
     turnIndex: Int
 ): ChatViewModel.GroupedMessages = groupedMessages.copy(
     userMessages = groupedMessages.userMessages.take(turnIndex + 1),
-    assistantMessages = groupedMessages.assistantMessages.take(turnIndex + 1)
+    assistantMessages = groupedMessages.assistantMessages.take(turnIndex + 1),
+    archivedMessages = emptyList()
 )
 
 internal fun resolvePlatformModel(
@@ -1645,15 +1760,17 @@ internal fun formatAssistantExport(
 internal fun persistableMessages(groupedMessages: ChatViewModel.GroupedMessages): List<MessageV2> {
     val merged = groupedMessages.userMessages.flatMapIndexed { index, userMessage ->
         listOf(userMessage) + groupedMessages.assistantMessages.getOrNull(index).orEmpty()
-    }
+    } + groupedMessages.archivedMessages
     return merged
         .filter {
             it.effectiveContent().isNotBlank() ||
                 it.effectiveThoughts().isNotBlank() ||
                 it.effectiveTimeline().isNotEmpty() ||
                 it.attachments.isNotEmpty() ||
-                it.currentRunId != null
+                it.currentRunId != null ||
+                it.revisions.isNotEmpty()
         }
+        .distinctBy { message -> if (message.id > 0) "id-${message.id}" else "new-${message.createdAt}-${message.siblingIndex}-${message.content}" }
 }
 
 internal fun createEmptyAssistantMessage(chatId: Int, platformUid: String): MessageV2 = MessageV2(
