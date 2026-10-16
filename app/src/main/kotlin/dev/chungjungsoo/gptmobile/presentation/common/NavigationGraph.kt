@@ -220,7 +220,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToMemory = { navController.navigate(Route.MEMORY) },
                 onNavigateToUsage = { navController.navigate(Route.USAGE) },
                 onNavigateToAppLock = { navController.navigate(Route.APP_LOCK) },
-                onNavigateToKeyManager = { navController.navigate(Route.KEY_MANAGER) }
+                onNavigateToKeyManager = { navController.navigate(Route.KEY_MANAGER) },
+                onNavigateToBackup = { navController.navigate(Route.BACKUP) }
             )
         }
         composable(Route.ADD_PLATFORM) {

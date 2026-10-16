@@ -25,6 +25,38 @@ class MemoryRepository @Inject constructor(
         return upsert(fact, MemorySource.SUGGESTION, nowEpochSeconds)
     }
 
+    suspend fun saveFact(
+        text: String,
+        source: String,
+        projectId: Long? = null,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000
+    ): Memory? {
+        val fact = text.trim()
+        if (fact.isEmpty()) return null
+        return upsert(fact, source, nowEpochSeconds, projectId = projectId)
+    }
+
+    suspend fun importMemory(
+        text: String,
+        source: String,
+        projectId: Long?,
+        paused: Boolean,
+        createdAt: Long,
+        updatedAt: Long
+    ): Memory? {
+        val fact = text.trim()
+        if (fact.isEmpty()) return null
+        return upsert(
+            text = fact,
+            source = source,
+            nowEpochSeconds = updatedAt,
+            projectId = projectId,
+            paused = paused,
+            preservePause = true,
+            createdAt = createdAt
+        )
+    }
+
     suspend fun updateText(id: Long, text: String, nowEpochSeconds: Long = System.currentTimeMillis() / 1000) {
         val clean = text.trim()
         if (clean.isEmpty()) return
@@ -55,13 +87,22 @@ class MemoryRepository @Inject constructor(
         memoryDao.upsertChatSetting(ChatMemorySetting(chatId = chatId, memoryEnabled = enabled))
     }
 
-    private suspend fun upsert(text: String, source: String, nowEpochSeconds: Long): Memory {
+    private suspend fun upsert(
+        text: String,
+        source: String,
+        nowEpochSeconds: Long,
+        projectId: Long? = null,
+        paused: Boolean = false,
+        preservePause: Boolean = false,
+        createdAt: Long? = null
+    ): Memory {
         val existing = memoryDao.findByText(text)
         if (existing != null) {
             val updated = existing.copy(
                 text = text,
                 source = source,
-                paused = false,
+                paused = if (preservePause) paused else false,
+                projectId = projectId ?: existing.projectId,
                 updatedAt = nowEpochSeconds
             )
             memoryDao.update(updated)
@@ -70,8 +111,10 @@ class MemoryRepository @Inject constructor(
         val created = Memory(
             text = text,
             source = source,
-            createdAt = nowEpochSeconds,
-            updatedAt = nowEpochSeconds
+            createdAt = createdAt ?: nowEpochSeconds,
+            updatedAt = nowEpochSeconds,
+            paused = paused,
+            projectId = projectId
         )
         val id = memoryDao.insert(created)
         return created.copy(id = id)

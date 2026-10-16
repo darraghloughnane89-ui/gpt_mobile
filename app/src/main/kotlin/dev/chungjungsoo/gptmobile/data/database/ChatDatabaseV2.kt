@@ -27,6 +27,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
+import dev.chungjungsoo.gptmobile.data.drive.DriveSyncDao
+import dev.chungjungsoo.gptmobile.data.drive.DriveSyncState
 import dev.chungjungsoo.gptmobile.data.memory.ChatMemorySetting
 import dev.chungjungsoo.gptmobile.data.memory.Memory
 import dev.chungjungsoo.gptmobile.data.memory.MemoryDao
@@ -50,9 +52,10 @@ import dev.chungjungsoo.gptmobile.data.usage.UsageEvent
         Memory::class,
         ChatMemorySetting::class,
         UsageEvent::class,
-        ModelPrice::class
+        ModelPrice::class,
+        DriveSyncState::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 @TypeConverters(
@@ -74,4 +77,5 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun compactionDao(): CompactionDao
     abstract fun memoryDao(): MemoryDao
     abstract fun usageDao(): UsageDao
+    abstract fun driveSyncDao(): DriveSyncDao
 }

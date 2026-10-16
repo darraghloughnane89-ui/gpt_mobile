@@ -10,8 +10,6 @@ import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabase
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2Migrations
-import dev.chungjungsoo.gptmobile.data.database.migration.MemoryMigration
-import dev.chungjungsoo.gptmobile.data.database.migration.UsageMigration
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
@@ -23,6 +21,10 @@ import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
+import dev.chungjungsoo.gptmobile.data.database.migration.DriveMigration
+import dev.chungjungsoo.gptmobile.data.database.migration.MemoryMigration
+import dev.chungjungsoo.gptmobile.data.database.migration.UsageMigration
+import dev.chungjungsoo.gptmobile.data.drive.DriveSyncDao
 import dev.chungjungsoo.gptmobile.data.memory.MemoryDao
 import dev.chungjungsoo.gptmobile.data.usage.UsageDao
 import javax.inject.Singleton
@@ -53,6 +55,9 @@ object DatabaseModule {
 
     @Provides
     fun provideUsageDao(chatDatabaseV2: ChatDatabaseV2): UsageDao = chatDatabaseV2.usageDao()
+
+    @Provides
+    fun provideDriveSyncDao(chatDatabaseV2: ChatDatabaseV2): DriveSyncDao = chatDatabaseV2.driveSyncDao()
 
     @Provides
     fun provideChatPlatformModelV2Dao(chatDatabaseV2: ChatDatabaseV2): ChatPlatformModelV2Dao = chatDatabaseV2.chatPlatformModelDao()
@@ -98,7 +103,8 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_9_10,
         ChatDatabaseV2Migrations.MIGRATION_10_11,
         MemoryMigration.MIGRATION_11_15,
-        UsageMigration.MIGRATION_15_16
+        UsageMigration.MIGRATION_15_16,
+        DriveMigration.MIGRATION_16_17
     ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
         .addCallback(UsageMigration.SEED_PRICES_CALLBACK)
         .build()

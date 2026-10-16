@@ -15,6 +15,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE paused = 0 ORDER BY updated_at DESC")
     suspend fun getActive(): List<Memory>
 
+    @Query("SELECT * FROM memories ORDER BY updated_at DESC")
+    suspend fun getAll(): List<Memory>
+
     @Query("SELECT * FROM memories WHERE memory_id = :id LIMIT 1")
     suspend fun getById(id: Long): Memory?
 

@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.common
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import dev.chungjungsoo.gptmobile.presentation.ui.backup.BackupScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.memory.MemoryScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.privacy.AppLockScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.privacy.KeyManagerScreen
@@ -20,5 +21,8 @@ fun NavGraphBuilder.privacyNavigation(navController: NavHostController) {
     }
     composable(Route.KEY_MANAGER) {
         KeyManagerScreen(onBack = { navController.navigateUp() })
+    }
+    composable(Route.BACKUP) {
+        BackupScreen(onBack = { navController.navigateUp() })
     }
 }

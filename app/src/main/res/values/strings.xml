@@ -674,4 +674,23 @@
     <string name="vault_unlock_title">Unlock key vault</string>
     <string name="vault_unlock_subtitle">Confirm it is you. The vault stays open for 5 minutes.</string>
     <string name="vault_unlock_action">Unlock vault</string>
+    <string name="backup_title">Backup</string>
+    <string name="backup_settings_description">Export chats or save an encrypted copy to Google Drive</string>
+    <string name="backup_body">Export writes a JSON file with chats, messages, platform settings, and memories. API keys stay on this phone. Drive stores an encrypted copy in the app’s private folder and stays off until an Android OAuth client is registered for this install.</string>
+    <string name="backup_export">Export JSON</string>
+    <string name="backup_import">Import JSON</string>
+    <string name="backup_drive_backup">Back up to Drive</string>
+    <string name="backup_drive_restore">Restore from Drive</string>
+    <string name="backup_exported">Exported. The file has no API keys.</string>
+    <string name="backup_imported">Imported %1$d chats and %2$d memories.</string>
+    <string name="backup_drive_done">Drive backup saved.</string>
+    <string name="backup_drive_restored">Restored %1$d chats and %2$d memories from Drive.</string>
+    <string name="backup_locked">Unlock the vault before using Drive backup.</string>
+    <string name="backup_unlock_required">Confirm it is you to use the Drive backup key.</string>
+    <string name="backup_not_configured">Google Drive is not set up for this install yet. Local JSON export still works.</string>
+    <string name="backup_play_services">Google Play services is unavailable, so Drive backup is off. Local JSON export still works.</string>
+    <string name="backup_drive_unavailable">Drive could not sign in. Local JSON export still works.</string>
+    <string name="backup_drive_status">Drive could not sign in (status %1$d). Local JSON export still works.</string>
+    <string name="backup_consent_cancelled">Drive sign-in was not finished. Local JSON export still works.</string>
+    <string name="backup_failed">Backup failed. %1$s</string>
 </resources>

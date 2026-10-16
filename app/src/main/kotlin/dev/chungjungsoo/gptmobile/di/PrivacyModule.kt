@@ -17,6 +17,8 @@ import dev.chungjungsoo.gptmobile.data.memory.MemoryPromptSource
 import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionBus
 import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionSink
 import dev.chungjungsoo.gptmobile.data.memory.RoomMemoryPromptSource
+import dev.chungjungsoo.gptmobile.data.memory.RoomMemoryWriter
+import dev.chungjungsoo.gptmobile.data.skill.MemoryWriter
 import dev.chungjungsoo.gptmobile.data.usage.RoomUsageRecorder
 import dev.chungjungsoo.gptmobile.data.usage.UsageRecorder
 import javax.inject.Singleton
@@ -48,4 +50,7 @@ abstract class PrivacyBindingModule {
 
     @Binds
     abstract fun bindMemorySuggestionSink(impl: MemorySuggestionBus): MemorySuggestionSink
+
+    @Binds
+    abstract fun bindMemoryWriter(impl: RoomMemoryWriter): MemoryWriter
 }

@@ -43,6 +43,7 @@ object Route {
     const val USAGE = "usage"
     const val APP_LOCK = "app_lock"
     const val KEY_MANAGER = "key_manager"
+    const val BACKUP = "backup"
 
     const val MIGRATE_V2 = "migrate_v2"
 }

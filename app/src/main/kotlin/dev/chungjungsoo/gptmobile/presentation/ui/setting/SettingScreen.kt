@@ -64,7 +64,8 @@ fun SettingScreen(
     onNavigateToMemory: () -> Unit = {},
     onNavigateToUsage: () -> Unit = {},
     onNavigateToAppLock: () -> Unit = {},
-    onNavigateToKeyManager: () -> Unit = {}
+    onNavigateToKeyManager: () -> Unit = {},
+    onNavigateToBackup: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -179,6 +180,13 @@ fun SettingScreen(
                     title = stringResource(R.string.key_manager_title),
                     description = stringResource(R.string.key_manager_settings_description),
                     onItemClick = onNavigateToKeyManager,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.backup_title),
+                    description = stringResource(R.string.backup_settings_description),
+                    onItemClick = onNavigateToBackup,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )
