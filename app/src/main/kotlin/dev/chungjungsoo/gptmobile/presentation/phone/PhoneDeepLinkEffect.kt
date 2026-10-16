@@ -44,6 +44,15 @@ class PhoneDeepLinkViewModel @Inject constructor(
             )
         )
     }
+
+    fun offerMicForNewChat() {
+        handoffStore.offer(
+            PhoneHandoffStore.Handoff(
+                targetChatId = 0,
+                requestMic = true
+            )
+        )
+    }
 }
 
 fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: List<String>, projectId: Int = -1): String =
@@ -74,6 +83,9 @@ fun PhoneDeepLinkEffect(
             when (val destination = PhoneDeepLinkRouter.resolve(parts, enabled, voiceReady)) {
                 is PhoneDeepLinkRouter.Destination.NewChat -> {
                     if (destination.launchCamera) phoneViewModel.offerCameraForNewChat()
+                    if (destination.composerInput == PhoneDeepLinkRouter.Destination.ComposerInput.MIC) {
+                        phoneViewModel.offerMicForNewChat()
+                    }
                     navController.navigate(chatRoomRoute(0, destination.enabledPlatforms)) {
                         launchSingleTop = true
                     }

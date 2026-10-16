@@ -6,6 +6,9 @@ import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.widget.RoutineResult
+import dev.chungjungsoo.gptmobile.data.widget.WidgetBoard
+import dev.chungjungsoo.gptmobile.data.widget.WidgetBoardRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,7 +37,7 @@ class SettingViewModelV2Test {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val gate = CompletableDeferred<Unit>()
         val repository = AddPlatformRepository(gate = gate)
-        val viewModel = SettingViewModelV2(repository)
+        val viewModel = SettingViewModelV2(repository, FakeWidgetBoardRepository())
         var didNavigate = false
 
         viewModel.addPlatform(testPlatform()) { didNavigate = true }
@@ -56,7 +59,7 @@ class SettingViewModelV2Test {
     fun addPlatformFailureKeepsScreenAndExposesError() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repository = AddPlatformRepository(failure = IllegalStateException("Save failed"))
-        val viewModel = SettingViewModelV2(repository)
+        val viewModel = SettingViewModelV2(repository, FakeWidgetBoardRepository())
         var didNavigate = false
 
         viewModel.addPlatform(testPlatform()) { didNavigate = true }
@@ -71,7 +74,7 @@ class SettingViewModelV2Test {
     fun addPlatformSuccessCallbackObservesRefreshedPlatformState() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repository = AddPlatformRepository()
-        val viewModel = SettingViewModelV2(repository)
+        val viewModel = SettingViewModelV2(repository, FakeWidgetBoardRepository())
         var observedDuringCallback: List<PlatformV2> = emptyList()
 
         viewModel.addPlatform(testPlatform()) {
@@ -88,7 +91,7 @@ class SettingViewModelV2Test {
     fun addPlatformRefreshFailureStillInvokesSuccess() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repository = AddPlatformRepository(refreshFailure = IllegalStateException("Refresh failed"))
-        val viewModel = SettingViewModelV2(repository)
+        val viewModel = SettingViewModelV2(repository, FakeWidgetBoardRepository())
         var didNavigate = false
 
         viewModel.addPlatform(testPlatform()) { didNavigate = true }
@@ -132,6 +135,16 @@ private class AddPlatformRepository(
     override suspend fun updatePlatformV2(platform: PlatformV2) = Unit
     override suspend fun deletePlatformV2(platform: PlatformV2) = Unit
     override suspend fun getPlatformV2ById(id: Int): PlatformV2? = null
+}
+
+private class FakeWidgetBoardRepository : WidgetBoardRepository {
+    override suspend fun board(): WidgetBoard = WidgetBoard()
+    override suspend fun showContentWhenLocked(): Boolean = false
+    override suspend fun setShowContentWhenLocked(enabled: Boolean) = Unit
+    override suspend fun pinnedChatIds(): List<Int> = emptyList()
+    override suspend fun setPinned(chatIds: List<Int>, pinned: Boolean) = Unit
+    override suspend fun saveLatestRoutine(result: RoutineResult) = Unit
+    override suspend fun refreshWidgets() = Unit
 }
 
 private fun testPlatform() = PlatformV2(

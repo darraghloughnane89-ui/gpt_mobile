@@ -8,8 +8,14 @@ object PhoneDeepLinkRouter {
     sealed interface Destination {
         data class NewChat(
             val enabledPlatforms: List<String>,
-            val launchCamera: Boolean
+            val launchCamera: Boolean,
+            val composerInput: ComposerInput = ComposerInput.TEXT
         ) : Destination
+
+        enum class ComposerInput {
+            TEXT,
+            MIC
+        }
 
         data class OpenChat(
             val chatId: Int,
@@ -31,6 +37,15 @@ object PhoneDeepLinkRouter {
         val path = parts.path.orEmpty().trimEnd('/')
         return when {
             path == PhoneLinks.PATH_NEW_CHAT -> newChat(enabledPlatforms, launchCamera = false)
+            path == PhoneLinks.PATH_ASK -> newChat(
+                enabledPlatforms,
+                launchCamera = false,
+                composerInput = if (parts.input == PhoneLinks.INPUT_MIC) {
+                    Destination.ComposerInput.MIC
+                } else {
+                    Destination.ComposerInput.TEXT
+                }
+            )
             path == PhoneLinks.PATH_CAMERA -> newChat(enabledPlatforms, launchCamera = true)
             path == PhoneLinks.PATH_VOICE -> if (voiceRouteRegistered) Destination.Voice else Destination.VoiceUnavailable
             path.startsWith("${PhoneLinks.PATH_CHAT}/") -> {
@@ -42,10 +57,13 @@ object PhoneDeepLinkRouter {
         }
     }
 
-    private fun newChat(enabledPlatforms: List<String>, launchCamera: Boolean): Destination =
-        if (enabledPlatforms.isEmpty()) {
-            Destination.MissingPlatforms
-        } else {
-            Destination.NewChat(enabledPlatforms, launchCamera)
-        }
+    private fun newChat(
+        enabledPlatforms: List<String>,
+        launchCamera: Boolean,
+        composerInput: Destination.ComposerInput = Destination.ComposerInput.TEXT
+    ): Destination = if (enabledPlatforms.isEmpty()) {
+        Destination.MissingPlatforms
+    } else {
+        Destination.NewChat(enabledPlatforms, launchCamera, composerInput)
+    }
 }

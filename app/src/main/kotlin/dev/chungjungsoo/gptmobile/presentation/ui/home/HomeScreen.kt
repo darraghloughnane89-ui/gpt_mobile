@@ -23,9 +23,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
@@ -110,13 +112,16 @@ fun HomeScreen(
     val activeChatIds by homeViewModel.activeChatIds.collectAsStateWithLifecycle()
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
     val projects by homeViewModel.projects.collectAsStateWithLifecycle()
+    val pinnedChatIds by homeViewModel.pinnedChatIds.collectAsStateWithLifecycle()
     val projectFilter by homeViewModel.projectFilter.collectAsStateWithLifecycle()
     val showMoveDialog by homeViewModel.showMoveDialog.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val selectedChatCount = chatListState.selectedChats.count { it }
-    val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
+    val selectedRooms = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }
+    val selectedChat = selectedRooms.singleOrNull()
+    val selectedArePinned = selectedRooms.isNotEmpty() && selectedRooms.all { it.id in pinnedChatIds }
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
     val movedChatsMessage = stringResource(R.string.project_chats_moved)
@@ -180,6 +185,8 @@ fun HomeScreen(
                     homeViewModel.duplicateSelectedChat()
                     Toast.makeText(context, duplicatedChatMessage, Toast.LENGTH_SHORT).show()
                 },
+                pinOnClick = homeViewModel::togglePinSelectedChats,
+                selectedArePinned = selectedArePinned,
                 moveOnClick = homeViewModel::openMoveDialog,
                 navigationOnClick = {
                     if (chatListState.isSelectionMode) {
@@ -329,6 +336,11 @@ fun HomeScreen(
                                                 checked = chatListState.selectedChats.getOrElse(idx) { false },
                                                 onCheckedChange = { homeViewModel.selectChat(idx) }
                                             )
+                                        } else if (chatRoom.id in pinnedChatIds) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.PushPin,
+                                                contentDescription = stringResource(R.string.widget_pin)
+                                            )
                                         } else {
                                             Icon(
                                                 ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
@@ -405,6 +417,8 @@ fun HomeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit,
     duplicateOnClick: () -> Unit,
+    pinOnClick: () -> Unit = {},
+    selectedArePinned: Boolean = false,
     navigationOnClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     searchQuery: String,
@@ -508,6 +522,18 @@ fun HomeTopAppBar(
         actions = {
             when {
                 isSelectionMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = pinOnClick
+                    ) {
+                        Icon(
+                            imageVector = if (selectedArePinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            contentDescription = stringResource(
+                                if (selectedArePinned) R.string.widget_unpin else R.string.widget_pin
+                            )
+                        )
+                    }
                     IconButton(
                         modifier = Modifier.padding(4.dp),
                         onClick = moveOnClick

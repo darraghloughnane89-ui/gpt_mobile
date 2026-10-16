@@ -1,11 +1,13 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.speech.RecognizerIntent
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -168,6 +170,29 @@ fun ChatScreen(
         onLaunchConsumed = chatViewModel::consumeCameraLaunch,
         onPhotoReady = chatViewModel::addSelectedFile
     )
+    val context = LocalContext.current
+    val launchMic by chatViewModel.launchMic.collectAsStateWithLifecycle()
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!spoken.isNullOrBlank()) chatViewModel.applySpokenPrompt(spoken)
+    }
+    LaunchedEffect(launchMic) {
+        if (!launchMic) return@LaunchedEffect
+        chatViewModel.consumeMicLaunch()
+        val recognizer = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        }
+        val opened = runCatching { speechLauncher.launch(recognizer) }.isSuccess
+        if (!opened) {
+            Toast.makeText(context, R.string.widget_mic_unavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
+    LaunchedEffect(Unit) {
+        chatViewModel.widgetNotice.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
@@ -179,7 +204,6 @@ fun ChatScreen(
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusy
-    val context = LocalContext.current
     val lastMessageIndex = groupedMessages.userMessages.lastIndex
     var requestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var sendAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -277,6 +301,7 @@ fun ChatScreen(
                         isContextPlatformPickerOpen = true
                     }
                 },
+                onShowRoutineClick = chatViewModel::publishRoutineResult,
                 botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
                 botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
                     ?: stringResource(R.string.choose_bot),
@@ -730,6 +755,7 @@ private fun ChatTopBar(
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
     onChatContextItemClick: () -> Unit,
+    onShowRoutineClick: () -> Unit,
     botLabel: String?,
     botContentDescription: String,
     onBotClick: () -> Unit
@@ -800,7 +826,8 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
-                onChatContextItemClick = onChatContextItemClick
+                onChatContextItemClick = onChatContextItemClick,
+                onShowRoutineClick = onShowRoutineClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -814,7 +841,8 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit = {}
+    onChatContextItemClick: () -> Unit = {},
+    onShowRoutineClick: () -> Unit = {}
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -839,6 +867,14 @@ fun ChatDropdownMenu(
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
                 onExportChatItemClick()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(text = stringResource(R.string.widget_show_routine)) },
+            onClick = {
+                onShowRoutineClick()
                 onDismissRequest()
             }
         )

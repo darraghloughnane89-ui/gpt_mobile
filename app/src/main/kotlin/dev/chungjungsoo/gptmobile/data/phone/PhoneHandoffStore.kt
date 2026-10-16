@@ -18,7 +18,8 @@ class PhoneHandoffStore @Inject constructor() {
         val targetChatId: Int,
         val text: String = "",
         val filePaths: List<String> = emptyList(),
-        val launchCamera: Boolean = false
+        val launchCamera: Boolean = false,
+        val requestMic: Boolean = false
     )
 
     private val slot = AtomicReference<Handoff?>(null)

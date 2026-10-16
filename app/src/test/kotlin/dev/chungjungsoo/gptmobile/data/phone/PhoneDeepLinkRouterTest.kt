@@ -19,6 +19,43 @@ class PhoneDeepLinkRouterTest {
     }
 
     @Test
+    fun resolve_askText_opensComposer() {
+        val destination = PhoneDeepLinkRouter.resolve(
+            parts = PhoneLinks.parts("dev.chungjungsoo.gptmobile", "phone", "/ask", "input=text"),
+            enabledPlatforms = listOf("platform-a"),
+            voiceRouteRegistered = false
+        )
+
+        assertEquals(
+            PhoneDeepLinkRouter.Destination.NewChat(
+                listOf("platform-a"),
+                launchCamera = false,
+                composerInput = PhoneDeepLinkRouter.Destination.ComposerInput.TEXT
+            ),
+            destination
+        )
+    }
+
+    @Test
+    fun resolve_askMic_requestsSpeechInTheComposer() {
+        val uri = PhoneLinks.ask(PhoneLinks.INPUT_MIC)
+        val destination = PhoneDeepLinkRouter.resolve(
+            parts = PhoneLinks.parts("dev.chungjungsoo.gptmobile", "phone", "/ask", uri.substringAfter('?')),
+            enabledPlatforms = listOf("platform-a"),
+            voiceRouteRegistered = false
+        )
+
+        assertEquals(
+            PhoneDeepLinkRouter.Destination.NewChat(
+                listOf("platform-a"),
+                launchCamera = false,
+                composerInput = PhoneDeepLinkRouter.Destination.ComposerInput.MIC
+            ),
+            destination
+        )
+    }
+
+    @Test
     fun resolve_camera_requestsCaptureWhenAPlatformExists() {
         val destination = PhoneDeepLinkRouter.resolve(
             parts = PhoneLinks.parts("dev.chungjungsoo.gptmobile", "phone", "/camera", null),

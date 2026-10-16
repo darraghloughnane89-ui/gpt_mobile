@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.project.ProjectChatListSource
 import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.widget.WidgetBoardRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
@@ -35,6 +36,7 @@ class HomeViewModel @Inject constructor(
     private val settingRepository: SettingRepository,
     private val agentRunCoordinator: AgentRunCoordinator,
     private val projectChatListSource: ProjectChatListSource,
+    private val widgetBoardRepository: WidgetBoardRepository,
     private val newChatBotHint: NewChatBotHint = NewChatBotHint.None
 ) : ViewModel() {
 
@@ -78,6 +80,9 @@ class HomeViewModel @Inject constructor(
 
     private val _showMoveDialog = MutableStateFlow(false)
     val showMoveDialog = _showMoveDialog.asStateFlow()
+
+    private val _pinnedChatIds = MutableStateFlow<Set<Int>>(emptySet())
+    val pinnedChatIds = _pinnedChatIds.asStateFlow()
 
     private var fetchChatsJob: Job? = null
 
@@ -166,8 +171,10 @@ class HomeViewModel @Inject constructor(
             val chats = agentRunCoordinator.withChatGate(selectedChats.map { it.id }) {
                 selectedChats.forEach { agentRunCoordinator.cancelChatAndJoin(it.id) }
                 chatRepository.deleteChatsV2(selectedChats)
+                widgetBoardRepository.setPinned(selectedChats.map { it.id }, pinned = false)
                 chatRepository.fetchChatListV2()
             }
+            _pinnedChatIds.value = widgetBoardRepository.pinnedChatIds().toSet()
             _chatListState.update { it.copy(chats = chats) }
             disableSelectionMode()
         }
@@ -220,6 +227,8 @@ class HomeViewModel @Inject constructor(
             try {
                 val chats = chatRepository.fetchChatListV2()
                 refreshProjects()
+                _pinnedChatIds.value = widgetBoardRepository.pinnedChatIds().toSet()
+                widgetBoardRepository.refreshWidgets()
                 _chatListState.update {
                     it.copy(
                         chats = chats,
@@ -293,6 +302,18 @@ class HomeViewModel @Inject constructor(
             throw cancelled
         } catch (_: Throwable) {
             // Chat list stays usable when project metadata cannot be read.
+        }
+    }
+
+    fun togglePinSelectedChats() {
+        viewModelScope.launch {
+            val selectedIds = _chatListState.value.chats.mapIndexedNotNull { index, chat ->
+                chat.id.takeIf { _chatListState.value.selectedChats.getOrElse(index) { false } }
+            }
+            if (selectedIds.isEmpty()) return@launch
+            val pin = selectedIds.any { it !in _pinnedChatIds.value }
+            widgetBoardRepository.setPinned(selectedIds, pin)
+            _pinnedChatIds.value = widgetBoardRepository.pinnedChatIds().toSet()
         }
     }
 

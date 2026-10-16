@@ -49,6 +49,9 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
+import dev.chungjungsoo.gptmobile.data.widget.RoutineResult
+import dev.chungjungsoo.gptmobile.data.widget.RoutineSummary
+import dev.chungjungsoo.gptmobile.data.widget.WidgetBoardRepository
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -63,9 +66,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -90,7 +96,8 @@ class ChatViewModel @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository,
     private val projectInstructionBinder: ProjectInstructionBinder,
     private val chatBotSession: ChatBotSession,
-    private val phoneHandoffStore: PhoneHandoffStore
+    private val phoneHandoffStore: PhoneHandoffStore,
+    private val widgetBoardRepository: WidgetBoardRepository
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -199,6 +206,12 @@ class ChatViewModel @Inject constructor(
     private val _launchCamera = MutableStateFlow(false)
     val launchCamera = _launchCamera.asStateFlow()
 
+    private val _launchMic = MutableStateFlow(false)
+    val launchMic = _launchMic.asStateFlow()
+
+    private val _widgetNotice = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val widgetNotice: SharedFlow<Int> = _widgetNotice.asSharedFlow()
+
     private val _runNoticesById = MutableStateFlow<Map<String, List<ChatRunNotice>>>(emptyMap())
     val runNoticesById = _runNoticesById.asStateFlow()
 
@@ -259,6 +272,45 @@ class ChatViewModel @Inject constructor(
 
     fun consumeCameraLaunch() {
         _launchCamera.value = false
+    }
+
+    fun consumeMicLaunch() {
+        _launchMic.value = false
+    }
+
+    fun applySpokenPrompt(text: String) {
+        val spoken = text.trim()
+        if (spoken.isEmpty()) return
+        val existing = question.text.toString()
+        val merged = if (existing.isBlank()) spoken else "$existing $spoken"
+        question.setTextAndPlaceCursorAtEnd(merged)
+    }
+
+    fun publishRoutineResult() {
+        viewModelScope.launch {
+            if (chatRoomId <= 0) {
+                _widgetNotice.emit(R.string.widget_routine_unavailable)
+                return@launch
+            }
+            val texts = groupedMessages.value.assistantMessages.flatten().map { it.effectiveContent() }
+            val summary = RoutineSummary.fromAssistantTexts(texts)
+            if (summary == null) {
+                _widgetNotice.emit(R.string.widget_routine_unavailable)
+                return@launch
+            }
+            val title = _chatRoom.value.title.ifBlank { context.getString(R.string.widget_routine_morning) }
+            widgetBoardRepository.saveLatestRoutine(
+                RoutineResult(
+                    routineId = RoutineSummary.routineIdFor(title, chatRoomId),
+                    name = title,
+                    summary = summary,
+                    chatId = chatRoomId,
+                    enabledPlatforms = enabledPlatformsInChat,
+                    completedAtEpochSeconds = System.currentTimeMillis() / 1000
+                )
+            )
+            _widgetNotice.emit(R.string.widget_routine_saved)
+        }
     }
 
     /**
@@ -924,6 +976,7 @@ class ChatViewModel @Inject constructor(
             }
             handoff.filePaths.forEach(::addSelectedFile)
             if (handoff.launchCamera) _launchCamera.value = true
+            if (handoff.requestMic) _launchMic.value = true
         }
     }
 

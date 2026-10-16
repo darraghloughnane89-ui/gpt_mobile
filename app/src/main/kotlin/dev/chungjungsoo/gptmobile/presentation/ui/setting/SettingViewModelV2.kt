@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.widget.WidgetBoardRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ data class AddPlatformSaveState(
 
 @HiltViewModel
 class SettingViewModelV2 @Inject constructor(
-    private val settingRepository: SettingRepository
+    private val settingRepository: SettingRepository,
+    private val widgetBoardRepository: WidgetBoardRepository
 ) : ViewModel() {
 
     private val _platformState = MutableStateFlow(listOf<PlatformV2>())
@@ -32,8 +34,21 @@ class SettingViewModelV2 @Inject constructor(
     private val _addPlatformSaveState = MutableStateFlow(AddPlatformSaveState())
     val addPlatformSaveState: StateFlow<AddPlatformSaveState> = _addPlatformSaveState.asStateFlow()
 
+    private val _showWidgetContentWhenLocked = MutableStateFlow(false)
+    val showWidgetContentWhenLocked: StateFlow<Boolean> = _showWidgetContentWhenLocked.asStateFlow()
+
     init {
         fetchPlatforms()
+        viewModelScope.launch {
+            _showWidgetContentWhenLocked.value = widgetBoardRepository.showContentWhenLocked()
+        }
+    }
+
+    fun setShowWidgetContentWhenLocked(enabled: Boolean) {
+        _showWidgetContentWhenLocked.value = enabled
+        viewModelScope.launch {
+            widgetBoardRepository.setShowContentWhenLocked(enabled)
+        }
     }
 
     fun fetchPlatforms() {
