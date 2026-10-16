@@ -15,6 +15,9 @@ import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -24,6 +27,7 @@ import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
 import dev.chungjungsoo.gptmobile.data.plugin.PluginOAuthCallbackHub
 import dev.chungjungsoo.gptmobile.data.plugin.isPluginOAuthCallback
+import dev.chungjungsoo.gptmobile.data.routine.RoutineChatLaunch
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -71,6 +75,9 @@ class MainActivity : ComponentActivity() {
 
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        if (savedInstanceState == null) {
+            RoutineChatLaunch.offerFrom(intent)
+        }
 
         setContent {
             val navController = rememberNavController()
@@ -99,8 +106,19 @@ class MainActivity : ComponentActivity() {
                             toolConnectionsViewModel = toolConnectionsViewModel,
                             onLaunchOAuth = ::launchOAuth
                         )
+                        var startupSettled by remember { mutableStateOf(false) }
+                        val pendingChat by RoutineChatLaunch.pending.collectAsStateWithLifecycle()
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
+                            startupSettled = true
+                        }
+                        LaunchedEffect(startupSettled, pendingChat) {
+                            if (!startupSettled) return@LaunchedEffect
+                            val chat = pendingChat ?: return@LaunchedEffect
+                            navController.navigate(RoutineChatLaunch.route(chat.chatId, chat.enabledPlatforms)) {
+                                launchSingleTop = true
+                            }
+                            RoutineChatLaunch.consume()
                         }
                     }
                 }
@@ -113,6 +131,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        RoutineChatLaunch.offerFrom(intent)
     }
 
     private fun launchOAuth(authorizationUri: String) {

@@ -43,11 +43,54 @@ class ToolConfirmationGateTest {
         val allowed = gated(ToolEffect.WRITE, enabled = true) { true }
         assertFalse(allowed.execute("call-2", JsonObject(emptyMap())).isError)
 
-        val unattended = gated(ToolEffect.WRITE, enabled = true, AllowToolConfirmPrompter)
+        val unattended = gated(ToolEffect.WRITE, enabled = true, prompter = AllowToolConfirmPrompter)
         val unattendedResult = withContext(UnattendedToolCall()) {
             unattended.execute("call-3", JsonObject(emptyMap()))
         }
         assertTrue(unattendedResult.isError)
+    }
+
+    @Test
+    fun `unattended routines refuse sends even when a tool claims to be read only`() = runBlocking {
+        var ran = false
+        val send = gated(
+            effect = ToolEffect.READ,
+            enabled = true,
+            name = "send_mail",
+            description = "Send an email",
+            ran = { ran = true }
+        )
+        val result = withContext(UnattendedToolCall()) {
+            send.execute("call-send", JsonObject(emptyMap()))
+        }
+        assertTrue(result.isError)
+        assertEquals(UNATTENDED_DRAFT_ONLY, (result.content as ToolResultContent.Text).text)
+        assertFalse(ran)
+
+        ran = false
+        val camel = gated(ToolEffect.READ, enabled = true, name = "sendEmail", description = "Deliver mail", ran = { ran = true })
+        val camelResult = withContext(UnattendedToolCall()) { camel.execute("call-camel", JsonObject(emptyMap())) }
+        assertTrue(camelResult.isError)
+        assertFalse(ran)
+
+        ran = false
+        val draft = gated(ToolEffect.READ, enabled = true, name = "create_draft", description = "Create a draft email", ran = { ran = true })
+        val draftResult = withContext(UnattendedToolCall()) { draft.execute("call-draft", JsonObject(emptyMap())) }
+        assertTrue(draftResult.isError)
+        assertFalse(ran)
+
+        ran = false
+        val list = gated(ToolEffect.READ, enabled = true, name = "list_messages", description = "List unread mail", ran = { ran = true })
+        val listResult = withContext(UnattendedToolCall()) { list.execute("call-list", JsonObject(emptyMap())) }
+        assertFalse(listResult.isError)
+        assertTrue(ran)
+    }
+
+    @Test
+    fun `unattended routines do not hand off to another agent`() {
+        assertFalse(includeAgentHandoff(runId = "routine-1", unattended = true))
+        assertFalse(includeAgentHandoff(runId = "handoff-1", unattended = false))
+        assertTrue(includeAgentHandoff(runId = "chat-1", unattended = false))
     }
 
     @Test
@@ -71,12 +114,14 @@ class ToolConfirmationGateTest {
     private fun gated(
         effect: ToolEffect,
         enabled: Boolean,
+        name: String = "tool",
+        description: String = "Tool",
         prompter: ToolConfirmPrompter = AllowToolConfirmPrompter,
         ran: () -> Unit = {},
         confirm: (suspend (ToolConfirmRequest) -> Boolean)? = null
     ): GatedAgentTool {
         val delegate = object : AgentTool {
-            override val definition = AgentToolDefinition("tool", "Tool", buildJsonObject { })
+            override val definition = AgentToolDefinition(name, description, buildJsonObject { })
             override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
                 ran()
                 return AgentToolResult(callId, ToolResultContent.Text("ok"), isError = false)

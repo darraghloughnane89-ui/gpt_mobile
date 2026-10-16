@@ -78,8 +78,14 @@ class GatedAgentTool(
         if (!enabled) {
             return denied(callId, "Tool '${definition.name}' is disabled.")
         }
+        val unattended = coroutineContext[UnattendedToolCall] != null
+        if (unattended && isOutboundSend(definition.name, definition.description)) {
+            return denied(callId, UNATTENDED_DRAFT_ONLY)
+        }
+        if (unattended && toolTokens(definition.name).any { it in WRITE_WORDS }) {
+            return denied(callId, "Write action '${definition.name}' was not confirmed.")
+        }
         if (effect == ToolEffect.WRITE) {
-            val unattended = coroutineContext[UnattendedToolCall] != null
             val allowed = !unattended &&
                 prompter.confirm(
                     ToolConfirmRequest(
@@ -142,6 +148,32 @@ class ToolConfirmBroker @Inject constructor() : ToolConfirmPrompter {
         val current = _pending.value ?: return
         waiters[current.id]?.complete(allow)
     }
+}
+
+const val UNATTENDED_DRAFT_ONLY =
+    "Unattended routines draft in the chat. They do not send messages or emails."
+
+private val NAME_OUTBOUND = setOf("send", "reply", "forward", "publish", "dispatch")
+private val MESSAGING = setOf(
+    "mail", "email", "gmail", "message", "messages", "sms", "mms", "chat", "slack", "inbox", "thread"
+)
+
+fun toolTokens(raw: String): Set<String> {
+    val spaced = raw
+        .replace(Regex("([a-z0-9])([A-Z])"), "$1 $2")
+        .replace(Regex("([A-Z]+)([A-Z][a-z])"), "$1 $2")
+    return spaced.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }.toSet()
+}
+
+fun isOutboundSend(name: String, description: String): Boolean {
+    val nameTokens = toolTokens(name)
+    if (nameTokens.any { it in NAME_OUTBOUND }) return true
+    val all = toolTokens("$name $description")
+    if (all.any { it == "send" || it == "forward" || it == "publish" || it == "dispatch" }) return true
+    val messaging = all.any { it in MESSAGING }
+    if ("reply" in all && messaging) return true
+    if ("post" in all && messaging) return true
+    return false
 }
 
 private val READ_WORDS = listOf(

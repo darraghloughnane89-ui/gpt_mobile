@@ -23,6 +23,8 @@ import kotlinx.serialization.json.put
 const val HANDOFF_RUN_PREFIX = "handoff-"
 const val DELEGATE_TOOL_NAME = "delegate_task"
 
+fun includeAgentHandoff(runId: String, unattended: Boolean): Boolean = !unattended && !runId.startsWith(HANDOFF_RUN_PREFIX)
+
 data class AgentTargetRef(val id: String, val label: String)
 
 interface AgentTargetSource {

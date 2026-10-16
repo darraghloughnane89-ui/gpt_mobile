@@ -705,7 +705,10 @@ class ChatRepositoryImpl @Inject constructor(
         val pluginTools = pluginToolRegistry.toolsFor(
             dev.chungjungsoo.gptmobile.data.plugin.ToolScope(
                 platformUid = platform.uid,
-                includeHandoff = !runId.startsWith(dev.chungjungsoo.gptmobile.data.plugin.HANDOFF_RUN_PREFIX),
+                includeHandoff = dev.chungjungsoo.gptmobile.data.plugin.includeAgentHandoff(
+                    runId = runId,
+                    unattended = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.UnattendedToolCall] != null
+                ),
                 pluginUidFilter = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.PluginToolFilter]?.pluginUids
             )
         )

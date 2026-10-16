@@ -26,9 +26,15 @@ import dev.chungjungsoo.gptmobile.data.plugin.ProjectDirectory
 import dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry
 import dev.chungjungsoo.gptmobile.data.plugin.UnavailableBotDirectory
 import dev.chungjungsoo.gptmobile.data.plugin.UnavailableProjectDirectory
+import dev.chungjungsoo.gptmobile.data.routine.DataStoreRoutineTemplateSettings
+import dev.chungjungsoo.gptmobile.data.routine.KtorWeatherHttp
+import dev.chungjungsoo.gptmobile.data.routine.OpenMeteoWeatherClient
 import dev.chungjungsoo.gptmobile.data.routine.RoutineClock
+import dev.chungjungsoo.gptmobile.data.routine.RoutineTemplateSettings
 import dev.chungjungsoo.gptmobile.data.routine.RoutineWorkQueue
 import dev.chungjungsoo.gptmobile.data.routine.SystemRoutineClock
+import dev.chungjungsoo.gptmobile.data.routine.WeatherClient
+import dev.chungjungsoo.gptmobile.data.routine.WeatherHttp
 import dev.chungjungsoo.gptmobile.data.routine.WorkManagerRoutineQueue
 import javax.inject.Singleton
 
@@ -59,6 +65,18 @@ abstract class PluginBindModule {
 
     @Binds
     abstract fun routineQueue(impl: WorkManagerRoutineQueue): RoutineWorkQueue
+
+    @Binds
+    @Singleton
+    abstract fun routineTemplateSettings(impl: DataStoreRoutineTemplateSettings): RoutineTemplateSettings
+
+    @Binds
+    @Singleton
+    abstract fun weatherClient(impl: OpenMeteoWeatherClient): WeatherClient
+
+    @Binds
+    @Singleton
+    abstract fun weatherHttp(impl: KtorWeatherHttp): WeatherHttp
 }
 
 @Module
