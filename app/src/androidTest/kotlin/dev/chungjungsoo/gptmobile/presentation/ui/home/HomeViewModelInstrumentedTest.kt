@@ -18,6 +18,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
+import dev.chungjungsoo.gptmobile.data.library.MemoryChatLibraryStore
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -47,7 +48,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()
@@ -76,7 +78,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()
@@ -110,7 +113,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            chatLibraryStore = MemoryChatLibraryStore()
         )
 
         viewModel.fetchChats()

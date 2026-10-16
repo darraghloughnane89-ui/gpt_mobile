@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
@@ -52,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,8 +81,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.library.ChatListFilter
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.ui.library.ChatFolderPickerDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.library.ChatLibraryFilterBar
+import dev.chungjungsoo.gptmobile.presentation.ui.library.ChatLibrarySelectionBar
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -88,7 +95,7 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>, temporary: Boolean) -> Unit
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -98,6 +105,9 @@ fun HomeScreen(
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
     val activeChatIds by homeViewModel.activeChatIds.collectAsStateWithLifecycle()
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
+    val library by homeViewModel.libraryState.collectAsStateWithLifecycle()
+    val libraryFilter by homeViewModel.libraryFilter.collectAsStateWithLifecycle()
+    var showFolderPicker by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -105,14 +115,25 @@ fun HomeScreen(
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
-    val startChat = {
+    val startChat = { temporary: Boolean ->
         val enabledPlatformUids = platformState.filter { it.enabled }.map { it.uid }
         if (enabledPlatformUids.size == 1) {
-            navigateToNewChat(enabledPlatformUids)
+            navigateToNewChat(enabledPlatformUids, temporary)
         } else {
             homeViewModel.openSelectModelDialog()
         }
     }
+    val showLibraryBar = !chatListState.isSearchMode &&
+        !chatListState.isSelectionMode &&
+        !chatListState.isLoading &&
+        chatListState.loadError == null &&
+        (
+            chatListState.chats.isNotEmpty() ||
+                library.folders.isNotEmpty() ||
+                library.pinnedChatIds.isNotEmpty() ||
+                library.archivedChatIds.isNotEmpty() ||
+                chatListState.isLibraryFilterEmpty
+            )
 
     LaunchedEffect(lifecycleState) {
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
@@ -170,12 +191,17 @@ fun HomeScreen(
                 !chatListState.isSearchMode &&
                 !chatListState.isLoading &&
                 chatListState.loadError == null &&
-                chatListState.chats.isNotEmpty()
+                (chatListState.chats.isNotEmpty() || chatListState.isLibraryFilterEmpty)
             ) {
-                NewChatButton(
-                    expanded = listState.isScrollingUp(),
-                    onClick = startChat
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = { startChat(true) }) {
+                        Text(stringResource(R.string.start_temporary_chat))
+                    }
+                    NewChatButton(
+                        expanded = listState.isScrollingUp(),
+                        onClick = { startChat(false) }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -213,19 +239,84 @@ fun HomeScreen(
                     )
                 }
 
+                chatListState.isLibraryFilterEmpty -> {
+                    if (!chatListState.isSearchMode) {
+                        item { ChatsTitle(scrollBehavior) }
+                    }
+                    item {
+                        ChatLibraryFilterBar(
+                            library = library,
+                            filter = libraryFilter,
+                            onFilter = homeViewModel::setLibraryFilter,
+                            onCreateFolder = homeViewModel::createFolder,
+                            onRenameFolder = homeViewModel::renameFolder,
+                            onDeleteFolder = homeViewModel::deleteLibraryFolder
+                        )
+                    }
+                    item {
+                        EmptyErrorState(
+                            title = stringResource(R.string.library_empty_filter),
+                            description = stringResource(R.string.library_empty_filter_description),
+                            modifier = Modifier.fillParentMaxSize(),
+                            primaryActionLabel = stringResource(R.string.library_inbox),
+                            onPrimaryAction = { homeViewModel.setLibraryFilter(ChatListFilter.Inbox) }
+                        )
+                    }
+                }
+
                 chatListState.chats.isEmpty() -> item {
                     EmptyErrorState(
                         title = stringResource(R.string.no_chats_title),
                         description = stringResource(R.string.no_chats_description),
                         modifier = Modifier.fillParentMaxSize(),
                         primaryActionLabel = stringResource(R.string.start_a_chat),
-                        onPrimaryAction = startChat
+                        onPrimaryAction = { startChat(false) },
+                        secondaryActionLabel = stringResource(R.string.start_temporary_chat),
+                        onSecondaryAction = { startChat(true) }
                     )
                 }
 
                 else -> {
                     if (!chatListState.isSearchMode) {
                         item { ChatsTitle(scrollBehavior) }
+                    }
+                    if (showLibraryBar) {
+                        item {
+                            ChatLibraryFilterBar(
+                                library = library,
+                                filter = libraryFilter,
+                                onFilter = homeViewModel::setLibraryFilter,
+                                onCreateFolder = homeViewModel::createFolder,
+                                onRenameFolder = homeViewModel::renameFolder,
+                                onDeleteFolder = homeViewModel::deleteLibraryFolder
+                            )
+                        }
+                    }
+                    if (chatListState.isSelectionMode) {
+                        item {
+                            val selectedRooms = chatListState.chats.filterIndexed { index, _ ->
+                                chatListState.selectedChats.getOrElse(index) { false }
+                            }
+                            ChatLibrarySelectionBar(
+                                pinLabel = stringResource(
+                                    if (selectedRooms.isNotEmpty() && selectedRooms.all { it.id in library.pinnedChatIds }) {
+                                        R.string.library_unpin
+                                    } else {
+                                        R.string.library_pin
+                                    }
+                                ),
+                                archiveLabel = stringResource(
+                                    if (selectedRooms.isNotEmpty() && selectedRooms.all { it.id in library.archivedChatIds }) {
+                                        R.string.library_restore
+                                    } else {
+                                        R.string.library_archive
+                                    }
+                                ),
+                                onPin = homeViewModel::togglePinSelectedChats,
+                                onArchive = homeViewModel::toggleArchiveSelectedChats,
+                                onMoveToFolder = { showFolderPicker = true }
+                            )
+                        }
                     }
                     itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
                         val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
@@ -256,6 +347,11 @@ fun HomeScreen(
                                         checked = chatListState.selectedChats[idx],
                                         onCheckedChange = { homeViewModel.selectChat(idx) }
                                     )
+                                } else if (chatRoom.id in library.pinnedChatIds) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.PushPin,
+                                        contentDescription = stringResource(R.string.pinned_chat)
+                                    )
                                 } else {
                                     Icon(
                                         ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
@@ -264,7 +360,19 @@ fun HomeScreen(
                                 }
                             },
                             supportingContent = {
-                                Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
+                                val platformLine = stringResource(R.string.using_certain_platform, usingPlatform)
+                                val folderName = library.folders
+                                    .firstOrNull { it.id == library.chatFolderIds[chatRoom.id] }
+                                    ?.name
+                                Text(
+                                    text = if (folderName != null) {
+                                        stringResource(R.string.library_in_folder, folderName, platformLine)
+                                    } else {
+                                        platformLine
+                                    },
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             },
                             colors = ListItemDefaults.colors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -281,10 +389,26 @@ fun HomeScreen(
                 selectedPlatforms = chatListState.selectedPlatforms,
                 onDismissRequest = { homeViewModel.closeSelectModelDialog() },
                 onConfirmation = {
-                    navigateToNewChat(it)
+                    navigateToNewChat(it, false)
+                    homeViewModel.closeSelectModelDialog()
+                },
+                onTemporaryConfirmation = {
+                    navigateToNewChat(it, true)
                     homeViewModel.closeSelectModelDialog()
                 },
                 onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
+            )
+        }
+
+        if (showFolderPicker) {
+            ChatFolderPickerDialog(
+                folders = library.folders,
+                onDismiss = { showFolderPicker = false },
+                onSelect = { folderId ->
+                    homeViewModel.moveSelectedChats(folderId)
+                    showFolderPicker = false
+                },
+                onCreate = homeViewModel::createFolderForSelected
             )
         }
 
@@ -511,6 +635,7 @@ fun SelectPlatformDialog(
     selectedPlatforms: List<Boolean>,
     onDismissRequest: () -> Unit,
     onConfirmation: (enabledPlatforms: List<String>) -> Unit,
+    onTemporaryConfirmation: (enabledPlatforms: List<String>) -> Unit,
     onPlatformSelect: (idx: Int) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
@@ -557,11 +682,20 @@ fun SelectPlatformDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = selectedPlatforms.any { it },
-                onClick = { onConfirmation(platforms.filterIndexed { i, _ -> selectedPlatforms[i] }.map { it.uid }) }
-            ) {
-                Text(stringResource(R.string.confirm))
+            val selectedIds = platforms.filterIndexed { i, _ -> selectedPlatforms[i] }.map { it.uid }
+            Row {
+                TextButton(
+                    enabled = selectedPlatforms.any { it },
+                    onClick = { onTemporaryConfirmation(selectedIds) }
+                ) {
+                    Text(stringResource(R.string.temporary_chat))
+                }
+                TextButton(
+                    enabled = selectedPlatforms.any { it },
+                    onClick = { onConfirmation(selectedIds) }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
             }
         },
         dismissButton = {
