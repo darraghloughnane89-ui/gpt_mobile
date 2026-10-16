@@ -22,7 +22,8 @@ object Route {
     const val OLLAMA_API_ADDRESS = "ollama_api_address"
 
     const val CHAT_LIST = "chat_list"
-    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}"
+    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&voice={openVoice}"
+    const val VOICE_SETTINGS = "voice_settings"
 
     const val SETTING_ROUTE = "setting_route"
     const val SETTINGS = "settings"
@@ -42,3 +43,8 @@ object Route {
 
     const val MIGRATE_V2 = "migrate_v2"
 }
+
+fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: List<String>, openVoice: Boolean = false): String = Route.CHAT_ROOM
+    .replace("{chatRoomId}", chatRoomId.toString())
+    .replace("{enabledPlatforms}", enabledPlatforms.joinToString(","))
+    .replace("{openVoice}", openVoice.toString())

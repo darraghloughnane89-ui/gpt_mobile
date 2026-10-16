@@ -15,6 +15,9 @@ import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -32,6 +35,8 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import dev.chungjungsoo.gptmobile.presentation.voice.VoiceLaunchSignals
+import dev.chungjungsoo.gptmobile.presentation.voice.requestsVoiceChat
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -66,8 +71,10 @@ class MainActivity : ComponentActivity() {
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
+        publishVoiceLaunch(intent)
         setContent {
             val navController = rememberNavController()
+            var startupReady by remember { mutableStateOf(false) }
             val isReady by mainViewModel.isReady.collectAsStateWithLifecycle()
             val themeLoadState by themeViewModel.loadState.collectAsStateWithLifecycle()
             val themeSetting by themeViewModel.themeSetting.collectAsStateWithLifecycle()
@@ -91,10 +98,12 @@ class MainActivity : ComponentActivity() {
                         SetupNavGraph(
                             navController = navController,
                             toolConnectionsViewModel = toolConnectionsViewModel,
-                            onLaunchOAuth = ::launchOAuth
+                            onLaunchOAuth = ::launchOAuth,
+                            voiceLaunchEnabled = startupReady
                         )
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
+                            startupReady = true
                         }
                     }
                 }
@@ -107,6 +116,13 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        publishVoiceLaunch(intent)
+    }
+
+    private fun publishVoiceLaunch(intent: Intent?) {
+        if (intent?.requestsVoiceChat() == true) {
+            VoiceLaunchSignals.request()
+        }
     }
 
     private fun launchOAuth(authorizationUri: String) {

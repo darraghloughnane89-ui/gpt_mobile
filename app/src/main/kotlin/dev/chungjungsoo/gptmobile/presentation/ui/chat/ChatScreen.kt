@@ -45,6 +45,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -111,6 +112,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceChatHost
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -197,6 +199,7 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    var showVoice by rememberSaveable { mutableStateOf(chatViewModel.openVoiceOnStart) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
@@ -260,106 +263,119 @@ fun ChatScreen(
             )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            Box(
+        Box(Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 ) {
-                    itemsIndexed(
-                        items = groupedMessages.userMessages,
-                        key = { index, message -> chatMessagePairKey(message, index) }
-                    ) { index, message ->
-                        ChatMessagePair(
-                            messageIndex = index,
-                            message = message,
-                            assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
-                            agentRunsById = agentRunsById,
-                            runNoticesById = runNoticesById,
-                            toolEventsByRun = toolEventsByRun,
-                            platformIndexState = indexStates.getOrElse(index) { 0 },
-                            loadingStates = loadingStates,
-                            enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
-                            enabledPlatformLookup = enabledPlatformLookup,
-                            canUseChat = canUseChat,
-                            isIdle = isIdle,
-                            isActiveMessage = index == lastMessageIndex,
-                            maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
-                            maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
-                            onEditQuestion = chatViewModel::openUserMessageEditDialog,
-                            onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
-                            onCopyText = { copiedText ->
-                                scope.launch {
-                                    clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
-                                }
-                            },
-                            onPlatformClick = chatViewModel::updateChatPlatformIndex,
-                            onSelectText = chatViewModel::openSelectTextSheet,
-                            onRetry = chatViewModel::retryChat,
-                            onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
-                            onShowNextRevision = chatViewModel::showNextAssistantRevision
-                        )
-                    }
-                    if (groupedMessages.userMessages.isNotEmpty()) {
-                        item(key = "chat-bottom-anchor") {
-                            Spacer(Modifier.size(1.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState
+                    ) {
+                        itemsIndexed(
+                            items = groupedMessages.userMessages,
+                            key = { index, message -> chatMessagePairKey(message, index) }
+                        ) { index, message ->
+                            ChatMessagePair(
+                                messageIndex = index,
+                                message = message,
+                                assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
+                                agentRunsById = agentRunsById,
+                                runNoticesById = runNoticesById,
+                                toolEventsByRun = toolEventsByRun,
+                                platformIndexState = indexStates.getOrElse(index) { 0 },
+                                loadingStates = loadingStates,
+                                enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
+                                enabledPlatformLookup = enabledPlatformLookup,
+                                canUseChat = canUseChat,
+                                isIdle = isIdle,
+                                isActiveMessage = index == lastMessageIndex,
+                                maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
+                                maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
+                                onEditQuestion = chatViewModel::openUserMessageEditDialog,
+                                onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
+                                onCopyText = { copiedText ->
+                                    scope.launch {
+                                        clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
+                                    }
+                                },
+                                onPlatformClick = chatViewModel::updateChatPlatformIndex,
+                                onSelectText = chatViewModel::openSelectTextSheet,
+                                onRetry = chatViewModel::retryChat,
+                                onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
+                                onShowNextRevision = chatViewModel::showNextAssistantRevision
+                            )
+                        }
+                        if (groupedMessages.userMessages.isNotEmpty()) {
+                            item(key = "chat-bottom-anchor") {
+                                Spacer(Modifier.size(1.dp))
+                            }
                         }
                     }
-                }
 
-                if (!isFollowingBottom && listState.canScrollForward) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 16.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        ScrollToBottomButton {
-                            scope.launch {
-                                listState.animateScrollToLatestChatMessage()
-                                isFollowingBottom = true
+                    if (!isFollowingBottom && listState.canScrollForward) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = 16.dp),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            ScrollToBottomButton {
+                                scope.launch {
+                                    listState.animateScrollToLatestChatMessage()
+                                    isFollowingBottom = true
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            ChatInputBox(
-                inputState = chatViewModel.question,
-                chatEnabled = canUseChat,
-                sendButtonEnabled = isIdle,
-                isRunning = !isIdle,
-                selectedAttachments = selectedAttachments,
-                onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
-                onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
-                onCancelButtonClick = chatViewModel::cancelActiveRuns
-            ) {
-                if (!requestedNotificationPermission &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ChatInputBox(
+                    inputState = chatViewModel.question,
+                    chatEnabled = canUseChat,
+                    sendButtonEnabled = isIdle,
+                    isRunning = !isIdle,
+                    selectedAttachments = selectedAttachments,
+                    onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
+                    onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
+                    onCancelButtonClick = chatViewModel::cancelActiveRuns,
+                    onVoiceClick = if (canUseChat) {
+                        { showVoice = true }
+                    } else {
+                        null
+                    }
                 ) {
-                    sendAfterNotificationPermission = true
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (needsLocalNetworkAccess &&
-                    Build.VERSION.SDK_INT >= 37 &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterLocalNetworkPermission = true
-                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-                } else {
-                    chatViewModel.askQuestion()
-                    focusManager.clearFocus()
+                    if (!requestedNotificationPermission &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterNotificationPermission = true
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else if (needsLocalNetworkAccess &&
+                        Build.VERSION.SDK_INT >= 37 &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterLocalNetworkPermission = true
+                        localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                    } else {
+                        chatViewModel.askQuestion()
+                        focusManager.clearFocus()
+                    }
                 }
+            }
+            if (showVoice) {
+                VoiceChatHost(
+                    chatViewModel = chatViewModel,
+                    onDismiss = { showVoice = false }
+                )
             }
         }
 
@@ -836,6 +852,7 @@ fun ChatInputBox(
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
+    onVoiceClick: (() -> Unit)? = null,
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
@@ -909,6 +926,17 @@ fun ChatInputBox(
                             }
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 innerTextField()
+                            }
+                        }
+                        if (onVoiceClick != null) {
+                            IconButton(
+                                enabled = chatEnabled,
+                                onClick = onVoiceClick
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Mic,
+                                    contentDescription = stringResource(R.string.voice_chat)
+                                )
                             }
                         }
                         IconButton(
