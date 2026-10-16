@@ -4,14 +4,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Projects schema, reserved as Room version 13.
+ * Projects schema, Room version 13.
  *
- * [MIGRATION_12_13] is the migration to keep. It only adds project tables and
+ * Installed upgrades go 11 → 12 (bots) → 13 (projects). [MIGRATION_12_13] is the
+ * migration registered with Room. It only adds project tables and
  * `chats_v2.project_id`, so it does not depend on the bots columns from version 12.
  *
- * [MIGRATION_11_13] is temporary. This branch starts at version 11, before the bots
- * stream's 11→12 migration exists. Register it so existing installs can open.
- * After bots lands, drop [MIGRATION_11_13] and leave [MIGRATION_12_13].
+ * [MIGRATION_11_13] is not registered. Room would prefer that direct path and skip
+ * the bots tables. It remains so the project SQL can be compared with [MIGRATION_12_13].
  */
 object ProjectMigrations {
     val PROJECT_SCHEMA_SQL = listOf(

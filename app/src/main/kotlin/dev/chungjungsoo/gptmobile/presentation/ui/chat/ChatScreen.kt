@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -89,6 +90,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -111,6 +114,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -158,6 +163,9 @@ fun ChatScreen(
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
+    val bots by chatViewModel.bots.collectAsStateWithLifecycle()
+    val selectedBot by chatViewModel.selectedBot.collectAsStateWithLifecycle()
+    var botPickerOpen by rememberSaveable { mutableStateOf(false) }
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
@@ -201,6 +209,7 @@ fun ChatScreen(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
+        chatViewModel.refreshBots()
     }
 
     LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
@@ -258,7 +267,11 @@ fun ChatScreen(
                     } else {
                         isContextPlatformPickerOpen = true
                     }
-                }
+                },
+                botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
+                botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
+                    ?: stringResource(R.string.choose_bot),
+                onBotClick = { botPickerOpen = true }
             )
         }
     ) { innerPadding ->
@@ -336,6 +349,12 @@ fun ChatScreen(
                 }
             }
 
+            if (groupedMessages.userMessages.isEmpty()) {
+                BotStarterPromptRow(
+                    prompts = selectedBot?.starterPromptList().orEmpty(),
+                    onPromptClick = chatViewModel::applyStarterPrompt
+                )
+            }
             ChatInputBox(
                 inputState = chatViewModel.question,
                 chatEnabled = canUseChat,
@@ -363,6 +382,15 @@ fun ChatScreen(
                     focusManager.clearFocus()
                 }
             }
+        }
+
+        if (botPickerOpen) {
+            BotSwitcherSheet(
+                bots = bots,
+                selectedBotUid = selectedBot?.botUid,
+                onSelect = chatViewModel::selectBot,
+                onDismiss = { botPickerOpen = false }
+            )
         }
 
         if (isChatTitleDialogOpen) {
@@ -692,7 +720,10 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit
+    onChatContextItemClick: () -> Unit,
+    botLabel: String?,
+    botContentDescription: String,
+    onBotClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -719,6 +750,23 @@ private fun ChatTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onBotClick) {
+                Box(
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = botContentDescription
+                    },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (botLabel != null) {
+                        Text(text = botLabel)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.SmartToy,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
             IconButton(
                 enabled = isModelItemEnabled,
                 onClick = onChatModelItemClick

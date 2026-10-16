@@ -619,7 +619,7 @@ class ChatRepositoryImplTest {
         modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
         contextLimit: Int = 128_000,
         compactionStore: dev.chungjungsoo.gptmobile.data.context.CompactionStore = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
-    ): ChatRepositoryImpl = ChatRepositoryImpl(
+    ): ChatRepository = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomDao = proxy(),
         messageDao = proxy(),

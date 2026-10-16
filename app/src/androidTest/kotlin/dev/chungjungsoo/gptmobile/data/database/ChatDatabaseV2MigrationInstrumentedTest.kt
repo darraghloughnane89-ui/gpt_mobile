@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.database
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
 import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
 import java.io.IOException
 import org.junit.Assert.assertEquals
@@ -446,11 +447,63 @@ class ChatDatabaseV2MigrationInstrumentedTest {
 
     @Test
     @Throws(IOException::class)
-    fun migrate11To13_addsProjectsAndLeavesExistingChatsUnassigned() {
-        helper.createDatabase(PROJECT_DATABASE, 11).apply {
+    fun migrate11To12_addsNullableBotUidAndSeedsBuiltInBots() {
+        helper.createDatabase(BOT_DATABASE, 11).apply {
             execSQL(
                 "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) " +
-                    "VALUES (4, 'Loose chat', 'profile-1', 10, 11)"
+                    "VALUES (4, 'Kept chat', 'profile-1', 1, 2)"
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            BOT_DATABASE,
+            12,
+            true,
+            BotDatabaseV2Migration.MIGRATION_11_12
+        )
+
+        database.query("SELECT bot_uid FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.isNull(0))
+        }
+        val names = mutableListOf<String>()
+        database.query("SELECT name FROM bots ORDER BY name").use { cursor ->
+            while (cursor.moveToNext()) {
+                names += cursor.getString(0)
+            }
+        }
+        assertEquals(
+            listOf(
+                "Assistant",
+                "CBRE Field Reports",
+                "Coder",
+                "Coding Helper",
+                "Daily Planner",
+                "Email Drafter",
+                "Gridwell Quoting",
+                "Loughnane Lifts Coach",
+                "Research Bot",
+                "Voice Companion"
+            ),
+            names
+        )
+        database.query("SELECT instructions FROM bots WHERE name = 'CBRE Field Reports'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.getString(0).contains("ASSET/BOI/ROI/#####"))
+            assertTrue(cursor.getString(0).contains("Never submit to Smartsheet"))
+        }
+        assertCount(database, "bot_tool_bindings", 20)
+        database.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate12To13_addsProjectsAndLeavesExistingChatsUnassigned() {
+        helper.createDatabase(PROJECT_DATABASE, 12).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at, bot_uid) " +
+                    "VALUES (4, 'Loose chat', 'profile-1', 10, 11, NULL)"
             )
             close()
         }
@@ -459,13 +512,14 @@ class ChatDatabaseV2MigrationInstrumentedTest {
             PROJECT_DATABASE,
             13,
             true,
-            ProjectMigrations.MIGRATION_11_13
+            ProjectMigrations.MIGRATION_12_13
         )
 
-        database.query("SELECT title, project_id FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+        database.query("SELECT title, project_id, bot_uid FROM chats_v2 WHERE chat_id = 4").use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals("Loose chat", cursor.getString(0))
             assertTrue(cursor.isNull(1))
+            assertTrue(cursor.isNull(2))
         }
         assertCount(database, "projects", 0)
         assertCount(database, "project_files", 0)
@@ -476,6 +530,36 @@ class ChatDatabaseV2MigrationInstrumentedTest {
             }
             assertTrue(names.contains("import_key"))
         }
+        database.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate11To13_chainsBotsThenProjects() {
+        helper.createDatabase(CHAIN_DATABASE, 11).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) " +
+                    "VALUES (4, 'Loose chat', 'profile-1', 10, 11)"
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            CHAIN_DATABASE,
+            13,
+            true,
+            BotDatabaseV2Migration.MIGRATION_11_12,
+            ProjectMigrations.MIGRATION_12_13
+        )
+
+        database.query("SELECT title, bot_uid, project_id FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Loose chat", cursor.getString(0))
+            assertTrue(cursor.isNull(1))
+            assertTrue(cursor.isNull(2))
+        }
+        assertCount(database, "projects", 0)
+        assertCount(database, "bots", 10)
         database.close()
     }
 
@@ -497,6 +581,8 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val TIMELINE_DATABASE = "agent-migration-timeline-test"
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
         const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
-        const val PROJECT_DATABASE = "project-migration-11-13-test"
+        const val BOT_DATABASE = "bot-migration-11-12-test"
+        const val PROJECT_DATABASE = "project-migration-12-13-test"
+        const val CHAIN_DATABASE = "project-migration-11-12-13-test"
     }
 }

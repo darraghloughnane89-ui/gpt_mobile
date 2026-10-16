@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "1c5c3802630be1a048fd2cf9f7e6250b",
+    "identityHash": "c6b86ba438b6f3980bd785e3d55f1e65",
     "entities": [
       {
         "tableName": "chats_v2",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `enabled_platform` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `project_id` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `enabled_platform` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `bot_uid` TEXT, `project_id` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -39,6 +39,11 @@
             "notNull": true
           },
           {
+            "fieldPath": "botUid",
+            "columnName": "bot_uid",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "projectId",
             "columnName": "project_id",
             "affinity": "INTEGER"
@@ -51,6 +56,15 @@
           ]
         },
         "indices": [
+          {
+            "name": "index_chats_v2_bot_uid",
+            "unique": false,
+            "columnNames": [
+              "bot_uid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chats_v2_bot_uid` ON `${TABLE_NAME}` (`bot_uid`)"
+          },
           {
             "name": "index_chats_v2_project_id",
             "unique": false,
@@ -1014,6 +1028,176 @@
         }
       },
       {
+        "tableName": "bots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bot_uid` TEXT NOT NULL, `name` TEXT NOT NULL, `avatar_emoji` TEXT, `avatar_color` TEXT, `instructions` TEXT NOT NULL, `default_platform_uid` TEXT, `default_model` TEXT, `starter_prompts` TEXT NOT NULL, `builtin` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`bot_uid`))",
+        "fields": [
+          {
+            "fieldPath": "botUid",
+            "columnName": "bot_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avatarEmoji",
+            "columnName": "avatar_emoji",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "avatarColor",
+            "columnName": "avatar_color",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "instructions",
+            "columnName": "instructions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultPlatformUid",
+            "columnName": "default_platform_uid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "defaultModel",
+            "columnName": "default_model",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "starterPrompts",
+            "columnName": "starter_prompts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "builtin",
+            "columnName": "builtin",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bot_uid"
+          ]
+        }
+      },
+      {
+        "tableName": "bot_tool_bindings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`binding_uid` TEXT NOT NULL, `bot_uid` TEXT NOT NULL, `connection_uid` TEXT, `tool_name` TEXT NOT NULL, `created_at` INTEGER NOT NULL, PRIMARY KEY(`binding_uid`), FOREIGN KEY(`bot_uid`) REFERENCES `bots`(`bot_uid`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`connection_uid`) REFERENCES `tool_connections`(`connection_uid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "bindingUid",
+            "columnName": "binding_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "botUid",
+            "columnName": "bot_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectionUid",
+            "columnName": "connection_uid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "toolName",
+            "columnName": "tool_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "binding_uid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bot_tool_bindings_bot_uid",
+            "unique": false,
+            "columnNames": [
+              "bot_uid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bot_tool_bindings_bot_uid` ON `${TABLE_NAME}` (`bot_uid`)"
+          },
+          {
+            "name": "index_bot_tool_bindings_connection_uid",
+            "unique": false,
+            "columnNames": [
+              "connection_uid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bot_tool_bindings_connection_uid` ON `${TABLE_NAME}` (`connection_uid`)"
+          },
+          {
+            "name": "index_bot_tool_bindings_bot_uid_connection_uid_tool_name",
+            "unique": true,
+            "columnNames": [
+              "bot_uid",
+              "connection_uid",
+              "tool_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_bot_tool_bindings_bot_uid_connection_uid_tool_name` ON `${TABLE_NAME}` (`bot_uid`, `connection_uid`, `tool_name`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bots",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "bot_uid"
+            ],
+            "referencedColumns": [
+              "bot_uid"
+            ]
+          },
+          {
+            "table": "tool_connections",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "connection_uid"
+            ],
+            "referencedColumns": [
+              "connection_uid"
+            ]
+          }
+        ]
+      },
+      {
         "tableName": "projects",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`project_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `icon` TEXT NOT NULL, `color` INTEGER NOT NULL, `instructions` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `import_key` TEXT)",
         "fields": [
@@ -1169,7 +1353,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1c5c3802630be1a048fd2cf9f7e6250b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c6b86ba438b6f3980bd785e3d55f1e65')"
     ]
   }
 }

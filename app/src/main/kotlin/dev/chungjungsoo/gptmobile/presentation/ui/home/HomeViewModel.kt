@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
+import dev.chungjungsoo.gptmobile.data.bot.NewChatBotHint
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
@@ -33,7 +34,8 @@ class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
     private val agentRunCoordinator: AgentRunCoordinator,
-    private val projectChatListSource: ProjectChatListSource
+    private val projectChatListSource: ProjectChatListSource,
+    private val newChatBotHint: NewChatBotHint = NewChatBotHint.None
 ) : ViewModel() {
 
     companion object {
@@ -135,8 +137,19 @@ class HomeViewModel @Inject constructor(
     }
 
     fun openSelectModelDialog() {
-        _showSelectModelDialog.update { true }
-        disableSelectionMode()
+        viewModelScope.launch {
+            val preferred = newChatBotHint.preferredPlatformUid()
+            if (preferred != null) {
+                val selected = _platformState.value.map { platform ->
+                    platform.enabled && platform.uid == preferred
+                }
+                if (selected.any { it }) {
+                    _chatListState.update { it.copy(selectedPlatforms = selected) }
+                }
+            }
+            _showSelectModelDialog.update { true }
+            disableSelectionMode()
+        }
     }
 
     fun closeSelectModelDialog() {

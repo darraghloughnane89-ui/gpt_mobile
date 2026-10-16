@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunRequest
 import dev.chungjungsoo.gptmobile.data.agent.LiveAgentResponseSnapshot
+import dev.chungjungsoo.gptmobile.data.bot.ChatBotSession
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
 import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
@@ -86,7 +87,8 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
-    private val projectInstructionBinder: ProjectInstructionBinder
+    private val projectInstructionBinder: ProjectInstructionBinder,
+    private val chatBotSession: ChatBotSession
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -175,6 +177,9 @@ class ChatViewModel @Inject constructor(
     private val _platformsInApp = MutableStateFlow(listOf<PlatformV2>())
     val platformsInApp = _platformsInApp.asStateFlow()
 
+    val bots = chatBotSession.bots
+    val selectedBot = chatBotSession.selectedBot
+
     // Enabled platforms list in app
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<PlatformV2>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -246,8 +251,16 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun withProjectInstructions(platform: PlatformV2): PlatformV2 =
-        projectInstructionBinder.apply(platform, _chatRoom.value.projectId)
+    /**
+     * Persisted chats receive project instructions from [dev.chungjungsoo.gptmobile.data.instruction.InstructionStack]
+     * through [dev.chungjungsoo.gptmobile.data.instruction.ProjectInstructionSource].
+     * A chat that has not been saved yet has no row to look up, so the draft capacity check
+     * still folds the in-memory project layer in here.
+     */
+    private suspend fun platformForDraftCheck(platform: PlatformV2): PlatformV2 {
+        if (_chatRoom.value.id > 0) return platform
+        return projectInstructionBinder.apply(platform, _chatRoom.value.projectId)
+    }
 
     fun addMessage(userMessage: MessageV2) {
         _groupedMessages.update {
@@ -340,6 +353,36 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun selectBot(botUid: String?) {
+        viewModelScope.launch {
+            val bot = chatBotSession.select(botUid)
+            _chatRoom.update { it.copy(botUid = bot?.botUid) }
+            chatBotSession.assignChat(_chatRoom.value.id, bot?.botUid)
+            val override = bot?.modelOverride(enabledPlatformsInChat.toSet())
+            if (override != null) {
+                updateChatPlatformModels(mapOf(override.first to override.second))
+            }
+            updateLocalNetworkRequirement(_platformsInApp.value)
+        }
+    }
+
+    fun refreshBots() {
+        viewModelScope.launch {
+            val previous = chatBotSession.selectedBot.value?.botUid
+            chatBotSession.refresh()
+            val resolved = chatBotSession.selectedBot.value?.botUid
+            if (previous != resolved) {
+                _chatRoom.update { it.copy(botUid = resolved) }
+                chatBotSession.assignChat(_chatRoom.value.id, resolved)
+            }
+            updateLocalNetworkRequirement(_platformsInApp.value)
+        }
+    }
+
+    fun applyStarterPrompt(prompt: String) {
+        question.setTextAndPlaceCursorAtEnd(prompt)
+    }
+
     fun closeChatContextSettings() {
         _chatContextState.value = null
         sendAfterContextSetup = false
@@ -366,7 +409,8 @@ class ChatViewModel @Inject constructor(
                     _attachmentNotice.value = context.getString(R.string.chat_context_compacting)
                     val result = agentRunCoordinator.compactContext(
                         _chatRoom.value.id,
-                        withProjectInstructions(current.platform)
+                        current.platform,
+                        completionContext()
                     ).await()
                     _attachmentNotice.value = result.message
                 }
@@ -471,9 +515,10 @@ class ChatViewModel @Inject constructor(
                                 runId = runId,
                                 chatId = persisted.assistantMessage.chatId,
                                 assistantMessage = persisted.assistantMessage,
-                                platform = withProjectInstructions(platformWithChatModel),
+                                platform = platformWithChatModel,
                                 userMessages = contextMessages.userMessages,
-                                assistantMessages = contextMessages.assistantMessages
+                                assistantMessages = contextMessages.assistantMessages,
+                                completion = completionContext()
                             )
                         )
                     )
@@ -740,7 +785,7 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             val platforms = resolveSelectedPlatforms(enabledPlatformsInChat, _platformsInApp.value)
-                .map { IndexedValue(it.index, withProjectInstructions(resolvePlatformModel(it.value))) }
+                .map { IndexedValue(it.index, resolvePlatformModel(it.value)) }
             val unavailableIndexes = enabledPlatformsInChat.indices - platforms.mapTo(mutableSetOf()) { it.index }
             _loadingStates.update { states ->
                 states.toMutableList().apply {
@@ -818,7 +863,8 @@ class ChatViewModel @Inject constructor(
                                 assistantMessage = persisted.assistantMessages[runIndex],
                                 platform = platform,
                                 userMessages = contextMessages.userMessages,
-                                assistantMessages = contextMessages.assistantMessages
+                                assistantMessages = contextMessages.assistantMessages,
+                                completion = completionContext()
                             )
                         }
                     )
@@ -1032,7 +1078,11 @@ class ChatViewModel @Inject constructor(
                     _platformsInApp.value.firstOrNull { it.uid == uid }?.let(::resolvePlatformModel)
                 }
                 for (platform in platforms) {
-                    val issue = chatRepository.validateDraftCapacity(withProjectInstructions(platform), message) ?: continue
+                    val issue = chatRepository.validateDraftCapacity(
+                        platformForDraftCheck(platform),
+                        message,
+                        completionContext()
+                    ) ?: continue
                     if (issue.status == CompactionStatus.NEEDS_CAPACITY) {
                         sendAfterContextSetup = true
                         _chatContextState.value = ChatContextState(platform, chatRepository.getModelContextSettings(platform))
@@ -1135,20 +1185,40 @@ class ChatViewModel @Inject constructor(
         return groupPersistedMessages(messages, enabledPlatformsInChat, chatId)
     }
 
+    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id)
+
+    private fun applyNewChatBotModel() {
+        if (chatRoomId != 0 || _chatRoom.value.id != 0) return
+        val override = chatBotSession.newChatModelOverride(enabledPlatformsInChat) ?: return
+        _chatPlatformModels.update { models ->
+            if (models.isEmpty()) models else models + (override.first to override.second)
+        }
+    }
+
     private fun fetchChatRoom() {
         viewModelScope.launch {
-            _chatRoom.update {
-                if (chatRoomId == 0) {
+            if (chatRoomId == 0) {
+                val botUid = chatBotSession.prepareNewChat()
+                _chatRoom.update {
                     it.copy(
                         id = 0,
                         title = "Untitled Chat",
                         enabledPlatform = enabledPlatformsInChat,
+                        botUid = botUid,
                         projectId = launchedProjectId.takeIf { projectId -> projectId > 0 }
                     )
-                } else {
-                    chatRepository.fetchChatListV2().first { it.id == chatRoomId }
+                }
+                applyNewChatBotModel()
+            } else {
+                val room = chatRepository.fetchChatListV2().first { it.id == chatRoomId }
+                chatBotSession.bind(room.botUid)
+                val resolvedUid = chatBotSession.selectedBot.value?.botUid
+                _chatRoom.update { room.copy(botUid = resolvedUid) }
+                if (resolvedUid != room.botUid) {
+                    chatBotSession.assignChat(room.id, resolvedUid)
                 }
             }
+            updateLocalNetworkRequirement(_platformsInApp.value)
         }
     }
 
@@ -1168,9 +1238,14 @@ class ChatViewModel @Inject constructor(
         val requiresAccess = determineLocalNetworkAccessRequirement(
             providerNeedsAccess = providerNeedsAccess,
             toolNeedsAccess = {
-                enabledPlatformsInChat.any { profileUid ->
-                    toolConnectionRepository.listBindingsWithConnections(profileUid).any { binding ->
-                        binding.connection?.endpointUrl?.let(::requiresLocalNetworkAccess) == true
+                val bot = chatBotSession.selectedBot.value
+                if (bot != null) {
+                    chatBotSession.selectedBotNeedsLocalNetwork()
+                } else {
+                    enabledPlatformsInChat.any { profileUid ->
+                        toolConnectionRepository.listBindingsWithConnections(profileUid).any { binding ->
+                            binding.connection?.endpointUrl?.let(::requiresLocalNetworkAccess) == true
+                        }
                     }
                 }
             },
@@ -1200,6 +1275,7 @@ class ChatViewModel @Inject constructor(
         if (chatRoomId != 0 && mergedModels != persistedModels) {
             chatRepository.saveChatPlatformModels(chatRoomId, mergedModels)
         }
+        applyNewChatBotModel()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

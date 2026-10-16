@@ -60,6 +60,7 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
+    onNavigateToBots: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -139,6 +140,15 @@ fun SettingScreen(
                         )
                     }
                 }
+            }
+            SettingsSection(title = stringResource(R.string.bots)) {
+                SettingItem(
+                    title = stringResource(R.string.bots),
+                    description = stringResource(R.string.bots_description),
+                    onItemClick = onNavigateToBots,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
             }
             SettingsSection(title = stringResource(R.string.tools)) {
                 SettingItem(

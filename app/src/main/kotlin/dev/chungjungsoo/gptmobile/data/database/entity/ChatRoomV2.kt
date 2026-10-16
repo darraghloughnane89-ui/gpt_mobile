@@ -12,6 +12,7 @@ import kotlinx.parcelize.Parcelize
 @Entity(
     tableName = "chats_v2",
     indices = [
+        Index(value = ["bot_uid"]),
         Index(value = ["project_id"])
     ]
 )
@@ -35,6 +36,9 @@ data class ChatRoomV2(
 
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long = System.currentTimeMillis() / 1000,
+
+    @ColumnInfo(name = "bot_uid")
+    val botUid: String? = null,
 
     @ColumnInfo(name = "project_id")
     val projectId: Int? = null

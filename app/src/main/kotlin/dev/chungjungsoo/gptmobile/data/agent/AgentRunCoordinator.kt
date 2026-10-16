@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.appendChronologicalText
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
+import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.presentation.service.AgentRunForegroundService
 import dev.chungjungsoo.gptmobile.util.ApiStateFlowOutcome
@@ -48,7 +49,8 @@ data class AgentRunRequest(
     val assistantMessage: MessageV2,
     val platform: PlatformV2,
     val userMessages: List<MessageV2>,
-    val assistantMessages: List<List<MessageV2>>
+    val assistantMessages: List<List<MessageV2>>,
+    val completion: ChatCompletionContext = ChatCompletionContext()
 )
 
 data class ActiveAgentRun(
@@ -85,7 +87,11 @@ class AgentRunCoordinator @Inject constructor(
     val activeRuns = _activeRuns.asStateFlow()
     val notices = _notices.asSharedFlow()
 
-    fun compactContext(chatId: Int, platform: PlatformV2): Deferred<CompactionResult> {
+    fun compactContext(
+        chatId: Int,
+        platform: PlatformV2,
+        completion: ChatCompletionContext = ChatCompletionContext()
+    ): Deferred<CompactionResult> {
         val runId = UUID.randomUUID().toString()
         val job = scope.async(start = CoroutineStart.LAZY) {
             withChatGate(chatId) {
@@ -95,7 +101,7 @@ class AgentRunCoordinator @Inject constructor(
                 collectCompactionResult(
                     timeoutMillis = AgentRunLimits().runTimeoutMillis,
                     timeoutMessage = context.getString(R.string.chat_context_timeout)
-                ) { chatRepository.compactNow(chatId, platform) }
+                ) { chatRepository.compactNow(chatId, platform, completion) }
             }
         }
         jobs[runId] = job
@@ -264,7 +270,8 @@ class AgentRunCoordinator @Inject constructor(
                     request.userMessages,
                     request.assistantMessages,
                     request.platform,
-                    request.runId
+                    request.runId,
+                    request.completion
                 ).collectApiStateUpdates(
                     onUpdate = { content, thoughts, timeline ->
                         assistantMessage = assistantMessage.copy(

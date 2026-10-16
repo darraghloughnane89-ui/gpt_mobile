@@ -116,6 +116,7 @@ fun HomeScreen(
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
+    val movedChatsMessage = stringResource(R.string.project_chats_moved)
     val activeProjectId = (projectFilter as? ProjectFilter.Project)?.id
     val ungroupedTitle = stringResource(R.string.project_filter_ungrouped)
     val chatRows = groupChatsByProject(
@@ -359,7 +360,7 @@ fun HomeScreen(
                 onDismiss = homeViewModel::closeMoveDialog,
                 onSelect = { projectId ->
                     homeViewModel.moveSelectedChats(projectId)
-                    Toast.makeText(context, context.getString(R.string.project_chats_moved), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, movedChatsMessage, Toast.LENGTH_SHORT).show()
                 }
             )
         }

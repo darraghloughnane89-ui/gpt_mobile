@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import kotlinx.coroutines.flow.Flow
 
 interface ChatRepository {
@@ -22,7 +23,8 @@ interface ChatRepository {
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2,
-        runId: String
+        runId: String,
+        completion: ChatCompletionContext = ChatCompletionContext()
     ): Flow<ApiState>
     fun observeMessagesV2(chatId: Int): Flow<List<MessageV2>>
     fun observeAgentRuns(chatId: Int): Flow<List<AgentRun>>
@@ -51,6 +53,14 @@ interface ChatRepository {
     suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>)
     suspend fun getModelContextSettings(platform: PlatformV2): ModelContextSettings
     suspend fun saveModelContextSettings(platform: PlatformV2, contextWindowTokens: Int?, resumableReplies: Boolean)
-    suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult
-    suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult?
+    suspend fun compactNow(
+        chatId: Int,
+        platform: PlatformV2,
+        completion: ChatCompletionContext = ChatCompletionContext()
+    ): CompactionResult
+    suspend fun validateDraftCapacity(
+        platform: PlatformV2,
+        message: MessageV2,
+        completion: ChatCompletionContext = ChatCompletionContext()
+    ): CompactionResult?
 }
