@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -63,6 +64,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -104,6 +106,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.canvas.CanvasDocument
+import dev.chungjungsoo.gptmobile.data.canvas.CanvasExportFormat
+import dev.chungjungsoo.gptmobile.data.canvas.canvasDisplayText
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
@@ -116,6 +121,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.CanvasActionBar
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.CanvasEditorPane
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.CanvasTextSelection
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.CanvasTopBar
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.exportCanvasFile
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.shareCanvasText
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -140,6 +151,12 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val canvasDocument by chatViewModel.canvasDocument.collectAsStateWithLifecycle()
+    val canvasDocuments by chatViewModel.canvasDocuments.collectAsStateWithLifecycle()
+    val canvasChatOpen by chatViewModel.canvasChatOpen.collectAsStateWithLifecycle()
+    val canvasRewrite by chatViewModel.canvasSelection.collectAsStateWithLifecycle()
+    val canvasNotice by chatViewModel.canvasNotice.collectAsStateWithLifecycle()
+    var editorSelection by remember { mutableStateOf<CanvasTextSelection?>(null) }
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val listState = rememberChatListState(groupedMessages.userMessages.size)
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
@@ -241,6 +258,17 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(canvasNotice) {
+        canvasNotice?.let { notice ->
+            Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+            chatViewModel.consumeCanvasNotice()
+        }
+    }
+
+    BackHandler(enabled = canvasDocument != null) {
+        chatViewModel.closeCanvas()
+    }
+
     Scaffold(
         modifier = Modifier
             .clickable(
@@ -249,135 +277,224 @@ fun ChatScreen(
             ) { focusManager.clearFocus() },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            ChatTopBar(
-                chatRoom.title,
-                chatRoom.id > 0,
-                chatViewModel.enabledPlatformsInChat.isNotEmpty(),
-                onBackAction,
-                scrollBehavior,
-                chatViewModel::openChatTitleDialog,
-                chatViewModel::openChatModelDialog,
-                onExportChatItemClick = { exportChat(context, chatViewModel) },
-                onChatContextItemClick = {
-                    val selected = chatViewModel.enabledPlatformsInChat
-                    if (selected.size == 1) {
-                        chatViewModel.openChatContextSettings(selected.single())
-                    } else {
-                        isContextPlatformPickerOpen = true
-                    }
-                },
-                botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
-                botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
-                    ?: stringResource(R.string.choose_bot),
-                onBotClick = { botPickerOpen = true }
-            )
+            val openCanvas = canvasDocument
+            if (openCanvas == null) {
+                ChatTopBar(
+                    chatRoom.title,
+                    chatRoom.id > 0,
+                    chatViewModel.enabledPlatformsInChat.isNotEmpty(),
+                    onBackAction,
+                    scrollBehavior,
+                    chatViewModel::openChatTitleDialog,
+                    chatViewModel::openChatModelDialog,
+                    onExportChatItemClick = { exportChat(context, chatViewModel) },
+                    onChatContextItemClick = {
+                        val selected = chatViewModel.enabledPlatformsInChat
+                        if (selected.size == 1) {
+                            chatViewModel.openChatContextSettings(selected.single())
+                        } else {
+                            isContextPlatformPickerOpen = true
+                        }
+                    },
+                    onNewCanvas = chatViewModel::openBlankCanvas,
+                    onOpenCanvas = {
+                        canvasDocuments.firstOrNull()?.let { chatViewModel.openCanvasDocument(it.id) }
+                    },
+                    canOpenCanvas = canvasDocuments.isNotEmpty(),
+                    botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
+                    botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
+                        ?: stringResource(R.string.choose_bot),
+                    onBotClick = { botPickerOpen = true }
+                )
+            } else {
+                CanvasTopBar(
+                    document = openCanvas,
+                    documents = canvasDocuments,
+                    onClose = chatViewModel::closeCanvas,
+                    onCopy = {
+                        scope.launch {
+                            clipboardManager.setClipEntry(
+                                ClipEntry(ClipData.newPlainText(openCanvas.title, openCanvas.content))
+                            )
+                        }
+                    },
+                    onShare = {
+                        shareCanvasText(context, openCanvas, context.getString(R.string.canvas_share_canvas))
+                    },
+                    onExport = { format ->
+                        exportCanvas(context, openCanvas, format)
+                    },
+                    onSelectDocument = chatViewModel::openCanvasDocument
+                )
+            }
+        },
+        bottomBar = {
+            if (canvasDocument != null) {
+                CanvasActionBar(
+                    selection = editorSelection,
+                    proposal = canvasDocument?.proposal,
+                    onOpenChat = chatViewModel::openCanvasChat,
+                    onRewriteSelection = { selection ->
+                        chatViewModel.rewriteCanvasSelection(selection.start, selection.end, selection.text)
+                    },
+                    onAccept = chatViewModel::acceptCanvasProposal,
+                    onReject = chatViewModel::rejectCanvasProposal
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState
+        @Composable
+        fun Conversation(modifier: Modifier) {
+            Column(modifier = modifier) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 ) {
-                    itemsIndexed(
-                        items = groupedMessages.userMessages,
-                        key = { index, message -> chatMessagePairKey(message, index) }
-                    ) { index, message ->
-                        ChatMessagePair(
-                            messageIndex = index,
-                            message = message,
-                            assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
-                            agentRunsById = agentRunsById,
-                            runNoticesById = runNoticesById,
-                            toolEventsByRun = toolEventsByRun,
-                            platformIndexState = indexStates.getOrElse(index) { 0 },
-                            loadingStates = loadingStates,
-                            enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
-                            enabledPlatformLookup = enabledPlatformLookup,
-                            canUseChat = canUseChat,
-                            isIdle = isIdle,
-                            isActiveMessage = index == lastMessageIndex,
-                            maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
-                            maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
-                            onEditQuestion = chatViewModel::openUserMessageEditDialog,
-                            onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
-                            onCopyText = { copiedText ->
-                                scope.launch {
-                                    clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
-                                }
-                            },
-                            onPlatformClick = chatViewModel::updateChatPlatformIndex,
-                            onSelectText = chatViewModel::openSelectTextSheet,
-                            onRetry = chatViewModel::retryChat,
-                            onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
-                            onShowNextRevision = chatViewModel::showNextAssistantRevision
-                        )
-                    }
-                    if (groupedMessages.userMessages.isNotEmpty()) {
-                        item(key = "chat-bottom-anchor") {
-                            Spacer(Modifier.size(1.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState
+                    ) {
+                        itemsIndexed(
+                            items = groupedMessages.userMessages,
+                            key = { index, message -> chatMessagePairKey(message, index) }
+                        ) { index, message ->
+                            ChatMessagePair(
+                                messageIndex = index,
+                                message = message,
+                                assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
+                                agentRunsById = agentRunsById,
+                                runNoticesById = runNoticesById,
+                                toolEventsByRun = toolEventsByRun,
+                                platformIndexState = indexStates.getOrElse(index) { 0 },
+                                loadingStates = loadingStates,
+                                enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
+                                enabledPlatformLookup = enabledPlatformLookup,
+                                canUseChat = canUseChat,
+                                isIdle = isIdle,
+                                isActiveMessage = index == lastMessageIndex,
+                                maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
+                                maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
+                                onEditQuestion = chatViewModel::openUserMessageEditDialog,
+                                onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
+                                onCopyText = { copiedText ->
+                                    scope.launch {
+                                        clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
+                                    }
+                                },
+                                onPlatformClick = chatViewModel::updateChatPlatformIndex,
+                                onSelectText = chatViewModel::openSelectTextSheet,
+                                onRetry = chatViewModel::retryChat,
+                                onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
+                                onShowNextRevision = chatViewModel::showNextAssistantRevision,
+                                onOpenInCanvas = chatViewModel::openAssistantInCanvas
+                            )
+                        }
+                        if (groupedMessages.userMessages.isNotEmpty()) {
+                            item(key = "chat-bottom-anchor") {
+                                Spacer(Modifier.size(1.dp))
+                            }
                         }
                     }
-                }
 
-                if (!isFollowingBottom && listState.canScrollForward) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 16.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        ScrollToBottomButton {
-                            scope.launch {
-                                listState.animateScrollToLatestChatMessage()
-                                isFollowingBottom = true
+                    if (!isFollowingBottom && listState.canScrollForward) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = 16.dp),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            ScrollToBottomButton {
+                                scope.launch {
+                                    listState.animateScrollToLatestChatMessage()
+                                    isFollowingBottom = true
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (groupedMessages.userMessages.isEmpty()) {
-                BotStarterPromptRow(
-                    prompts = selectedBot?.starterPromptList().orEmpty(),
-                    onPromptClick = chatViewModel::applyStarterPrompt
-                )
+                if (groupedMessages.userMessages.isEmpty()) {
+                    BotStarterPromptRow(
+                        prompts = selectedBot?.starterPromptList().orEmpty(),
+                        onPromptClick = chatViewModel::applyStarterPrompt
+                    )
+                }
+                ChatInputBox(
+                    inputState = chatViewModel.question,
+                    chatEnabled = canUseChat,
+                    sendButtonEnabled = isIdle,
+                    isRunning = !isIdle,
+                    selectedAttachments = selectedAttachments,
+                    onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
+                    onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
+                    onCancelButtonClick = chatViewModel::cancelActiveRuns
+                ) {
+                    if (!requestedNotificationPermission &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterNotificationPermission = true
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else if (needsLocalNetworkAccess &&
+                        Build.VERSION.SDK_INT >= 37 &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterLocalNetworkPermission = true
+                        localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                    } else {
+                        chatViewModel.askQuestion()
+                        focusManager.clearFocus()
+                    }
+                }
             }
-            ChatInputBox(
-                inputState = chatViewModel.question,
-                chatEnabled = canUseChat,
-                sendButtonEnabled = isIdle,
-                isRunning = !isIdle,
-                selectedAttachments = selectedAttachments,
-                onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
-                onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
-                onCancelButtonClick = chatViewModel::cancelActiveRuns
-            ) {
-                if (!requestedNotificationPermission &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterNotificationPermission = true
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (needsLocalNetworkAccess &&
-                    Build.VERSION.SDK_INT >= 37 &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterLocalNetworkPermission = true
-                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-                } else {
-                    chatViewModel.askQuestion()
-                    focusManager.clearFocus()
+        }
+
+        val openCanvas = canvasDocument
+        if (openCanvas == null) {
+            Conversation(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .navigationBarsPadding()
+                    .imePadding()
+            )
+        } else {
+            CanvasEditorPane(
+                document = openCanvas,
+                proposal = openCanvas.proposal,
+                onContentChange = chatViewModel::updateCanvasContent,
+                onTitleChange = chatViewModel::updateCanvasTitle,
+                onSelectionChange = { editorSelection = it },
+                onRestoreVersion = chatViewModel::restoreCanvasVersion,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            )
+            if (canvasChatOpen) {
+                ModalBottomSheet(onDismissRequest = chatViewModel::closeCanvasChat) {
+                    if (canvasRewrite != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.canvas_rewriting),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            TextButton(onClick = chatViewModel::clearCanvasSelection) {
+                                Text(stringResource(R.string.canvas_clear_selection))
+                            }
+                        }
+                    }
+                    Conversation(
+                        Modifier
+                            .fillMaxSize()
+                            .imePadding()
+                    )
                 }
             }
         }
@@ -521,10 +638,12 @@ private fun ChatMessagePair(
     onSelectText: (String) -> Unit,
     onRetry: (Int, Int) -> Unit,
     onShowPreviousRevision: (Int, Int) -> Unit,
-    onShowNextRevision: (Int, Int) -> Unit
+    onShowNextRevision: (Int, Int) -> Unit,
+    onOpenInCanvas: (String) -> Unit
 ) {
     val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
     val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
+    val visibleAssistantContent = canvasDisplayText(assistantContent)
     val assistantThoughts = selectedAssistantMessage?.effectiveThoughts() ?: ""
     val assistantTimeline = selectedAssistantMessage?.effectiveTimeline().orEmpty()
     val selectedRunId = selectedAssistantMessage?.effectiveRunId()
@@ -607,7 +726,7 @@ private fun ChatMessagePair(
                 canRetry = canRetry,
                 isLoading = isActiveMessage && isCurrentPlatformLoading,
                 isError = isError,
-                text = assistantContent,
+                text = visibleAssistantContent,
                 thoughts = assistantThoughts,
                 timeline = assistantTimeline,
                 attachments = selectedAssistantMessage?.attachments.orEmpty().map { it.filePathForDisplay },
@@ -633,7 +752,7 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                onCopyClick = { onCopyText(assistantContent) },
+                onCopyClick = { onCopyText(visibleAssistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
                 onViewFull = onSelectText,
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
@@ -641,6 +760,14 @@ private fun ChatMessagePair(
                 onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
                 onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
             )
+            if (assistantContent.isNotBlank() && !isCurrentPlatformLoading) {
+                TextButton(
+                    onClick = { onOpenInCanvas(assistantContent) },
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Text(stringResource(R.string.open_in_canvas))
+                }
+            }
         }
     }
 }
@@ -718,6 +845,9 @@ private fun ChatTopBar(
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
     onChatContextItemClick: () -> Unit,
+    onNewCanvas: () -> Unit,
+    onOpenCanvas: () -> Unit,
+    canOpenCanvas: Boolean,
     botLabel: String?,
     botContentDescription: String,
     onBotClick: () -> Unit
@@ -775,7 +905,10 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
-                onChatContextItemClick = onChatContextItemClick
+                onChatContextItemClick = onChatContextItemClick,
+                onNewCanvas = onNewCanvas,
+                onOpenCanvas = onOpenCanvas,
+                canOpenCanvas = canOpenCanvas
             )
         },
         scrollBehavior = scrollBehavior
@@ -789,7 +922,10 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit = {}
+    onChatContextItemClick: () -> Unit = {},
+    onNewCanvas: () -> Unit = {},
+    onOpenCanvas: () -> Unit = {},
+    canOpenCanvas: Boolean = false
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -817,6 +953,31 @@ fun ChatDropdownMenu(
                 onDismissRequest()
             }
         )
+        DropdownMenuItem(
+            text = { Text(text = stringResource(R.string.new_canvas)) },
+            onClick = {
+                onNewCanvas()
+                onDismissRequest()
+            }
+        )
+        if (canOpenCanvas) {
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.open_canvas)) },
+                onClick = {
+                    onOpenCanvas()
+                    onDismissRequest()
+                }
+            )
+        }
+    }
+}
+
+private fun exportCanvas(context: Context, document: CanvasDocument, format: CanvasExportFormat) {
+    try {
+        exportCanvasFile(context, document, format, context.getString(R.string.canvas_share_canvas))
+    } catch (error: Exception) {
+        Log.e("CanvasExport", "Failed to export canvas", error)
+        Toast.makeText(context, R.string.canvas_export_failed, Toast.LENGTH_SHORT).show()
     }
 }
 

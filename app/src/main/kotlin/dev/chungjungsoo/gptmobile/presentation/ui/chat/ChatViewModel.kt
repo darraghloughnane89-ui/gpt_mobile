@@ -14,6 +14,12 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunRequest
 import dev.chungjungsoo.gptmobile.data.agent.LiveAgentResponseSnapshot
 import dev.chungjungsoo.gptmobile.data.bot.ChatBotSession
+import dev.chungjungsoo.gptmobile.data.canvas.CanvasRepository
+import dev.chungjungsoo.gptmobile.data.canvas.OpenCanvasResult
+import dev.chungjungsoo.gptmobile.data.canvas.PendingSelection
+import dev.chungjungsoo.gptmobile.data.canvas.canvasInstructions
+import dev.chungjungsoo.gptmobile.data.canvas.mergeCanvasInstructions
+import dev.chungjungsoo.gptmobile.data.canvas.userAskedForCanvas
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
 import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
@@ -48,6 +54,7 @@ import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
+import dev.chungjungsoo.gptmobile.presentation.ui.canvas.CanvasChatController
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
 import dev.chungjungsoo.gptmobile.util.FileUtils
@@ -86,7 +93,8 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
-    private val chatBotSession: ChatBotSession
+    private val chatBotSession: ChatBotSession,
+    canvasRepository: CanvasRepository
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -218,8 +226,20 @@ class ChatViewModel @Inject constructor(
     val isLoaded = _isLoaded.asStateFlow()
 
     private var pendingQuestionText: String? = null
+    private val canvasController = CanvasChatController(canvasRepository)
+    val canvasDocument = canvasController.document
+    val canvasDocuments = canvasController.documents
+    val canvasChatOpen = canvasController.chatOpen
+    val canvasSelection = canvasController.selection
+    private val _canvasNotice = MutableStateFlow<String?>(null)
+    val canvasNotice = _canvasNotice.asStateFlow()
+    private var latchedSelection: PendingSelection? = null
+    private var latchedOpenHint = false
+    private var lastIngestKey: String? = null
 
     init {
+        canvasController.bind(chatRoomId)
+        viewModelScope.launch { canvasController.refreshRoom() }
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
@@ -246,7 +266,13 @@ class ChatViewModel @Inject constructor(
     }
 
     fun askQuestion() {
-        val questionText = question.text.toString()
+        val questionText = question.text.toString().ifBlank {
+            if (canvasController.peekSelection() != null) {
+                context.getString(R.string.canvas_default_rewrite)
+            } else {
+                ""
+            }
+        }
         val hasReadyAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Ready }
         val hasPreparingAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Preparing }
         if (questionText.isBlank() && !hasReadyAttachments && !hasPreparingAttachments) return
@@ -357,6 +383,73 @@ class ChatViewModel @Inject constructor(
     fun closeChatContextSettings() {
         _chatContextState.value = null
         sendAfterContextSetup = false
+        latchedSelection = null
+        latchedOpenHint = false
+    }
+
+    fun consumeCanvasNotice() {
+        _canvasNotice.value = null
+    }
+
+    fun closeCanvas() = canvasController.close()
+
+    fun openCanvasChat() = canvasController.setChatOpen(true)
+
+    fun closeCanvasChat() = canvasController.setChatOpen(false)
+
+    fun openBlankCanvas() {
+        viewModelScope.launch {
+            canvasController.createBlank(context.getString(R.string.canvas_untitled))
+        }
+    }
+
+    fun openCanvasDocument(id: String) {
+        viewModelScope.launch { canvasController.openDocument(id) }
+    }
+
+    fun openAssistantInCanvas(content: String) {
+        viewModelScope.launch {
+            when (canvasController.openFromAssistant(content, context.getString(R.string.canvas_untitled))) {
+                OpenCanvasResult.PreviewOwned -> {
+                    _canvasNotice.value = context.getString(R.string.canvas_preview_owned)
+                }
+
+                OpenCanvasResult.Empty, is OpenCanvasResult.Opened -> Unit
+            }
+        }
+    }
+
+    fun updateCanvasContent(content: String) {
+        viewModelScope.launch {
+            if (!canvasController.updateContent(content)) {
+                _canvasNotice.value = context.getString(R.string.canvas_too_long)
+            }
+        }
+    }
+
+    fun updateCanvasTitle(title: String) {
+        viewModelScope.launch { canvasController.updateTitle(title) }
+    }
+
+    fun rewriteCanvasSelection(start: Int, end: Int, text: String) {
+        viewModelScope.launch { canvasController.armSelection(start, end, text) }
+    }
+
+    fun clearCanvasSelection() {
+        latchedSelection = null
+        viewModelScope.launch { canvasController.clearStoredSelection() }
+    }
+
+    fun acceptCanvasProposal() {
+        viewModelScope.launch { canvasController.acceptProposal() }
+    }
+
+    fun rejectCanvasProposal() {
+        viewModelScope.launch { canvasController.rejectProposal() }
+    }
+
+    fun restoreCanvasVersion(versionId: String) {
+        viewModelScope.launch { canvasController.restoreVersion(versionId) }
     }
 
     fun saveChatContextSettings(contextWindowTokens: Int?, resumableReplies: Boolean, compactNow: Boolean) {
@@ -810,6 +903,8 @@ class ChatViewModel @Inject constructor(
                 },
                 startProvider = { persisted ->
                     _chatRoom.update { persisted.chatRoom }
+                    canvasController.bind(persisted.chatRoom.id)
+                    canvasController.refreshRoom()
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
                             userMessages = groupedMessages.userMessages.toMutableList().apply {
@@ -839,6 +934,7 @@ class ChatViewModel @Inject constructor(
                             )
                         }
                     )
+                    clearCanvasTurnLatch()
                 },
                 onFailure = { error ->
                     showPersistenceFailure(turnIndex, platforms.map { it.index }, error)
@@ -1033,6 +1129,8 @@ class ChatViewModel @Inject constructor(
 
     private fun sendQuestion(questionText: String, attachments: List<ChatAttachmentDraft>) {
         if (_isContextBusy.value) return
+        latchedSelection = canvasController.peekSelection()
+        latchedOpenHint = userAskedForCanvas(questionText)
         if (question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
         val draftAtStart = question.text.toString()
         val message = MessageV2(
@@ -1152,7 +1250,14 @@ class ChatViewModel @Inject constructor(
         return groupPersistedMessages(messages, enabledPlatformsInChat, chatId)
     }
 
-    private fun completionContext() = chatBotSession.completionContext(_chatRoom.value.id)
+    private fun completionContext() = mergeCanvasInstructions(
+        chatBotSession.completionContext(_chatRoom.value.id),
+        canvasInstructions(
+            document = canvasController.document.value,
+            selection = latchedSelection,
+            userAskedToOpen = latchedOpenHint
+        )
+    )
 
     private fun applyNewChatBotModel() {
         if (chatRoomId != 0 || _chatRoom.value.id != 0) return
@@ -1180,6 +1285,8 @@ class ChatViewModel @Inject constructor(
                 chatBotSession.bind(room.botUid)
                 val resolvedUid = chatBotSession.selectedBot.value?.botUid
                 _chatRoom.update { room.copy(botUid = resolvedUid) }
+                canvasController.bind(room.id)
+                canvasController.refreshRoom()
                 if (resolvedUid != room.botUid) {
                     chatBotSession.assignChat(room.id, resolvedUid)
                 }
@@ -1265,8 +1372,8 @@ class ChatViewModel @Inject constructor(
                     _indexStates.update { current ->
                         List(groupedMessages.assistantMessages.size) { index -> current.getOrElse(index) { 0 } }
                     }
-                    syncLoadingStates(_agentRunsById.value.values.toList())
                     _isLoaded.update { true }
+                    syncLoadingStates(_agentRunsById.value.values.toList())
                 }
         }
     }
@@ -1336,6 +1443,40 @@ class ChatViewModel @Inject constructor(
                 activeRunIds = activeRunIds
             )
         }
+        maybeIngestCanvases()
+    }
+
+    private fun maybeIngestCanvases() {
+        if (!_isLoaded.value) return
+        if (_loadingStates.value.any { it != LoadingState.Idle }) return
+        val rows = _groupedMessages.value.assistantMessages
+        if (rows.isEmpty()) return
+        val latest = rows.last().map { it.effectiveContent() }
+        val older = rows.dropLast(1).flatten().map { it.effectiveContent() }
+        val key = buildString {
+            append(_chatRoom.value.id)
+            append('\u0001')
+            older.forEach {
+                append(it)
+                append('\u0000')
+            }
+            append('\u0001')
+            latest.forEach {
+                append(it)
+                append('\u0000')
+            }
+        }
+        if (key == lastIngestKey) return
+        lastIngestKey = key
+        viewModelScope.launch {
+            canvasController.onAssistantReplies(older, latest)
+        }
+    }
+
+    private fun clearCanvasTurnLatch() {
+        latchedSelection = null
+        latchedOpenHint = false
+        canvasController.clearSelection()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
