@@ -21,12 +21,13 @@ import androidx.navigation.navArgument
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkEffect
 import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkViewModel
-import dev.chungjungsoo.gptmobile.presentation.phone.chatRoomRoute
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -69,6 +70,7 @@ fun SetupNavGraph(
         }
     ) {
         homeScreenNavigation(navController)
+        projectsNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
@@ -164,15 +166,33 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
         val phoneDeepLinkViewModel: PhoneDeepLinkViewModel = hiltViewModel()
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
+            onOpenProjects = { navController.navigate(Route.PROJECTS) },
             onExistingChatClick = { chatRoom ->
-                navController.navigate(chatRoomRoute(chatRoom.id, chatRoom.enabledPlatform))
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = chatRoom.id,
+                        enabledPlatforms = chatRoom.enabledPlatform.joinToString(",")
+                    )
+                )
             },
-            navigateToNewChat = { platforms ->
-                navController.navigate(chatRoomRoute(0, platforms))
+            navigateToNewChat = { enabledPlatforms, projectId ->
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = 0,
+                        enabledPlatforms = enabledPlatforms.joinToString(","),
+                        projectId = projectId ?: -1
+                    )
+                )
             },
-            onAskAboutPhoto = { platforms ->
+            onAskAboutPhoto = { platforms, projectId ->
                 phoneDeepLinkViewModel.offerCameraForNewChat()
-                navController.navigate(chatRoomRoute(0, platforms))
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = 0,
+                        enabledPlatforms = platforms.joinToString(","),
+                        projectId = projectId ?: -1
+                    )
+                )
             }
         )
     }
@@ -183,7 +203,11 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
         Route.CHAT_ROOM,
         arguments = listOf(
             navArgument("chatRoomId") { type = NavType.IntType },
-            navArgument("enabledPlatforms") { defaultValue = "" }
+            navArgument("enabledPlatforms") { defaultValue = "" },
+            navArgument("projectId") {
+                type = NavType.IntType
+                defaultValue = -1
+            }
         )
     ) {
         ChatScreen(
@@ -215,6 +239,7 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
+                onNavigateToBots = { navController.navigate(Route.BOTS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
@@ -273,6 +298,7 @@ fun NavGraphBuilder.settingNavigation(
                 onSaveComplete = { navController.navigateUp() }
             )
         }
+        botNavigation(navController)
         composable(Route.ABOUT_PAGE) {
             AboutScreen(
                 onNavigationClick = { navController.navigateUp() },

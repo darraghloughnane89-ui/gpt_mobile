@@ -46,9 +46,12 @@ class PhoneDeepLinkViewModel @Inject constructor(
     }
 }
 
-fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: List<String>): String = Route.CHAT_ROOM
-    .replace(oldValue = "{chatRoomId}", newValue = chatRoomId.toString())
-    .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatforms.joinToString(","))
+fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: List<String>, projectId: Int = -1): String =
+    Route.chatRoomRoute(
+        chatRoomId = chatRoomId,
+        enabledPlatforms = enabledPlatforms.joinToString(","),
+        projectId = projectId
+    )
 
 @Composable
 fun PhoneDeepLinkEffect(

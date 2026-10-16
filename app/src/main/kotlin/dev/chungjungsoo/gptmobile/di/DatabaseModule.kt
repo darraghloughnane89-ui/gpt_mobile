@@ -12,6 +12,7 @@ import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2Migrations
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
+import dev.chungjungsoo.gptmobile.data.database.dao.BotDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -20,7 +21,10 @@ import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
+import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
+import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
 import javax.inject.Singleton
 
 @Module
@@ -43,6 +47,12 @@ object DatabaseModule {
 
     @Provides
     fun provideCompactionDao(chatDatabaseV2: ChatDatabaseV2): CompactionDao = chatDatabaseV2.compactionDao()
+
+    @Provides
+    fun provideBotDao(chatDatabaseV2: ChatDatabaseV2): BotDao = chatDatabaseV2.botDao()
+
+    @Provides
+    fun provideProjectDao(chatDatabaseV2: ChatDatabaseV2): ProjectDao = chatDatabaseV2.projectDao()
 
     @Provides
     fun provideChatPlatformModelV2Dao(chatDatabaseV2: ChatDatabaseV2): ChatPlatformModelV2Dao = chatDatabaseV2.chatPlatformModelDao()
@@ -86,6 +96,10 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_7_8,
         ChatDatabaseV2Migrations.MIGRATION_8_9,
         ChatDatabaseV2Migrations.MIGRATION_9_10,
-        ChatDatabaseV2Migrations.MIGRATION_10_11
-    ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK).build()
+        ChatDatabaseV2Migrations.MIGRATION_10_11,
+        BotDatabaseV2Migration.MIGRATION_11_12,
+        ProjectMigrations.MIGRATION_12_13
+    ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
+        .addCallback(BotDatabaseV2Migration.SEED_CALLBACK)
+        .build()
 }

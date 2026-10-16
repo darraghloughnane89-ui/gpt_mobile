@@ -14,10 +14,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
+import dev.chungjungsoo.gptmobile.data.project.ProjectChatListSource
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -47,7 +49,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -76,7 +79,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -110,7 +114,8 @@ class HomeViewModelInstrumentedTest {
         val viewModel = HomeViewModel(
             chatRepository = repository,
             settingRepository = EmptySettingRepository(),
-            agentRunCoordinator = AgentRunCoordinator(context, repository)
+            agentRunCoordinator = AgentRunCoordinator(context, repository),
+            projectChatListSource = EmptyProjectChatListSource()
         )
 
         viewModel.fetchChats()
@@ -146,9 +151,23 @@ private class QueueChatRepository(
     }
     override suspend fun getModelContextSettings(platform: PlatformV2): ModelContextSettings = error("unused")
     override suspend fun saveModelContextSettings(platform: PlatformV2, contextWindowTokens: Int?, resumableReplies: Boolean) = error("unused")
-    override suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult = error("unused")
-    override suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult? = error("unused")
-    override suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2, runId: String): Flow<ApiState> = error("unused")
+    override suspend fun compactNow(
+        chatId: Int,
+        platform: PlatformV2,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): CompactionResult = error("unused")
+    override suspend fun validateDraftCapacity(
+        platform: PlatformV2,
+        message: MessageV2,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): CompactionResult? = error("unused")
+    override suspend fun completeChat(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2,
+        runId: String,
+        completion: dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+    ): Flow<ApiState> = error("unused")
     override fun observeMessagesV2(chatId: Int): Flow<List<MessageV2>> = error("unused")
     override fun observeAgentRuns(chatId: Int): Flow<List<AgentRun>> = error("unused")
     override fun observeToolEvents(chatId: Int): Flow<List<ToolEvent>> = error("unused")
@@ -173,6 +192,11 @@ private class QueueChatRepository(
     override suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2 = error("unused")
     override suspend fun deleteChats(chatRooms: List<ChatRoom>) = error("unused")
     override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) = error("unused")
+}
+
+private class EmptyProjectChatListSource : ProjectChatListSource {
+    override suspend fun listProjects(): List<Project> = emptyList()
+    override suspend fun moveChats(chatIds: List<Int>, projectId: Int?) = Unit
 }
 
 private class EmptySettingRepository : SettingRepository {
