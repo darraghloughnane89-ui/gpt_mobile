@@ -53,7 +53,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         RoutineEntity::class,
         RoutineRunEntity::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = true
 )
 @TypeConverters(

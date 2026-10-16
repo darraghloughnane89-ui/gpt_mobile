@@ -80,7 +80,8 @@ private fun PluginToolEntity.toResolved(
         enabled = enabled,
         pluginName = plugin.name,
         prompter = prompter,
-        delegate = remote
+        delegate = remote,
+        aliases = setOf(modelName, name)
     )
     return ResolvedAgentTool(
         tool = gated,

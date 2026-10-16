@@ -108,4 +108,10 @@ object PluginRoutineMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_runs_routine_uid` ON `routine_runs` (`routine_uid`)")
         }
     }
+
+    val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE routines ADD COLUMN allowed_read_tools TEXT NOT NULL DEFAULT ''")
+        }
+    }
 }

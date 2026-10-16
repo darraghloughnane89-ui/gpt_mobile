@@ -92,6 +92,7 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_8_9,
         ChatDatabaseV2Migrations.MIGRATION_9_10,
         ChatDatabaseV2Migrations.MIGRATION_10_11,
-        PluginRoutineMigrations.MIGRATION_11_20
+        PluginRoutineMigrations.MIGRATION_11_20,
+        PluginRoutineMigrations.MIGRATION_20_21
     ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK).build()
 }

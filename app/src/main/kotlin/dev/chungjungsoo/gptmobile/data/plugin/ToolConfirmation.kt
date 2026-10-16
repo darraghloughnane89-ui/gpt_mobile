@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentTool
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,6 +47,37 @@ class PluginToolFilter(
     companion object Key : kotlin.coroutines.CoroutineContext.Key<PluginToolFilter>
 }
 
+/**
+ * Read-only MCP tool names a routine is allowed to call. Empty means none.
+ */
+class RoutineReadAllowlist(
+    val names: Set<String>
+) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<RoutineReadAllowlist>
+}
+
+fun parseRoutineReadAllowlist(raw: String?): Set<String> = raw.orEmpty()
+    .split(',', '\n', ';')
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+    .toSet()
+
+fun routineAllowlistMatches(allowlist: Set<String>, names: Collection<String>): Boolean {
+    if (allowlist.isEmpty()) return false
+    return names.any { name ->
+        name.isNotBlank() && allowlist.any { allowed -> allowed.equals(name, ignoreCase = true) }
+    }
+}
+
+fun visibleRoutineTools(tools: List<ResolvedAgentTool>, allowlist: Set<String>): List<ResolvedAgentTool> {
+    if (allowlist.isEmpty()) return emptyList()
+    return tools.filter { resolved ->
+        val gated = resolved.tool as? GatedAgentTool ?: return@filter false
+        gated.effect == ToolEffect.READ &&
+            routineAllowlistMatches(allowlist, listOf(resolved.modelToolName, resolved.realToolName))
+    }
+}
+
 fun classifyToolEffect(
     name: String,
     description: String,
@@ -69,26 +101,38 @@ internal fun toolEffectTokens(text: String): Set<String> {
 
 class GatedAgentTool(
     override val definition: AgentToolDefinition,
-    private val effect: ToolEffect,
+    val effect: ToolEffect,
     private val enabled: Boolean,
     private val pluginName: String,
     private val prompter: ToolConfirmPrompter,
-    private val delegate: AgentTool
+    private val delegate: AgentTool,
+    private val aliases: Set<String> = setOf(definition.name)
 ) : AgentTool {
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
         if (!enabled) {
             return denied(callId, "Tool '${definition.name}' is disabled.")
         }
+        if (coroutineContext[UnattendedToolCall] != null) {
+            val allowlist = coroutineContext[RoutineReadAllowlist]?.names.orEmpty()
+            val listed = routineAllowlistMatches(allowlist, aliases + definition.name)
+            if (effect != ToolEffect.READ || !listed) {
+                val message = if (effect == ToolEffect.READ) {
+                    "Routines only draft. '${definition.name}' is not on this routine's read allowlist."
+                } else {
+                    "Routines only draft. '${definition.name}' was not sent."
+                }
+                return denied(callId, message)
+            }
+            return delegate.execute(callId, arguments)
+        }
         if (effect == ToolEffect.WRITE) {
-            val unattended = coroutineContext[UnattendedToolCall] != null
-            val allowed = !unattended &&
-                prompter.confirm(
-                    ToolConfirmRequest(
-                        toolName = definition.name,
-                        pluginName = pluginName,
-                        detail = "This can change data outside the chat. Allow ${definition.name}?"
-                    )
+            val allowed = prompter.confirm(
+                ToolConfirmRequest(
+                    toolName = definition.name,
+                    pluginName = pluginName,
+                    detail = "This can change data outside the chat. Allow ${definition.name}?"
                 )
+            )
             if (!allowed) {
                 return denied(callId, "Write action '${definition.name}' was not confirmed.")
             }

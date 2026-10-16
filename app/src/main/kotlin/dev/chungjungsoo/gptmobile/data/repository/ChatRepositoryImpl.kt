@@ -702,14 +702,23 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     private suspend fun resolveTools(platform: PlatformV2, runId: String = ""): List<ResolvedAgentTool> {
+        val unattended = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.UnattendedToolCall] != null
         val pluginTools = pluginToolRegistry.toolsFor(
             dev.chungjungsoo.gptmobile.data.plugin.ToolScope(
                 platformUid = platform.uid,
-                includeHandoff = !runId.startsWith(dev.chungjungsoo.gptmobile.data.plugin.HANDOFF_RUN_PREFIX),
+                includeHandoff = !unattended && !runId.startsWith(dev.chungjungsoo.gptmobile.data.plugin.HANDOFF_RUN_PREFIX),
                 pluginUidFilter = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.PluginToolFilter]?.pluginUids
             )
         )
-        return (agentToolResolver.resolve(platform.uid) + pluginTools).distinctBy { it.modelToolName }
+        val visiblePlugins = if (unattended) {
+            dev.chungjungsoo.gptmobile.data.plugin.visibleRoutineTools(
+                pluginTools,
+                kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.RoutineReadAllowlist]?.names.orEmpty()
+            )
+        } else {
+            pluginTools
+        }
+        return (agentToolResolver.resolve(platform.uid) + visiblePlugins).distinctBy { it.modelToolName }
     }
 
     private fun estimateAssignedToolDefinitionTokens(resolvedTools: List<ResolvedAgentTool>): Int = resolvedTools.sumOf { tool ->

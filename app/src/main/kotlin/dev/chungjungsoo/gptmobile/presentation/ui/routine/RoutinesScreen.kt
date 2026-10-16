@@ -91,8 +91,8 @@ fun RoutinesScreen(
         RoutineEditorDialog(
             platforms = state.platforms,
             onDismiss = { editorOpen = false },
-            onSave = { title, prompt, platformUid, kind, hour, minute, day, cron, plugins ->
-                viewModel.save(title, prompt, platformUid, kind, hour, minute, day, cron, plugins)
+            onSave = { title, prompt, platformUid, kind, hour, minute, day, cron, plugins, readTools ->
+                viewModel.save(title, prompt, platformUid, kind, hour, minute, day, cron, plugins, readTools)
                 editorOpen = false
             }
         )
@@ -144,7 +144,7 @@ private fun HistoryRow(run: RoutineRunEntity) {
 private fun RoutineEditorDialog(
     platforms: List<PlatformV2>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, ScheduleKind, Int, Int, Int, String, String) -> Unit
+    onSave: (String, String, String, ScheduleKind, Int, Int, Int, String, String, String) -> Unit
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var prompt by rememberSaveable { mutableStateOf("") }
@@ -155,6 +155,7 @@ private fun RoutineEditorDialog(
     var day by rememberSaveable { mutableStateOf("1") }
     var cron by rememberSaveable { mutableStateOf("0 8 * * *") }
     var plugins by rememberSaveable { mutableStateOf("") }
+    var readTools by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.routine_new)) },
@@ -184,12 +185,29 @@ private fun RoutineEditorDialog(
                     }
                 }
                 OutlinedTextField(value = plugins, onValueChange = { plugins = it }, label = { Text(stringResource(R.string.routine_plugins)) })
+                OutlinedTextField(
+                    value = readTools,
+                    onValueChange = { readTools = it },
+                    label = { Text(stringResource(R.string.routine_read_tools)) },
+                    supportingText = { Text(stringResource(R.string.routine_read_tools_hint)) }
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(title, prompt, platformUid, kind, hour.toIntOrNull() ?: 8, minute.toIntOrNull() ?: 0, day.toIntOrNull() ?: 1, cron, plugins)
+                    onSave(
+                        title,
+                        prompt,
+                        platformUid,
+                        kind,
+                        hour.toIntOrNull() ?: 8,
+                        minute.toIntOrNull() ?: 0,
+                        day.toIntOrNull() ?: 1,
+                        cron,
+                        plugins,
+                        readTools
+                    )
                 }
             ) { Text(stringResource(R.string.save)) }
         },

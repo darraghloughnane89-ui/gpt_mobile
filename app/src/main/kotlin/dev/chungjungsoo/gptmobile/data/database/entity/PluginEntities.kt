@@ -126,6 +126,8 @@ data class RoutineEntity(
     val dayOfWeek: Int,
     @ColumnInfo(name = "plugin_uids")
     val pluginUids: String,
+    @ColumnInfo(name = "allowed_read_tools", defaultValue = "''")
+    val allowedReadTools: String = "",
     @ColumnInfo(name = "enabled")
     val enabled: Boolean,
     @ColumnInfo(name = "chat_id")

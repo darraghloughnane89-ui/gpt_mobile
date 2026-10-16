@@ -8,6 +8,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.PluginRoutineDao
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.RoutineEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.RoutineRunEntity
+import dev.chungjungsoo.gptmobile.data.plugin.parseRoutineReadAllowlist
 import dev.chungjungsoo.gptmobile.data.routine.RoutineRunner
 import dev.chungjungsoo.gptmobile.data.routine.RoutineScheduler
 import dev.chungjungsoo.gptmobile.data.routine.ScheduleKind
@@ -52,7 +53,8 @@ class RoutinesViewModel @Inject constructor(
         minute: Int,
         dayOfWeek: Int,
         cron: String,
-        pluginUids: String
+        pluginUids: String,
+        allowedReadTools: String = ""
     ) {
         viewModelScope.launch {
             runCatching {
@@ -72,6 +74,7 @@ class RoutinesViewModel @Inject constructor(
                     minute = minute,
                     dayOfWeek = dayOfWeek,
                     pluginUids = pluginUids,
+                    allowedReadTools = parseRoutineReadAllowlist(allowedReadTools).joinToString(","),
                     enabled = true,
                     chatId = null,
                     createdAt = now,

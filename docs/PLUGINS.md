@@ -140,7 +140,7 @@ Other `delegate_task` targets are installed chat platforms, matched by uid or na
 
 1. Settings → Routines → **+**.
 2. Name, prompt, platform, and daily, weekly, or a 5-field cron expression.
-3. Plugin ids are optional. Blank means no plugin tools. A write tool is refused because the run is unattended.
+3. Plugin ids are optional. Blank means no plugin tools. Read-only tool names are a separate allowlist and start empty, so a routine calls no MCP tools until you name them. Write and send tools never run. The reply is a draft in the routine chat.
 4. **Run now** posts a notification and a chat titled `Routine: …`.
 
 ## Room

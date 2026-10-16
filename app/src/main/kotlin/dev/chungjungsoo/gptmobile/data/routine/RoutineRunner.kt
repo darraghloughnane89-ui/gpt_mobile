@@ -18,7 +18,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.RoutineEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.RoutineRunEntity
 import dev.chungjungsoo.gptmobile.data.plugin.AgentReplySource
 import dev.chungjungsoo.gptmobile.data.plugin.PluginToolFilter
+import dev.chungjungsoo.gptmobile.data.plugin.RoutineReadAllowlist
 import dev.chungjungsoo.gptmobile.data.plugin.UnattendedToolCall
+import dev.chungjungsoo.gptmobile.data.plugin.parseRoutineReadAllowlist
 import dev.chungjungsoo.gptmobile.presentation.ui.main.MainActivity
 import java.util.UUID
 import javax.inject.Inject
@@ -82,7 +84,8 @@ class RoutineRunner @Inject constructor(
                 MessageV2(chatId = chatId, content = routine.prompt, platformType = null)
             ).toInt()
             val pluginIds = routine.pluginUids.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-            val reply = withContext(UnattendedToolCall() + PluginToolFilter(pluginIds)) {
+            val allowlist = parseRoutineReadAllowlist(routine.allowedReadTools)
+            val reply = withContext(UnattendedToolCall() + PluginToolFilter(pluginIds) + RoutineReadAllowlist(allowlist)) {
                 replies.reply(platform.uid, routine.prompt)
             }
             messages.insertMessage(

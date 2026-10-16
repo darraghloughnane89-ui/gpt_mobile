@@ -632,5 +632,7 @@
     <string name="routine_minute">Minute</string>
     <string name="routine_day">Weekday (1–7, Monday is 1)</string>
     <string name="routine_plugins">Plugin ids (comma separated, blank for none)</string>
+    <string name="routine_read_tools">Read-only tools</string>
+    <string name="routine_read_tools_hint">Comma separated. Blank allows none. Routines never send; they only draft.</string>
     <string name="routine_notification_channel">Routines</string>
 </resources>
