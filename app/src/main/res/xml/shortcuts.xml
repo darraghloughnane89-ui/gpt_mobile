@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_chat"
+        android:shortcutId="new_chat"
+        android:shortcutLongLabel="@string/shortcut_new_chat"
+        android:shortcutShortLabel="@string/shortcut_new_chat">
+        <intent
+            android:action="dev.chungjungsoo.gptmobile.action.NEW_CHAT"
+            android:targetClass="dev.chungjungsoo.gptmobile.presentation.ui.main.MainActivity"
+            android:targetPackage="dev.chungjungsoo.gptmobile" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_voice"
+        android:shortcutId="voice"
+        android:shortcutLongLabel="@string/shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice">
+        <intent
+            android:action="dev.chungjungsoo.gptmobile.action.VOICE"
+            android:targetClass="dev.chungjungsoo.gptmobile.presentation.ui.main.MainActivity"
+            android:targetPackage="dev.chungjungsoo.gptmobile">
+            <extra
+                android:name="dev.chungjungsoo.gptmobile.OPEN_VOICE"
+                android:value="true" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_ask"
+        android:shortcutId="quick_ask"
+        android:shortcutLongLabel="@string/shortcut_quick_ask"
+        android:shortcutShortLabel="@string/shortcut_quick_ask">
+        <intent
+            android:action="dev.chungjungsoo.gptmobile.action.QUICK_ASK"
+            android:targetClass="dev.chungjungsoo.gptmobile.presentation.fastentry.QuickAskActivity"
+            android:targetPackage="dev.chungjungsoo.gptmobile" />
+    </shortcut>
+</shortcuts>
