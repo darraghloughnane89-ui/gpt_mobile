@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -205,6 +206,9 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val leaveChat = { chatViewModel.leaveTemporaryChat(onBackAction) }
+
+    BackHandler(enabled = chatViewModel.isTemporaryChat, onBack = leaveChat)
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
@@ -253,7 +257,7 @@ fun ChatScreen(
                 chatRoom.title,
                 chatRoom.id > 0,
                 chatViewModel.enabledPlatformsInChat.isNotEmpty(),
-                onBackAction,
+                leaveChat,
                 scrollBehavior,
                 chatViewModel::openChatTitleDialog,
                 chatViewModel::openChatModelDialog,
@@ -347,12 +351,28 @@ fun ChatScreen(
                 }
             }
 
+            if (chatViewModel.isTemporaryChat) {
+                Text(
+                    text = stringResource(R.string.temporary_chat_banner),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             if (groupedMessages.userMessages.isEmpty()) {
                 BotStarterPromptRow(
                     prompts = selectedBot?.starterPromptList().orEmpty(),
                     onPromptClick = chatViewModel::applyStarterPrompt
                 )
             }
+            ChatQuickActionRow(
+                enabled = canUseChat &&
+                    isIdle &&
+                    groupedMessages.assistantMessages.any { row ->
+                        row.any { it.effectiveContent().isNotBlank() }
+                    },
+                onAction = chatViewModel::applyQuickAction
+            )
             ChatInputBox(
                 inputState = chatViewModel.question,
                 chatEnabled = canUseChat,
@@ -640,6 +660,17 @@ private fun ChatMessagePair(
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
                 onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
                 onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
+            )
+            ChatAnswerTools(
+                assistantContent = assistantContent,
+                modelAnswers = labeledModelAnswers(
+                    assistantMessages.mapIndexed { index, assistantMessage ->
+                        val label = enabledPlatformLookup[assistantMessage.platformType]?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "Model ${index + 1}"
+                        label to assistantMessage.effectiveContent()
+                    }
+                )
             )
         }
     }

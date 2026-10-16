@@ -40,6 +40,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.rebuildAssistantTimelineF
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
+import dev.chungjungsoo.gptmobile.data.library.ChatLibraryStore
+import dev.chungjungsoo.gptmobile.data.library.forget
+import dev.chungjungsoo.gptmobile.data.library.markTemporary
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
@@ -86,7 +89,8 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
-    private val chatBotSession: ChatBotSession
+    private val chatBotSession: ChatBotSession,
+    private val chatLibraryStore: ChatLibraryStore
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -113,6 +117,8 @@ class ChatViewModel @Inject constructor(
 
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
+    val isTemporaryChat: Boolean = savedStateHandle.get<Boolean>("temporary") ?: false
+    private var leavingTemporaryChat = false
     val enabledPlatformsInChat = enabledPlatformString.split(',')
 
     private val currentTimeStamp: Long
@@ -243,6 +249,40 @@ class ChatViewModel @Inject constructor(
             )
         }
         _indexStates.update { it + listOf(0) }
+    }
+
+    fun applyQuickAction(action: ChatQuickAction) {
+        val hasAnswer = _groupedMessages.value.assistantMessages.any { row ->
+            row.any { it.effectiveContent().isNotBlank() }
+        }
+        if (!hasAnswer) return
+        if (_loadingStates.value.any { it == LoadingState.Loading }) return
+        question.setTextAndPlaceCursorAtEnd(quickActionPrompt(action))
+        askQuestion()
+    }
+
+    fun leaveTemporaryChat(onLeft: () -> Unit) {
+        if (!isTemporaryChat) {
+            onLeft()
+            return
+        }
+        if (leavingTemporaryChat) return
+        leavingTemporaryChat = true
+        viewModelScope.launch {
+            val room = _chatRoom.value
+            try {
+                if (room.id > 0) {
+                    chatRepository.deleteChatsV2(listOf(room))
+                    chatLibraryStore.update { it.forget(room.id) }
+                }
+            } catch (error: CancellationException) {
+                leavingTemporaryChat = false
+                throw error
+            } catch (_: Throwable) {
+                // Home removes chats that stay marked temporary.
+            }
+            onLeft()
+        }
     }
 
     fun askQuestion() {
@@ -809,6 +849,9 @@ class ChatViewModel @Inject constructor(
                     )
                 },
                 startProvider = { persisted ->
+                    if (isTemporaryChat && persisted.chatRoom.id > 0) {
+                        chatLibraryStore.update { it.markTemporary(persisted.chatRoom.id) }
+                    }
                     _chatRoom.update { persisted.chatRoom }
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
