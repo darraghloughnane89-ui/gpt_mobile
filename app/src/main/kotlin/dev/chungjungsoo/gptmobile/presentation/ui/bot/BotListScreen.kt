@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,6 +54,7 @@ fun BotListScreen(
     viewModel: BotListViewModel = hiltViewModel()
 ) {
     val bots by viewModel.bots.collectAsStateWithLifecycle()
+    val favouriteUids by viewModel.favouriteUids.collectAsStateWithLifecycle()
     val canRestoreBuiltIns by viewModel.canRestoreBuiltIns.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var pendingDelete by remember { mutableStateOf<Bot?>(null) }
@@ -125,7 +127,9 @@ fun BotListScreen(
                 items(bots, key = { it.botUid }) { bot ->
                     BotListRow(
                         bot = bot,
+                        favourite = bot.botUid in favouriteUids,
                         onClick = { onEditClick(bot.botUid) },
+                        onToggleFavourite = { viewModel.toggleFavourite(bot.botUid) },
                         onDuplicate = { viewModel.duplicate(bot.botUid) },
                         onReset = if (bot.builtin) {
                             { pendingReset = bot }
@@ -189,7 +193,9 @@ fun BotListScreen(
 @Composable
 private fun BotListRow(
     bot: Bot,
+    favourite: Boolean,
     onClick: () -> Unit,
+    onToggleFavourite: () -> Unit,
     onDuplicate: () -> Unit,
     onReset: (() -> Unit)?,
     onDelete: () -> Unit
@@ -221,10 +227,31 @@ private fun BotListRow(
         },
         trailingContent = {
             Row {
+                if (favourite) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = stringResource(R.string.favourite_bot),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
                 IconButton(onClick = { menuExpanded = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.bot_actions))
                 }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (favourite) R.string.unfavourite_bot else R.string.favourite_bot
+                                )
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onToggleFavourite()
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.edit_bot)) },
                         onClick = {

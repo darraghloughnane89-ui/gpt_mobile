@@ -32,6 +32,10 @@ import dev.chungjungsoo.gptmobile.presentation.common.SetupNavGraph
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeLoadState
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
+import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntrySignals
+import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntryViewModel
+import dev.chungjungsoo.gptmobile.presentation.fastentry.collectFastEntries
+import dev.chungjungsoo.gptmobile.presentation.fastentry.toFastEntryRequest
 import dev.chungjungsoo.gptmobile.presentation.phone.PhoneEntryBus
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
@@ -46,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
     private val toolConnectionsViewModel: ToolConnectionsViewModel by viewModels()
+    private val fastEntryViewModel: FastEntryViewModel by viewModels()
     private lateinit var authTabLauncher: ActivityResultLauncher<Intent>
     private lateinit var oauthCustomTabLauncher: ActivityResultLauncher<Intent>
     private var lastOAuthCallback: String? = null
@@ -72,7 +77,12 @@ class MainActivity : ComponentActivity() {
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
-        publishVoiceLaunch(intent)
+        if (savedInstanceState == null) {
+            publishFastEntry(intent)
+        }
+        if (intent?.toFastEntryRequest() == null) {
+            publishVoiceLaunch(intent)
+        }
         setContent {
             val navController = rememberNavController()
             var startupReady by remember { mutableStateOf(false) }
@@ -105,6 +115,14 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
                             startupReady = true
+                            collectFastEntries(
+                                navController = navController,
+                                context = this@MainActivity,
+                                enabledPlatforms = fastEntryViewModel::enabledPlatformUids,
+                                rememberBot = fastEntryViewModel::rememberBot,
+                                chatExists = fastEntryViewModel::chatExists,
+                                refreshShortcuts = fastEntryViewModel::refreshShortcuts
+                            )
                         }
                     }
                 }
@@ -114,12 +132,25 @@ class MainActivity : ComponentActivity() {
         PhoneEntryBus.publish(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        fastEntryViewModel.refreshShortcuts()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
         PhoneEntryBus.publish(intent)
-        publishVoiceLaunch(intent)
+        if (intent.toFastEntryRequest() != null) {
+            publishFastEntry(intent)
+        } else {
+            publishVoiceLaunch(intent)
+        }
+    }
+
+    private fun publishFastEntry(intent: Intent?) {
+        FastEntrySignals.publish(intent)
     }
 
     private fun publishVoiceLaunch(intent: Intent?) {

@@ -22,6 +22,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntryShortcutPublisher
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,7 @@ class GPTMobileApp :
         registerActivityLifecycleCallbacks(AppForegroundTracker)
         StartupRecoveryGate.start(applicationScope) {
             val startup = startupDependencies()
+            startup.fastEntryShortcuts().publishAsync()
             startup.pendingLocalPlatformActivator().start()
             secretMigrationErrors = runStartupMaintenance(
                 interruptPersistedWork = {
@@ -112,6 +114,7 @@ interface StartupDependencies {
     fun agentRunDao(): AgentRunDao
     fun agentPersistenceDao(): AgentPersistenceDao
     fun localRuntime(): LocalRuntime
+    fun fastEntryShortcuts(): FastEntryShortcutPublisher
 }
 
 object StartupRecoveryGate {

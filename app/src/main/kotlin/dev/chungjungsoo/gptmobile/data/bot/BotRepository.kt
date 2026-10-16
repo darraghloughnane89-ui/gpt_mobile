@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.bot
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentToolBindingWithConnection
@@ -85,9 +86,29 @@ class BotRepository @Inject constructor(
     suspend fun delete(botUid: String) {
         botDao.clearChatBot(botUid)
         botDao.deleteBot(botUid)
+        setBotFavourite(botUid, favourite = false)
         val stored = context.botPreferences.data.first()[LAST_BOT_UID]
         if (stored == botUid) {
             setLastSelectedBotUid(null)
+        }
+    }
+
+    suspend fun favouriteBotUids(): Set<String> {
+        val stored = context.botPreferences.data.first()[FAVOURITE_BOT_UIDS].orEmpty()
+        if (stored.isEmpty()) return emptySet()
+        val existing = botDao.listBots().map { it.botUid }.toSet()
+        return stored.filter { it in existing }.toSet()
+    }
+
+    suspend fun setBotFavourite(botUid: String, favourite: Boolean) {
+        if (favourite && botDao.getBot(botUid) == null) return
+        val updated = if (favourite) {
+            favouriteBotUids() + botUid
+        } else {
+            favouriteBotUids() - botUid
+        }
+        context.botPreferences.edit { preferences ->
+            preferences[FAVOURITE_BOT_UIDS] = updated
         }
     }
 
@@ -165,6 +186,7 @@ class BotRepository @Inject constructor(
 
     private companion object {
         val LAST_BOT_UID = stringPreferencesKey("last_bot_uid")
+        val FAVOURITE_BOT_UIDS = stringSetPreferencesKey("favourite_bot_uids")
         val WEB_SEARCH_TYPES = setOf(
             ToolConnectionType.FIRECRAWL,
             ToolConnectionType.PERPLEXITY,
