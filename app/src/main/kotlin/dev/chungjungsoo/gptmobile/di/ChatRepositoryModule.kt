@@ -24,8 +24,11 @@ import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.memory.MemoryPromptSource
+import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionSink
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
+import dev.chungjungsoo.gptmobile.data.usage.UsageRecorder
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -62,7 +65,10 @@ object ChatRepositoryModule {
         @DeviceSocModel
         deviceSocModel: String,
         compactionDao: CompactionDao,
-        networkClient: NetworkClient
+        networkClient: NetworkClient,
+        memoryPromptSource: MemoryPromptSource,
+        usageRecorder: UsageRecorder,
+        memorySuggestionSink: MemorySuggestionSink
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -86,6 +92,9 @@ object ChatRepositoryModule {
         modelCatalogRepository,
         deviceSocModel,
         RoomCompactionStore(compactionDao),
-        HttpRemoteContextWindowLookup(networkClient)
+        HttpRemoteContextWindowLookup(networkClient),
+        memoryPromptSource,
+        usageRecorder,
+        memorySuggestionSink
     )
 }

@@ -13,7 +13,6 @@ import dev.chungjungsoo.gptmobile.util.applyPlatformStreamingTimeout
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.accept
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.prepareGet
@@ -49,7 +48,7 @@ class OpenAIAPIImpl @Inject constructor(
         val apiUrl = config.apiUrl
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files" else "$apiUrl/files"
         val responseBody = networkClient().preparePost(endpoint) {
-            config.token?.let { bearerAuth(it) }
+            authorizeProvider(config, ProviderAuthStyle.BEARER)
             setBody(
                 MultiPartFormDataContent(
                     formData {
@@ -80,7 +79,7 @@ class OpenAIAPIImpl @Inject constructor(
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files/$fileId" else "$apiUrl/files/$fileId"
         return try {
             networkClient().prepareGet(endpoint) {
-                config.token?.let { bearerAuth(it) }
+                authorizeProvider(config, ProviderAuthStyle.BEARER)
             }.execute { response ->
                 response.status.isSuccess()
             }
@@ -103,7 +102,7 @@ class OpenAIAPIImpl @Inject constructor(
             contentType(ContentType.Application.Json)
             setBody(NetworkClient.openAIJson.encodeToString(request))
             accept(ContentType.Text.EventStream)
-            config.token?.let { bearerAuth(it) }
+            authorizeProvider(config, ProviderAuthStyle.BEARER)
         }.execute { response ->
             if (!response.status.isSuccess()) {
                 val errorBody = response.body<String>()
@@ -192,7 +191,7 @@ class OpenAIAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
                 accept(ContentType.Text.EventStream)
-                config.token?.let { bearerAuth(it) }
+                authorizeProvider(config, ProviderAuthStyle.BEARER)
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
@@ -259,7 +258,7 @@ class OpenAIAPIImpl @Inject constructor(
             applyPlatformStreamingTimeout(timeoutSeconds)
             contentType(ContentType.Application.Json)
             setBody(NetworkClient.openAIJson.encodeToString(request))
-            config.token?.let { bearerAuth(it) }
+            authorizeProvider(config, ProviderAuthStyle.BEARER)
         }.body<String>()
         return NetworkClient.openAIJson.decodeFromString(responseBody)
     }

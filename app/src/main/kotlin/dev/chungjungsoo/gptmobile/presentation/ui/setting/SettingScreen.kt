@@ -60,7 +60,11 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToMemory: () -> Unit = {},
+    onNavigateToUsage: () -> Unit = {},
+    onNavigateToAppLock: () -> Unit = {},
+    onNavigateToKeyManager: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -145,6 +149,36 @@ fun SettingScreen(
                     title = stringResource(R.string.web_tools),
                     description = stringResource(R.string.web_tools_description),
                     onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+            }
+            SettingsSection(title = stringResource(R.string.privacy_section)) {
+                SettingItem(
+                    title = stringResource(R.string.memory_title),
+                    description = stringResource(R.string.memory_settings_description),
+                    onItemClick = onNavigateToMemory,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.usage_title),
+                    description = stringResource(R.string.usage_settings_description),
+                    onItemClick = onNavigateToUsage,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.app_lock_title),
+                    description = stringResource(R.string.app_lock_settings_description),
+                    onItemClick = onNavigateToAppLock,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.key_manager_title),
+                    description = stringResource(R.string.key_manager_settings_description),
+                    onItemClick = onNavigateToKeyManager,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

@@ -61,6 +61,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.memory.MemoryPromptSource
+import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionSink
+import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionStripper
+import dev.chungjungsoo.gptmobile.data.memory.includingMemory
+import dev.chungjungsoo.gptmobile.data.usage.UsageDraft
+import dev.chungjungsoo.gptmobile.data.usage.UsageRecorder
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
@@ -72,6 +78,7 @@ import dev.chungjungsoo.gptmobile.di.DeviceSocModel
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -103,7 +110,10 @@ class ChatRepositoryImpl @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository,
     @param:DeviceSocModel private val deviceSocModel: String,
     private val compactionStore: CompactionStore,
-    private val remoteContextWindowLookup: RemoteContextWindowLookup
+    private val remoteContextWindowLookup: RemoteContextWindowLookup,
+    private val memoryPromptSource: MemoryPromptSource = MemoryPromptSource.None,
+    private val usageRecorder: UsageRecorder = UsageRecorder.None,
+    private val memorySuggestionSink: MemorySuggestionSink = MemorySuggestionSink.None
 ) : ChatRepository {
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
@@ -177,16 +187,19 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = flow {
         emit(ApiState.Loading)
         try {
-            val resolvedTools = agentToolResolver.resolve(platform.uid)
             val chatId = userMessages.firstOrNull()?.chatId ?: 0
-            val toolEvidence = loadToolEvidence(assistantMessages, platform)
+            val activePlatform = platform.includingMemory(
+                safeMemoryBlock(chatId, userMessages.lastOrNull()?.content.orEmpty())
+            )
+            val resolvedTools = agentToolResolver.resolve(activePlatform.uid)
+            val toolEvidence = loadToolEvidence(assistantMessages, activePlatform)
             val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
-            val outputReserve = outputReserveTokens(platform, resolvedTools.isNotEmpty())
+            val outputReserve = outputReserveTokens(activePlatform, resolvedTools.isNotEmpty())
             val outcome = compactionCoordinator.prepare(
                 chatId = chatId,
                 userMessages = userMessages,
                 assistantMessages = assistantMessages,
-                platform = platform,
+                platform = activePlatform,
                 toolEvidence = toolEvidence,
                 toolDefinitionTokens = toolDefinitionTokens,
                 toolDefinitionNames = resolvedTools.map { it.tool.definition.name },
@@ -199,21 +212,21 @@ class ChatRepositoryImpl @Inject constructor(
                         ApiState.Error(
                             message = "Enter this model's context window before continuing.",
                             kind = ApiErrorKind.MODEL_CAPACITY_UNKNOWN,
-                            platformUid = platform.uid,
-                            model = platform.model,
-                            endpoint = platform.apiUrl
+                            platformUid = activePlatform.uid,
+                            model = activePlatform.model,
+                            endpoint = activePlatform.apiUrl
                         )
                     )
                     return@flow
                 }
 
                 is CompactionOutcome.Failed -> {
-                    emit(ApiState.Error(outcome.message, ApiErrorKind.COMPACTION_FAILED, platform.uid, platform.model, platform.apiUrl))
+                    emit(ApiState.Error(outcome.message, ApiErrorKind.COMPACTION_FAILED, activePlatform.uid, activePlatform.model, activePlatform.apiUrl))
                     return@flow
                 }
 
                 is CompactionOutcome.InputTooLarge -> {
-                    emit(ApiState.Error(outcome.message, ApiErrorKind.INPUT_TOO_LARGE, platform.uid, platform.model, platform.apiUrl))
+                    emit(ApiState.Error(outcome.message, ApiErrorKind.INPUT_TOO_LARGE, activePlatform.uid, activePlatform.model, activePlatform.apiUrl))
                     return@flow
                 }
 
@@ -229,7 +242,7 @@ class ChatRepositoryImpl @Inject constructor(
             }
             val session = openPreparedSession(
                 prepared.turns,
-                platform,
+                activePlatform,
                 resolvedTools.map { it.tool },
                 prepared,
                 onUnconfirmedCancellation
@@ -255,6 +268,10 @@ class ChatRepositoryImpl @Inject constructor(
             val assistantProgress = StringBuilder()
             var usageAdjustment = 0
             var latestUsage: ProviderEvent.Usage? = null
+            var countedInputTokens = 0
+            var countedOutputTokens = 0
+            var sawUsage = false
+            val suggestionStripper = MemorySuggestionStripper()
             var lastRequestEstimate = prepared.tokenBudget.estimatedInputTokens
             var didCompactDuringRun = false
             var compactedProgressLength = 0
@@ -282,7 +299,7 @@ class ChatRepositoryImpl @Inject constructor(
                                     content = assistantProgress.toString().ifBlank {
                                         "Completed tool actions are included below; continue the current request."
                                     },
-                                    platformType = platform.uid,
+                                    platformType = activePlatform.uid,
                                     currentRunId = runId
                                 )
                             )
@@ -294,7 +311,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 chatId = 0,
                                 userMessages = userMessages,
                                 assistantMessages = progressMessages,
-                                platform = platform,
+                                platform = activePlatform,
                                 toolEvidence = toolEvidence + completedExchanges.toToolEvidence(runId),
                                 toolDefinitionTokens = toolDefinitionTokens,
                                 toolDefinitionNames = resolvedTools.map { it.tool.definition.name },
@@ -308,7 +325,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 activePrepared = mid.prepared
                                 mutableSession.inner = openPreparedSession(
                                     activePrepared.turns,
-                                    platform,
+                                    activePlatform,
                                     resolvedTools.map { it.tool },
                                     activePrepared,
                                     onUnconfirmedCancellation
@@ -338,12 +355,18 @@ class ChatRepositoryImpl @Inject constructor(
                         is ProviderEvent.ThinkingDelta -> emit(ApiState.Thinking(providerEvent.text))
 
                         is ProviderEvent.TextDelta -> {
-                            assistantProgress.append(providerEvent.text)
-                            emit(ApiState.Success(providerEvent.text))
+                            val visible = suggestionStripper.accept(providerEvent.text)
+                            if (visible.isNotEmpty()) {
+                                assistantProgress.append(visible)
+                                emit(ApiState.Success(visible))
+                            }
                         }
 
                         is ProviderEvent.Usage -> {
                             latestUsage = providerEvent
+                            sawUsage = true
+                            countedInputTokens += providerEvent.inputTokens
+                            countedOutputTokens += providerEvent.outputTokens
                             usageAdjustment = providerEvent.inputTokens - lastRequestEstimate + providerEvent.outputTokens
                         }
 
@@ -373,16 +396,37 @@ class ChatRepositoryImpl @Inject constructor(
                 val completedMessages = assistantMessages.toMutableList()
                 while (completedMessages.size < userMessages.size) completedMessages += emptyList<MessageV2>()
                 completedMessages[completedMessages.lastIndex] = listOf(
-                    MessageV2(content = assistantProgress.toString(), platformType = platform.uid, currentRunId = runId)
+                    MessageV2(content = assistantProgress.toString(), platformType = activePlatform.uid, currentRunId = runId)
                 )
                 compactionCoordinator.recordUsage(
                     chatId,
-                    platform,
-                    contextBuilder.build(userMessages, completedMessages, platform),
-                    loadToolEvidence(completedMessages, platform),
+                    activePlatform,
+                    contextBuilder.build(userMessages, completedMessages, activePlatform),
+                    loadToolEvidence(completedMessages, activePlatform),
                     resolvedTools.map { it.tool.definition.name },
                     prepared,
                     usage.inputTokens + usage.outputTokens
+                )
+            }
+            val suggestionTail = suggestionStripper.finish()
+            if (suggestionTail.visible.isNotEmpty()) {
+                assistantProgress.append(suggestionTail.visible)
+                emit(ApiState.Success(suggestionTail.visible))
+            }
+            suggestionTail.suggestion?.let { fact -> memorySuggestionSink.offer(chatId, fact) }
+            if (runCompleted || sawUsage) {
+                val inputTokens = if (sawUsage) countedInputTokens else lastRequestEstimate.coerceAtLeast(0)
+                val outputTokens = if (sawUsage) countedOutputTokens else TokenEstimator.estimateText(assistantProgress.toString())
+                usageRecorder.record(
+                    UsageDraft(
+                        platformUid = activePlatform.uid,
+                        model = activePlatform.model,
+                        chatId = chatId.takeIf { it > 0 },
+                        inputTokens = inputTokens,
+                        outputTokens = outputTokens,
+                        estimated = !sawUsage,
+                        createdAt = System.currentTimeMillis() / 1000
+                    )
                 )
             }
         } finally {
@@ -723,6 +767,14 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     private suspend fun encodeAnthropicCompactInput(input: dev.chungjungsoo.gptmobile.data.context.CompactInput) = providerAttachmentEncoder.anthropicMessages(ensureProviderReferencesForTurns(compactTurnsWithEvidence(input), input.platform), input.platform.uid)
+
+    private suspend fun safeMemoryBlock(chatId: Int, latestUserText: String): String? = try {
+        memoryPromptSource.promptBlock(chatId, latestUserText)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
 
     private suspend fun openPreparedSession(
         turns: List<ConversationTurn>,

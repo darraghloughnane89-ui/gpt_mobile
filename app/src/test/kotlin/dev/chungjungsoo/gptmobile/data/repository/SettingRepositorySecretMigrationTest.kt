@@ -9,9 +9,14 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.data.security.SecretType
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
+import dev.chungjungsoo.gptmobile.data.security.SoftwareAesGcmVault
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -30,7 +35,7 @@ class SettingRepositorySecretMigrationTest {
         assertEquals("profile-secret", vault.values.getValue("profile_profile-1").decodeToString())
         assertNull(dao.platforms.single().token)
         assertEquals("profile_profile-1", dao.platforms.single().secretRef)
-        assertEquals("profile-secret", repository.fetchPlatformV2s().single().token)
+        assertNull(repository.fetchPlatformV2s().single().token)
 
         val fetched = repository.fetchPlatformV2s().single()
         repository.updatePlatformV2(fetched.copy(name = "Renamed"))
@@ -52,8 +57,8 @@ class SettingRepositorySecretMigrationTest {
         }
         val repository = createRepository(dao, vault)
 
-        assertEquals("profile-secret", repository.fetchPlatformV2s().single().token)
-        assertTrue(vault.lastReadBytes?.all { it == 0.toByte() } == true)
+        assertNull(repository.fetchPlatformV2s().single().token)
+        assertEquals("profile-secret", vault.values.getValue("profile_profile-1").decodeToString())
     }
 
     @Test
@@ -84,7 +89,11 @@ class SettingRepositorySecretMigrationTest {
         val errors = repository.migrateSecrets()
 
         assertTrue(errors.isEmpty())
-        assertEquals(listOf("first-secret", "second-secret"), repository.fetchPlatformV2s().map { it.token })
+        assertTrue(repository.fetchPlatformV2s().all { it.token == null })
+        assertEquals(
+            listOf("first-secret", "second-secret"),
+            dao.platforms.map { vault.values.getValue(it.secretRef!!).decodeToString() }
+        )
         assertEquals(2, dao.platforms.mapNotNull { it.secretRef }.distinct().size)
     }
 
@@ -95,7 +104,7 @@ class SettingRepositorySecretMigrationTest {
         val repository = createRepository(dao, vault)
         repository.addPlatformV2(testPlatform(token = "profile-secret"))
 
-        repository.updatePlatformV2(repository.fetchPlatformV2s().single().copy(token = null))
+        repository.updatePlatformV2(repository.fetchPlatformV2s().single().copy(token = null, secretRef = null))
 
         assertNull(dao.platforms.single().token)
         assertNull(dao.platforms.single().secretRef)
@@ -111,7 +120,7 @@ class SettingRepositorySecretMigrationTest {
         dao.failEdits = true
 
         try {
-            repository.updatePlatformV2(repository.fetchPlatformV2s().single().copy(token = null))
+            repository.updatePlatformV2(repository.fetchPlatformV2s().single().copy(token = null, secretRef = null))
             fail("Expected the database update to fail")
         } catch (_: IllegalStateException) {
             // Expected.
@@ -145,7 +154,8 @@ class SettingRepositorySecretMigrationTest {
 
         assertTrue(errors.isEmpty())
         assertNull(dataSource.tokens[ApiType.OPENAI])
-        assertEquals("legacy-datastore-secret", repository.fetchPlatforms().first { it.name == ApiType.OPENAI }.token)
+        assertNull(repository.fetchPlatforms().first { it.name == ApiType.OPENAI }.token)
+        assertEquals("legacy-datastore-secret", vault.values.getValue("legacy_openai").decodeToString())
     }
 
     @Test
@@ -196,6 +206,50 @@ class SettingRepositorySecretMigrationTest {
         assertEquals("profile_profile-1", dao.platforms.single().secretRef)
         assertNull(vault.values[oldSecretRef])
         assertEquals("replacement-secret", vault.values.getValue("profile_profile-1").decodeToString())
+    }
+
+    @Test
+    fun migrateSecrets_legacyDatastoreToken_leavesNoPlaintextKey() = runBlocking {
+        val dataSource = FakeSettingDataSource(
+            mutableMapOf(
+                ApiType.OPENAI to "sk-one",
+                ApiType.GROQ to "sk-two"
+            )
+        )
+        val vault = FakeSecretVault()
+        val repository = createRepository(FakePlatformV2Dao(), vault, dataSource)
+
+        val errors = repository.migrateSecrets()
+
+        assertTrue(errors.isEmpty())
+        assertTrue(dataSource.remainingPlaintextTokenTypes().isEmpty())
+        assertEquals("sk-one", vault.values.getValue("legacy_openai").decodeToString())
+        assertEquals("sk-two", vault.values.getValue("legacy_groq").decodeToString())
+        assertNull(repository.fetchPlatforms().first { it.name == ApiType.OPENAI }.token)
+    }
+
+    @Test
+    fun migrateSecrets_plaintextDatastoreKey_becomesMaskedApiKeyEntry() = runBlocking {
+        val directory = File(System.getProperty("java.io.tmpdir"), "vault-${UUID.randomUUID()}")
+        val dataSource = FakeSettingDataSource(mutableMapOf(ApiType.OPENAI to "sk-live-secret-value"))
+        val vault = SoftwareAesGcmVault(directory)
+        val repository = SettingRepositoryImpl(
+            settingDataSource = dataSource,
+            platformV2Dao = FakePlatformV2Dao(),
+            chatPlatformModelV2Dao = FakeChatPlatformModelV2Dao(),
+            secretVault = vault
+        )
+
+        val errors = repository.migrateSecrets()
+
+        assertTrue(errors.isEmpty())
+        assertTrue(dataSource.remainingPlaintextTokenTypes().isEmpty())
+        val entry = vault.entries().single()
+        assertEquals(SecretType.API_KEY, entry.type)
+        assertEquals("legacy_openai", entry.id)
+        assertFalse(entry.masked.contains("sk-live-secret-value"))
+        assertEquals("sk-live-secret-value", vault.read("legacy_openai")?.decodeToString())
+        assertNull(repository.fetchPlatforms().first { it.name == ApiType.OPENAI }.token)
     }
 
     private fun createRepository(
@@ -281,13 +335,12 @@ private class FakeSettingDataSource(
     override suspend fun updateThemeMode(themeMode: ThemeMode) = Unit
     override suspend fun updateStatus(apiType: ApiType, status: Boolean) = Unit
     override suspend fun updateAPIUrl(apiType: ApiType, url: String) = Unit
-    override suspend fun updateToken(apiType: ApiType, token: String) {
-        tokens[apiType] = token
-    }
 
     override suspend fun clearToken(apiType: ApiType) {
         tokens.remove(apiType)
     }
+
+    override suspend fun remainingPlaintextTokenTypes(): Set<ApiType> = tokens.keys.toSet()
 
     override suspend fun updateModel(apiType: ApiType, model: String) = Unit
     override suspend fun updateTemperature(apiType: ApiType, temperature: Float) = Unit

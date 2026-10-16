@@ -38,7 +38,7 @@ class GoogleAPIImpl @Inject constructor(
         val file = File(filePath)
         val startEndpoint = googleApiRoot(config.apiUrl) + "/upload/v1beta/files"
         val uploadUrl = networkClient().preparePost(startEndpoint) {
-            header(GOOGLE_API_KEY_HEADER, config.token ?: "")
+            authorizeProvider(config, ProviderAuthStyle.X_GOOG_API_KEY)
             contentType(ContentType.Application.Json)
             header("X-Goog-Upload-Protocol", "resumable")
             header("X-Goog-Upload-Command", "start")
@@ -73,7 +73,7 @@ class GoogleAPIImpl @Inject constructor(
         val endpoint = googleApiRoot(config.apiUrl) + "/v1beta/$fileName"
         return try {
             networkClient().prepareGet(endpoint) {
-                header(GOOGLE_API_KEY_HEADER, config.token ?: "")
+                authorizeProvider(config, ProviderAuthStyle.X_GOOG_API_KEY)
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     false
@@ -99,7 +99,7 @@ class GoogleAPIImpl @Inject constructor(
             networkClient().preparePost(endpoint) {
                 retryGenerationRequest()
                 applyPlatformStreamingTimeout(timeoutSeconds)
-                header(GOOGLE_API_KEY_HEADER, config.token ?: "")
+                authorizeProvider(config, ProviderAuthStyle.X_GOOG_API_KEY)
                 parameter("alt", "sse")
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.json.encodeToString(request))
@@ -176,10 +176,6 @@ class GoogleAPIImpl @Inject constructor(
             )
         }
     }.flowOn(Dispatchers.IO)
-
-    private companion object {
-        const val GOOGLE_API_KEY_HEADER = "x-goog-api-key"
-    }
 }
 
 internal fun googleApiRoot(apiUrl: String): String = apiUrl.trimEnd('/').removeSuffix("/v1beta")

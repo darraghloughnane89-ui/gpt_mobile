@@ -5,6 +5,9 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.data.network.ProviderAuthStyle
+import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.authorizeProvider
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -37,7 +40,8 @@ enum class WebSearchProvider {
 data class WebSearchProviderConfig(
     val provider: WebSearchProvider,
     val bearerToken: String,
-    val endpointUrl: String
+    val endpointUrl: String,
+    val secretRef: String? = null
 )
 
 class WebSearchTool(
@@ -83,9 +87,21 @@ class WebSearchTool(
         val request = parseRequest(arguments) ?: return error(callId, "Invalid web search request: ${validationErrors(arguments).joinToString("; ")}.")
         return try {
             val response = networkClient().post(config.endpointUrl) {
-                when (config.provider) {
-                    WebSearchProvider.EXA -> header("x-api-key", config.bearerToken)
-                    WebSearchProvider.FIRECRAWL, WebSearchProvider.PERPLEXITY -> bearerAuth(config.bearerToken)
+                if (!config.secretRef.isNullOrBlank()) {
+                    val style = if (config.provider == WebSearchProvider.EXA) {
+                        ProviderAuthStyle.X_API_KEY
+                    } else {
+                        ProviderAuthStyle.BEARER
+                    }
+                    authorizeProvider(
+                        ProviderRequestConfig(config.endpointUrl, token = null, secretRef = config.secretRef),
+                        style
+                    )
+                } else {
+                    when (config.provider) {
+                        WebSearchProvider.EXA -> header("x-api-key", config.bearerToken)
+                        WebSearchProvider.FIRECRAWL, WebSearchProvider.PERPLEXITY -> bearerAuth(config.bearerToken)
+                    }
                 }
                 setBody(payload(request))
             }

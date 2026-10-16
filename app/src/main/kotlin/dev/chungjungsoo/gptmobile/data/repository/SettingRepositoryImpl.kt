@@ -11,6 +11,8 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.data.security.SecretEntry
+import dev.chungjungsoo.gptmobile.data.security.SecretType
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import javax.inject.Inject
 
@@ -30,7 +32,6 @@ class SettingRepositoryImpl @Inject constructor(
             ApiType.GROQ -> settingDataSource.getAPIUrl(apiType) ?: ModelConstants.GROQ_API_URL
             ApiType.OLLAMA -> settingDataSource.getAPIUrl(apiType) ?: ""
         }
-        val token = resolveLegacyToken(apiType)
         val model = settingDataSource.getModel(apiType)
         val temperature = settingDataSource.getTemperature(apiType)
         val topP = settingDataSource.getTopP(apiType)
@@ -46,7 +47,7 @@ class SettingRepositoryImpl @Inject constructor(
             name = apiType,
             enabled = status == true,
             apiUrl = apiUrl,
-            token = token,
+            token = null,
             model = model,
             temperature = temperature,
             topP = topP,
@@ -55,7 +56,17 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun fetchPlatformV2s(): List<PlatformV2> = platformV2Dao.getPlatforms().map { platform ->
-        resolvePlatformToken(platform)
+        platform.copy(token = null)
+    }
+
+    override suspend fun hasAnySecret(): Boolean {
+        if (secretVault.entries().isNotEmpty()) return true
+        return ApiType.entries.any { apiType ->
+            if (settingDataSource.getToken(apiType) != null) return@any true
+            val bytes = secretVault.read(legacySecretRef(apiType)) ?: return@any false
+            bytes.fill(0)
+            true
+        }
     }
 
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
@@ -70,6 +81,7 @@ class SettingRepositoryImpl @Inject constructor(
         val platforms = fetchPlatforms()
 
         platforms.forEach { platform ->
+            val legacyToken = settingDataSource.getToken(platform.name) ?: readSecret(legacySecretRef(platform.name))
             addPlatformV2(
                 PlatformV2(
                     name = when (platform.name) {
@@ -88,7 +100,7 @@ class SettingRepositoryImpl @Inject constructor(
                     },
                     enabled = platform.enabled,
                     apiUrl = ModelConstants.normalizeLegacyAPIUrl(platform.apiUrl),
-                    token = platform.token,
+                    token = legacyToken,
                     model = platform.model ?: "",
                     temperature = platform.temperature,
                     topP = platform.topP,
@@ -121,6 +133,13 @@ class SettingRepositoryImpl @Inject constructor(
                 settingDataSource.clearToken(apiType)
             } catch (error: Exception) {
                 add(SecretMigrationError(source, error.message ?: "Credential migration failed."))
+            }
+        }
+
+        settingDataSource.remainingPlaintextTokenTypes().forEach { apiType ->
+            val source = "legacy:${apiType.name}"
+            if (none { it.source == source }) {
+                add(SecretMigrationError(source, "A plaintext API token is still stored in DataStore."))
             }
         }
     }
@@ -173,29 +192,18 @@ class SettingRepositoryImpl @Inject constructor(
         secretRef?.let { secretVault.delete(it) }
     }
 
-    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)?.let { platform ->
-        resolvePlatformToken(platform)
-    }
+    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)?.copy(token = null)
 
     private suspend fun securePlatform(platform: PlatformV2): PlatformV2 {
         val secret = platform.token
         if (secret == null) {
-            return platform.copy(token = null, secretRef = null)
+            return platform.copy(token = null)
         }
 
         val secretRef = platform.secretRef ?: profileSecretRef(platform.uid)
         storeVerified(secretRef, secret)
         return platform.copy(token = null, secretRef = secretRef)
     }
-
-    private suspend fun resolvePlatformToken(platform: PlatformV2): PlatformV2 {
-        if (platform.token != null) return platform
-        val secretRef = platform.secretRef ?: return platform
-        return platform.copy(token = readSecret(secretRef))
-    }
-
-    private suspend fun resolveLegacyToken(apiType: ApiType): String? = settingDataSource.getToken(apiType)
-        ?: readSecret(legacySecretRef(apiType))
 
     private suspend fun readSecret(secretRef: String): String? {
         val bytes = secretVault.read(secretRef) ?: return null
@@ -206,10 +214,17 @@ class SettingRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun storeVerified(secretRef: String, secret: String) {
+    private suspend fun storeVerified(secretRef: String, secret: String, label: String = secretRef) {
         val bytes = secret.encodeToByteArray()
         try {
-            secretVault.put(secretRef, bytes)
+            secretVault.store(
+                SecretEntry(
+                    id = secretRef,
+                    type = SecretType.API_KEY,
+                    label = label
+                ),
+                bytes
+            )
             val verified = secretVault.read(secretRef)
             try {
                 check(verified != null && verified.contentEquals(bytes)) { "Credential verification failed." }

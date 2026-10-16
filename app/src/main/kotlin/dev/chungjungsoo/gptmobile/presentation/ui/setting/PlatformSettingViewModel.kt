@@ -259,7 +259,13 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun updateApiToken(token: String) {
         _platformState.value?.let { platform ->
-            updatePlatform(platform.copy(token = token.trim().takeIf { it.isNotEmpty() }))
+            val trimmed = token.trim()
+            val updated = if (trimmed.isEmpty()) {
+                platform.copy(token = null, secretRef = null)
+            } else {
+                platform.copy(token = trimmed)
+            }
+            updatePlatform(updated)
             closeApiTokenDialog()
         }
     }

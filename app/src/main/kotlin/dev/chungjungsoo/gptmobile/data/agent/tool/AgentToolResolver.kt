@@ -14,7 +14,6 @@ import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpError
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
-import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
@@ -93,31 +92,22 @@ class AgentToolResolver @Inject constructor(
         val actualConnection = connection ?: return null
         val provider = SEARCH_PROVIDERS[actualConnection.type] ?: return null
         val endpointUrl = provider.defaultEndpointUrl
-        val definition = WebSearchTool(
-            config = WebSearchProviderConfig(provider.provider, "", endpointUrl),
-            networkClient = networkClient
-        ).definition
-        val credential = actualConnection.secretRef?.let { secretRef ->
-            secretVault.read(secretRef)
-        }
-        val tool = credential?.let { bytes ->
-            try {
-                val token = String(bytes, StandardCharsets.UTF_8)
-                if (token.isBlank()) {
-                    MissingCredentialTool(definition)
-                } else {
-                    WebSearchTool(
-                        config = WebSearchProviderConfig(
-                            provider = provider.provider,
-                            bearerToken = token,
-                            endpointUrl = endpointUrl
-                        ),
-                        networkClient = networkClient
-                    )
-                }
-            } finally {
-                bytes.fill(0)
-            }
+        val definition =                 WebSearchTool(
+                    config = WebSearchProviderConfig(provider.provider, "", endpointUrl),
+                    networkClient = networkClient
+                ).definition
+        val secretRef = actualConnection.secretRef
+        if (secretRef != null) requireStored(secretRef)
+        val tool = secretRef?.let { ref ->
+            WebSearchTool(
+                config = WebSearchProviderConfig(
+                    provider = provider.provider,
+                    bearerToken = "",
+                    endpointUrl = endpointUrl,
+                    secretRef = ref
+                ),
+                networkClient = networkClient
+            )
         } ?: MissingCredentialTool(definition)
         return tool.resolved(actualConnection.connectionUid, actualConnection.name, WEB_SEARCH_TOOL)
     }
@@ -156,7 +146,7 @@ class AgentToolResolver @Inject constructor(
         val authorization = when (connection.authType) {
             ToolConnectionAuthType.NONE -> null
 
-            ToolConnectionAuthType.BEARER -> readBearerHeader(connection)
+            ToolConnectionAuthType.BEARER -> null
 
             ToolConnectionAuthType.OAUTH -> mcpOAuthCoordinator.authorizationHeader(
                 connection,
@@ -166,22 +156,28 @@ class AgentToolResolver @Inject constructor(
 
             else -> throw IllegalArgumentException("Unsupported MCP authentication type.")
         }
+        val bearerRef = if (connection.authType == ToolConnectionAuthType.BEARER) {
+            val secretRef = connection.secretRef ?: throw IllegalArgumentException("MCP bearer credential is missing.")
+            requireStored(secretRef)
+            secretRef
+        } else {
+            null
+        }
         return McpConnectionConfig(
             connectionUid = connection.connectionUid,
             endpointUrl = connection.endpointUrl ?: throw IllegalArgumentException("MCP endpoint is required."),
             allowCleartext = connection.allowCleartext,
-            authorizationHeader = authorization
+            authorizationHeader = authorization,
+            authorizationSecretRef = bearerRef
         )
     }
 
-    private suspend fun readBearerHeader(connection: ToolConnection): String {
-        val secretRef = connection.secretRef ?: throw IllegalArgumentException("MCP bearer credential is missing.")
+    private suspend fun requireStored(secretRef: String) {
         val bytes = secretVault.read(secretRef) ?: throw IllegalArgumentException("MCP bearer credential is missing.")
-        return try {
-            val token = bytes.decodeToString().trim()
-            require(token.isNotEmpty()) { "MCP bearer credential is missing." }
-            require('\r' !in token && '\n' !in token) { "MCP bearer credential is invalid." }
-            "Bearer $token"
+        try {
+            require(bytes.isNotEmpty() && bytes.any { it != ' '.code.toByte() && it != '\n'.code.toByte() }) {
+                "MCP bearer credential is missing."
+            }
         } finally {
             bytes.fill(0)
         }

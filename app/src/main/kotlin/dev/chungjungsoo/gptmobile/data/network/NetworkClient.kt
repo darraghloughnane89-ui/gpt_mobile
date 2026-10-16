@@ -1,5 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.security.SecretRedactor
+import dev.chungjungsoo.gptmobile.data.security.SecretVault
+import dev.chungjungsoo.gptmobile.data.security.VaultSession
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.DefaultRequest
@@ -15,13 +18,14 @@ import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
-import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 
 @Singleton
-class NetworkClient @Inject constructor(
-    private val httpEngine: HttpClientEngineFactory<*>
+class NetworkClient constructor(
+    private val httpEngine: HttpClientEngineFactory<*>,
+    private val secretVault: SecretVault? = null,
+    private val vaultSession: VaultSession? = null
 ) {
 
     private val client by lazy {
@@ -37,8 +41,17 @@ class NetworkClient @Inject constructor(
             install(HttpRequestRetry) { noRetry() }
             install(HttpTimeout)
 
+            install(VaultHeaderPlugin) {
+                vault = secretVault
+                session = vaultSession
+            }
+
             install(Logging) {
-                logger = Logger.DEFAULT
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        Logger.DEFAULT.log(SecretRedactor.redact(message))
+                    }
+                }
                 level = resolveNetworkLogLevel()
                 sanitizeHeader { header -> isSensitiveHeader(header) }
             }
@@ -50,6 +63,8 @@ class NetworkClient @Inject constructor(
     }
 
     operator fun invoke(): HttpClient = client
+
+    fun sessionUnlocked(): Boolean = vaultSession?.isUnlocked() != false
 
     companion object {
         // Default JSON config (used for most APIs)

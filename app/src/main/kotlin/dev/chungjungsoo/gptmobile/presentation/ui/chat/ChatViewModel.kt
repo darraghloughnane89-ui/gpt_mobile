@@ -40,6 +40,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.memory.MemoryRepository
+import dev.chungjungsoo.gptmobile.data.memory.MemorySuggestionBus
+import dev.chungjungsoo.gptmobile.data.memory.PendingMemorySuggestion
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -84,7 +87,9 @@ class ChatViewModel @Inject constructor(
     private val agentRunCoordinator: AgentRunCoordinator,
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
-    private val modelCatalogRepository: ModelCatalogRepository
+    private val modelCatalogRepository: ModelCatalogRepository,
+    private val memoryRepository: MemoryRepository,
+    private val memorySuggestionBus: MemorySuggestionBus
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -212,6 +217,17 @@ class ChatViewModel @Inject constructor(
     private val _isLoaded = MutableStateFlow(false)
     val isLoaded = _isLoaded.asStateFlow()
 
+    private val _memoryEnabled = MutableStateFlow(true)
+    val memoryEnabled = _memoryEnabled.asStateFlow()
+
+    private val _pendingMemorySuggestion = MutableStateFlow<PendingMemorySuggestion?>(null)
+    val pendingMemorySuggestion = _pendingMemorySuggestion.asStateFlow()
+
+    private val _memoryNotice = MutableStateFlow<String?>(null)
+    val memoryNotice = _memoryNotice.asStateFlow()
+
+    private var memoryOverride: Boolean? = null
+
     private var pendingQuestionText: String? = null
 
     init {
@@ -225,6 +241,60 @@ class ChatViewModel @Inject constructor(
         observeLiveSnapshots()
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
+        }
+        observeMemory()
+    }
+
+    fun setMemoryEnabled(enabled: Boolean) {
+        memoryOverride = enabled
+        _memoryEnabled.value = enabled
+        persistMemoryOverride()
+    }
+
+    fun confirmMemorySuggestion() {
+        val pending = _pendingMemorySuggestion.value ?: return
+        _pendingMemorySuggestion.value = null
+        viewModelScope.launch { memoryRepository.saveSuggestion(pending.text) }
+    }
+
+    fun dismissMemorySuggestion() {
+        _pendingMemorySuggestion.value = null
+    }
+
+    fun consumeMemoryNotice() {
+        _memoryNotice.value = null
+    }
+
+    private fun observeMemory() {
+        viewModelScope.launch {
+            memorySuggestionBus.suggestions.collect { suggestion ->
+                val activeChatId = _chatRoom.value.id.takeIf { it > 0 } ?: chatRoomId
+                if (suggestion.chatId == activeChatId) {
+                    _pendingMemorySuggestion.value = suggestion
+                }
+            }
+        }
+        viewModelScope.launch {
+            _chatRoom.collect { room ->
+                if (room.id > 0) {
+                    _memoryEnabled.value = memoryOverride ?: memoryRepository.isEnabledForChat(room.id)
+                    persistMemoryOverride()
+                }
+            }
+        }
+    }
+
+    private fun persistMemoryOverride() {
+        val id = _chatRoom.value.id
+        val override = memoryOverride ?: return
+        if (id <= 0) return
+        viewModelScope.launch { memoryRepository.setEnabledForChat(id, override) }
+    }
+
+    private fun captureExplicitMemory(questionText: String) {
+        viewModelScope.launch {
+            val saved = memoryRepository.saveExplicit(questionText) ?: return@launch
+            _memoryNotice.value = context.getString(R.string.memory_saved_notice, saved.text)
         }
     }
 
@@ -1018,6 +1088,7 @@ class ChatViewModel @Inject constructor(
                     return@launch
                 }
                 if (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments) return@launch
+                captureExplicitMemory(questionText)
                 addMessage(message)
                 if (question.text.toString() == questionText) question.clearText()
                 clearSelectedFiles()

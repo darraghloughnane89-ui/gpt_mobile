@@ -9,8 +9,8 @@ interface SettingDataSource {
     suspend fun updateThemeMode(themeMode: ThemeMode)
     suspend fun updateStatus(apiType: ApiType, status: Boolean)
     suspend fun updateAPIUrl(apiType: ApiType, url: String)
-    suspend fun updateToken(apiType: ApiType, token: String)
     suspend fun clearToken(apiType: ApiType)
+    suspend fun remainingPlaintextTokenTypes(): Set<ApiType>
     suspend fun updateModel(apiType: ApiType, model: String)
     suspend fun updateTemperature(apiType: ApiType, temperature: Float)
     suspend fun updateTopP(apiType: ApiType, topP: Float)

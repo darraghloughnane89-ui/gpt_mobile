@@ -5,7 +5,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
-import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.withInjectedSecret
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 
@@ -28,7 +28,7 @@ class OpenAINativeCompactor(
                 instructions = input.instructions
             ),
             input.platform.timeout,
-            ProviderRequestConfig(input.platform.apiUrl, input.platform.token)
+            input.platform.withInjectedSecret()
         )
         if (result.output.isEmpty()) {
             throw IllegalStateException("OpenAI compact returned an empty window")

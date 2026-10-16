@@ -95,8 +95,13 @@ import dev.chungjungsoo.gptmobile.util.requiresLocalNetworkAccess
 internal fun apiKeySummary(
     token: String?,
     set: String,
-    notSet: String
-): String = if (token.isNullOrEmpty()) notSet else set
+    notSet: String,
+    secretRef: String? = null,
+    masked: String? = null
+): String {
+    if (!masked.isNullOrBlank()) return masked
+    return if (secretRef.isNullOrBlank() && token.isNullOrEmpty()) notSet else set
+}
 
 internal fun advancedGenerationSummary(values: List<Pair<String, String?>>): String = values.mapNotNull { (label, value) ->
     value?.let { "$label $it" }
@@ -271,7 +276,8 @@ fun PlatformSettingScreen(
                                 description = apiKeySummary(
                                     token = platformData.token,
                                     set = stringResource(R.string.api_key_set),
-                                    notSet = stringResource(R.string.token_not_set)
+                                    notSet = stringResource(R.string.token_not_set),
+                                    secretRef = platformData.secretRef
                                 ),
                                 enabled = platformData.enabled,
                                 onItemClick = settingViewModel::openApiTokenDialog,

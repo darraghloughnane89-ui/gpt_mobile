@@ -31,13 +31,9 @@ class SettingDataSourceImpl @Inject constructor(
         ApiType.GROQ to stringPreferencesKey("groq_url"),
         ApiType.OLLAMA to stringPreferencesKey("ollama_url")
     )
-    private val apiTokenMap = mapOf(
-        ApiType.OPENAI to stringPreferencesKey("openai_token"),
-        ApiType.ANTHROPIC to stringPreferencesKey("anthropic_token"),
-        ApiType.GOOGLE to stringPreferencesKey("google_token"),
-        ApiType.GROQ to stringPreferencesKey("groq_token"),
-        ApiType.OLLAMA to stringPreferencesKey("ollama_token")
-    )
+    private val apiTokenMap = LegacyTokenKeys.preferenceNames.mapValues { (_, name) ->
+        stringPreferencesKey(name)
+    }
     private val apiModelMap = mapOf(
         ApiType.OPENAI to stringPreferencesKey("openai_model"),
         ApiType.ANTHROPIC to stringPreferencesKey("anthropic_model"),
@@ -93,15 +89,9 @@ class SettingDataSourceImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateToken(apiType: ApiType, token: String) {
-        dataStore.edit { pref ->
-            pref[apiTokenMap[apiType]!!] = token
-        }
-    }
-
     override suspend fun clearToken(apiType: ApiType) {
         dataStore.edit { pref ->
-            pref.remove(apiTokenMap[apiType]!!)
+            pref.remove(apiTokenMap.getValue(apiType))
         }
     }
 
@@ -154,7 +144,11 @@ class SettingDataSourceImpl @Inject constructor(
     }.first()
 
     override suspend fun getToken(apiType: ApiType): String? = dataStore.data.map { pref ->
-        pref[apiTokenMap[apiType]!!]
+        pref[apiTokenMap.getValue(apiType)]
+    }.first()
+
+    override suspend fun remainingPlaintextTokenTypes(): Set<ApiType> = dataStore.data.map { pref ->
+        apiTokenMap.filterValues { key -> !pref[key].isNullOrEmpty() }.keys
     }.first()
 
     override suspend fun getModel(apiType: ApiType): String? = dataStore.data.map { pref ->

@@ -31,6 +31,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
+import dev.chungjungsoo.gptmobile.presentation.ui.privacy.AppLockGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
 import kotlinx.coroutines.flow.first
 
@@ -88,13 +89,15 @@ class MainActivity : ComponentActivity() {
                     themeMode = LocalThemeMode.current
                 ) {
                     if (isReady) {
-                        SetupNavGraph(
-                            navController = navController,
-                            toolConnectionsViewModel = toolConnectionsViewModel,
-                            onLaunchOAuth = ::launchOAuth
-                        )
-                        LaunchedEffect(navController) {
-                            navController.awaitStartupRoute()
+                        AppLockGate(onReady = { isStartupRouteReady = true }) {
+                            SetupNavGraph(
+                                navController = navController,
+                                toolConnectionsViewModel = toolConnectionsViewModel,
+                                onLaunchOAuth = ::launchOAuth
+                            )
+                            LaunchedEffect(navController) {
+                                navController.awaitStartupRoute()
+                            }
                         }
                     }
                 }

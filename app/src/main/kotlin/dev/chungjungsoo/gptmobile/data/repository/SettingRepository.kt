@@ -18,6 +18,8 @@ interface SettingRepository {
     suspend fun updatePlatformV2(platform: PlatformV2)
     suspend fun deletePlatformV2(platform: PlatformV2)
     suspend fun getPlatformV2ById(id: Int): PlatformV2?
+
+    suspend fun hasAnySecret(): Boolean = false
 }
 
 data class SecretMigrationError(val source: String, val message: String)

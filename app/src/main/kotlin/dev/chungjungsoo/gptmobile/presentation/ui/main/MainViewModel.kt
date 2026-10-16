@@ -37,8 +37,7 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
             val platformV2s = settingRepository.fetchPlatformV2s()
 
             when {
-                (platforms.all { it.enabled.not() } && platforms.all { it.token == null }) &&
-                    (platformV2s.isEmpty())
+                (platforms.all { it.enabled.not() } && platformV2s.isEmpty() && !settingRepository.hasAnySecret())
                 -> {
                     // Initialize
                     sendSplashEvent(SplashEvent.OpenIntro)

@@ -1,6 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.agent.tool
 
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.data.network.ProviderAuthStyle
+import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
+import dev.chungjungsoo.gptmobile.data.network.authorizeProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
@@ -26,7 +29,8 @@ class McpConnectionConfig(
     val connectionUid: String,
     val endpointUrl: String,
     val allowCleartext: Boolean,
-    val authorizationHeader: String? = null
+    val authorizationHeader: String? = null,
+    val authorizationSecretRef: String? = null
 )
 
 @Singleton
@@ -120,7 +124,15 @@ class McpClientManager internal constructor(
 
             val result = runCatching {
                 val transport = StreamableHttpClientTransport(httpClient, config.endpointUrl) {
-                    config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
+                    val secretRef = config.authorizationSecretRef
+                    if (!secretRef.isNullOrBlank()) {
+                        authorizeProvider(
+                            ProviderRequestConfig(config.endpointUrl, token = null, secretRef = secretRef),
+                            ProviderAuthStyle.BEARER
+                        )
+                    } else {
+                        config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
+                    }
                 }
                 val client = Client(Implementation(name = CLIENT_NAME, version = CLIENT_VERSION))
                 try {
@@ -182,7 +194,7 @@ class McpClientManager internal constructor(
         require(authorizationHeader == null || authorizationHeader.length <= MAX_AUTHORIZATION_HEADER_LENGTH) {
             "MCP authorization header is too long."
         }
-        return "$endpointUrl|${authorizationHeader.orEmpty().sha256()}"
+        return "$endpointUrl|${authorizationSecretRef.orEmpty()}|${authorizationHeader.orEmpty().sha256()}"
     }
 
     private data class Session(val key: String, val client: Client)
