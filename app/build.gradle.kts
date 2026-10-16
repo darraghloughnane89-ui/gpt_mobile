@@ -151,6 +151,10 @@ dependencies {
     implementation(libs.hilt.navigation)
     implementation(libs.androidx.navigation)
 
+    // Home-screen widget
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+
     // Room
     implementation(libs.room)
     ksp(libs.room.compiler)

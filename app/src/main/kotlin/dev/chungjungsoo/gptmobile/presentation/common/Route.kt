@@ -22,12 +22,25 @@ object Route {
     const val OLLAMA_API_ADDRESS = "ollama_api_address"
 
     const val CHAT_LIST = "chat_list"
-    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}"
+    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&projectId={projectId}"
+    const val PROJECTS = "projects"
+    const val PROJECT_DETAIL = "project/{projectId}"
+    const val PROJECT_EDITOR = "project_editor?projectId={projectId}"
+
+    fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: String, projectId: Int = -1): String =
+        "chat_room/$chatRoomId?enabled=$enabledPlatforms&projectId=$projectId"
+
+    fun projectDetail(projectId: Int): String = "project/$projectId"
+
+    fun projectEditor(projectId: Int = -1): String = "project_editor?projectId=$projectId"
 
     const val SETTING_ROUTE = "setting_route"
     const val SETTINGS = "settings"
     const val ADD_PLATFORM = "add_platform"
     const val LOCAL_MODELS = "local_models"
+    const val BOTS = "bots"
+    const val BOT_CREATE = "bots/create"
+    const val BOT_EDITOR = "bots/edit/{botUid}"
     const val TOOL_CONNECTIONS = "tool_connections"
     const val PLUGINS = "plugins"
     const val ROUTINES = "routines"
@@ -43,4 +56,11 @@ object Route {
     const val LICENSE = "license"
 
     const val MIGRATE_V2 = "migrate_v2"
+
+    /**
+     * Voice session destination. The voice stream registers this route.
+     * Phone integration does not add the screen. It navigates only when the graph already contains it.
+     * See docs/phone-deeplinks.md.
+     */
+    const val VOICE_SESSION = "voice_session"
 }

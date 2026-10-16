@@ -4,13 +4,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Stream (k) schema. Assigned Room version is 20.
- * This branch starts at version 11, so the registered path is 11 → 20 and only
- * creates plugin and routine tables. Retarget the start version to 19 when
- * versions 12–19 are already on main.
+ * Plugin and routine tables. Main is at version 13, so the path is 13 → 20.
+ * The statements only create those tables.
  */
 object PluginRoutineMigrations {
-    val MIGRATION_11_20 = object : Migration(11, 20) {
+    val MIGRATION_13_20 = object : Migration(13, 20) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
                 """

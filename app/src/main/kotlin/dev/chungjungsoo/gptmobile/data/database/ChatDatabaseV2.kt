@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
+import dev.chungjungsoo.gptmobile.data.database.dao.BotDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
@@ -12,11 +13,14 @@ import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PluginRoutineDao
+import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentToolBinding
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineListConverter
+import dev.chungjungsoo.gptmobile.data.database.entity.Bot
+import dev.chungjungsoo.gptmobile.data.database.entity.BotToolBinding
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatPlatformModelV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
@@ -28,6 +32,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PluginEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.PluginScopeSelectionEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.PluginToolEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.Project
+import dev.chungjungsoo.gptmobile.data.database.entity.ProjectFile
 import dev.chungjungsoo.gptmobile.data.database.entity.RoutineEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.RoutineRunEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
@@ -47,6 +53,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         LocalModel::class,
         ContextCheckpointEntity::class,
         ModelCapacityEntity::class,
+        Bot::class,
+        BotToolBinding::class,
+        Project::class,
+        ProjectFile::class,
         PluginEntity::class,
         PluginToolEntity::class,
         PluginScopeSelectionEntity::class,
@@ -73,5 +83,7 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun toolConnectionDao(): ToolConnectionDao
     abstract fun localModelDao(): LocalModelDao
     abstract fun compactionDao(): CompactionDao
+    abstract fun botDao(): BotDao
+    abstract fun projectDao(): ProjectDao
     abstract fun pluginRoutineDao(): PluginRoutineDao
 }

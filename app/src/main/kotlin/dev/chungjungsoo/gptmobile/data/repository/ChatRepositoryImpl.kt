@@ -19,6 +19,7 @@ import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAIResponsesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.ProviderAttachmentEncoder
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
+import dev.chungjungsoo.gptmobile.data.bot.BotCompletionTools
 import dev.chungjungsoo.gptmobile.data.context.AnthropicNativeCompactor
 import dev.chungjungsoo.gptmobile.data.context.ApiErrorKind
 import dev.chungjungsoo.gptmobile.data.context.CompactionCoordinator
@@ -61,6 +62,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
+import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
+import dev.chungjungsoo.gptmobile.data.instruction.NullProjectInstructionSource
+import dev.chungjungsoo.gptmobile.data.instruction.withInstructionStack
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
@@ -104,7 +109,9 @@ class ChatRepositoryImpl @Inject constructor(
     @param:DeviceSocModel private val deviceSocModel: String,
     private val compactionStore: CompactionStore,
     private val remoteContextWindowLookup: RemoteContextWindowLookup,
-    private val pluginToolRegistry: dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry = dev.chungjungsoo.gptmobile.data.plugin.EmptyToolRegistry
+    private val pluginToolRegistry: dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry = dev.chungjungsoo.gptmobile.data.plugin.EmptyToolRegistry,
+    private val instructionComposer: InstructionStackComposer = InstructionStackComposer(NullProjectInstructionSource),
+    private val botCompletionTools: BotCompletionTools = BotCompletionTools.PlatformOnly
 ) : ChatRepository {
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
@@ -174,12 +181,14 @@ class ChatRepositoryImpl @Inject constructor(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2,
-        runId: String
+        runId: String,
+        completion: ChatCompletionContext
     ): Flow<ApiState> = flow {
         emit(ApiState.Loading)
         try {
-            val resolvedTools = resolveTools(platform, runId)
-            val chatId = userMessages.firstOrNull()?.chatId ?: 0
+            val chatId = userMessages.firstOrNull()?.chatId ?: completion.chatId
+            val platform = applyInstructionStack(platform, completion, chatId)
+            val resolvedTools = resolveTools(platform, runId, completion)
             val toolEvidence = loadToolEvidence(assistantMessages, platform)
             val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
             val outputReserve = outputReserveTokens(platform, resolvedTools.isNotEmpty())
@@ -665,9 +674,14 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult {
+    override suspend fun compactNow(
+        chatId: Int,
+        platform: PlatformV2,
+        completion: ChatCompletionContext
+    ): CompactionResult {
+        val platform = applyInstructionStack(platform, completion, chatId)
         val grouped = groupPersistedConversation(messageV2Dao.loadMessages(chatId))
-        val resolvedTools = resolveTools(platform)
+        val resolvedTools = resolveTools(platform, completion = completion)
         val outcome = compactionCoordinator.prepare(
             chatId = chatId,
             userMessages = grouped.first,
@@ -682,10 +696,40 @@ class ChatRepositoryImpl @Inject constructor(
         return outcome.toResult()
     }
 
-    override suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult? {
-        val resolvedTools = resolveTools(platform)
+    override suspend fun validateDraftCapacity(
+        platform: PlatformV2,
+        message: MessageV2,
+        completion: ChatCompletionContext
+    ): CompactionResult? {
+        val chatId = message.chatId.takeIf { it > 0 } ?: completion.chatId
+        val platform = applyInstructionStack(platform, completion, chatId)
+        val resolvedTools = resolveTools(platform, completion = completion)
         val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
         return compactionCoordinator.validateDraft(platform, message, toolDefinitionTokens, outputReserveTokens(platform, resolvedTools.isNotEmpty()))?.toResult()
+    }
+
+    private suspend fun applyInstructionStack(
+        platform: PlatformV2,
+        completion: ChatCompletionContext,
+        chatId: Int
+    ): PlatformV2 = platform.withInstructionStack(
+        instructionComposer.forChat(
+            chatId = chatId,
+            global = platform.systemPrompt,
+            bot = completion.botInstructions,
+            chat = completion.chatInstructions
+        )
+    )
+
+    private suspend fun resolveCompletionTools(
+        platform: PlatformV2,
+        completion: ChatCompletionContext
+    ): List<ResolvedAgentTool> {
+        val botUid = completion.botUid
+        if (!botUid.isNullOrBlank()) {
+            botCompletionTools.resolve(botUid)?.let { return it }
+        }
+        return agentToolResolver.resolve(platform.uid)
     }
 
     private suspend fun generateSamePlatformText(platform: PlatformV2, systemPrompt: String, turns: List<ConversationTurn>): String {
@@ -701,7 +745,11 @@ class ChatRepositoryImpl @Inject constructor(
         return text.toString()
     }
 
-    private suspend fun resolveTools(platform: PlatformV2, runId: String = ""): List<ResolvedAgentTool> {
+    private suspend fun resolveTools(
+        platform: PlatformV2,
+        runId: String = "",
+        completion: ChatCompletionContext = ChatCompletionContext()
+    ): List<ResolvedAgentTool> {
         val pluginTools = pluginToolRegistry.toolsFor(
             dev.chungjungsoo.gptmobile.data.plugin.ToolScope(
                 platformUid = platform.uid,
@@ -712,7 +760,7 @@ class ChatRepositoryImpl @Inject constructor(
                 pluginUidFilter = kotlin.coroutines.coroutineContext[dev.chungjungsoo.gptmobile.data.plugin.PluginToolFilter]?.pluginUids
             )
         )
-        return (agentToolResolver.resolve(platform.uid) + pluginTools).distinctBy { it.modelToolName }
+        return (resolveCompletionTools(platform, completion) + pluginTools).distinctBy { it.modelToolName }
     }
 
     private fun estimateAssignedToolDefinitionTokens(resolvedTools: List<ResolvedAgentTool>): Int = resolvedTools.sumOf { tool ->

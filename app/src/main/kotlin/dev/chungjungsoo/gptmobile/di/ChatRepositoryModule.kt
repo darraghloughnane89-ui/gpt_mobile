@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
+import dev.chungjungsoo.gptmobile.data.bot.BotToolResolver
 import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
 import dev.chungjungsoo.gptmobile.data.context.HttpRemoteContextWindowLookup
 import dev.chungjungsoo.gptmobile.data.context.RoomCompactionStore
@@ -18,12 +19,14 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -63,7 +66,9 @@ object ChatRepositoryModule {
         deviceSocModel: String,
         compactionDao: CompactionDao,
         networkClient: NetworkClient,
-        pluginToolRegistry: dev.chungjungsoo.gptmobile.data.plugin.ToolRegistry
+        pluginToolRegistry: ToolRegistry,
+        instructionComposer: InstructionStackComposer,
+        botToolResolver: BotToolResolver
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -88,6 +93,8 @@ object ChatRepositoryModule {
         deviceSocModel,
         RoomCompactionStore(compactionDao),
         HttpRemoteContextWindowLookup(networkClient),
-        pluginToolRegistry
+        pluginToolRegistry,
+        instructionComposer,
+        botToolResolver
     )
 }

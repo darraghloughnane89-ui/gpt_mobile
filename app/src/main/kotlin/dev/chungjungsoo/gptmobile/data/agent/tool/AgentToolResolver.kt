@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentTool
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.bot.BotToolNames
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentToolBindingWithConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
@@ -50,18 +51,38 @@ class AgentToolResolver @Inject constructor(
         }
     }
 
-    suspend fun resolve(profileUid: String): List<ResolvedAgentTool> {
-        val resolved = mutableListOf(
-            CurrentDateTool().resolved(null, null, BuiltInAgentTool.CURRENT_DATE)
+    suspend fun resolve(profileUid: String): List<ResolvedAgentTool> = resolveBindings(
+        toolConnectionRepository.listBindingsWithConnections(profileUid),
+        includeCurrentDate = true
+    )
+
+    suspend fun resolveBindings(
+        bindings: List<AgentToolBindingWithConnection>,
+        includeCurrentDate: Boolean
+    ): List<ResolvedAgentTool> {
+        val ordered = bindings.sortedWith(
+            compareBy<AgentToolBindingWithConnection> { it.binding.toolName }
+                .thenBy { it.binding.connectionUid ?: "" }
+                .thenBy { it.binding.bindingUid }
         )
-        val bindings = toolConnectionRepository.listBindingsWithConnections(profileUid)
-            .sortedWith(compareBy<AgentToolBindingWithConnection> { it.binding.toolName }.thenBy { it.binding.connectionUid ?: "" }.thenBy { it.binding.bindingUid })
-        bindings
+        val resolved = mutableListOf<ResolvedAgentTool>()
+        val currentDateRequested = includeCurrentDate ||
+            ordered.any { binding ->
+                binding.binding.toolName == BuiltInAgentTool.CURRENT_DATE &&
+                    binding.binding.connectionUid == null
+            }
+        if (currentDateRequested) {
+            resolved += CurrentDateTool().resolved(null, null, BuiltInAgentTool.CURRENT_DATE)
+        }
+        val actionable = ordered.filterNot { binding ->
+            binding.binding.toolName == BuiltInAgentTool.CURRENT_DATE && binding.binding.connectionUid == null
+        }
+        actionable
             .filterNot { it.connection?.type == ToolConnectionType.MCP }
             .forEach { binding ->
                 resolveBinding(binding)?.let { resolved += it }
             }
-        bindings.filter { it.connection?.type == ToolConnectionType.MCP }
+        actionable.filter { it.connection?.type == ToolConnectionType.MCP }
             .groupBy { requireNotNull(it.connection).connectionUid }
             .toSortedMap()
             .values
@@ -127,9 +148,10 @@ class AgentToolResolver @Inject constructor(
         bindings: List<AgentToolBindingWithConnection>
     ): List<ResolvedAgentTool> {
         val selectedNames = bindings.map { it.binding.toolName }.toSet()
+        val includeAll = BotToolNames.MCP_ALL in selectedNames
         val remoteTools = discoverMcpTools(connection)
         return remoteTools
-            .filter { it.name in selectedNames }
+            .filter { includeAll || it.name in selectedNames }
             .map { remoteTool ->
                 val tool = McpAgentTool(
                     definition = mcpToolDefinition(connection.alias, remoteTool),

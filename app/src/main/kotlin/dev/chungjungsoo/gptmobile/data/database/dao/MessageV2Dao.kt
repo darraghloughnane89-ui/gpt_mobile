@@ -30,6 +30,9 @@ interface MessageV2Dao {
     @Insert
     suspend fun insertMessage(message: MessageV2): Long
 
+    @Query("DELETE FROM messages_v2 WHERE chat_id = :chatId")
+    suspend fun deleteMessagesForChat(chatId: Int)
+
     @Update
     suspend fun editMessages(vararg message: MessageV2)
 

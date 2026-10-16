@@ -9,6 +9,15 @@ import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import javax.inject.Inject
 
 class ContextBuilder @Inject constructor() {
+    fun applyProjectLayer(platform: PlatformV2, projectLayer: String): PlatformV2 {
+        if (projectLayer.isBlank()) return platform
+        val composed = InstructionStack.compose(
+            global = platform.systemPrompt,
+            project = projectLayer
+        ).composed()
+        return platform.copy(systemPrompt = composed)
+    }
+
     fun build(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
