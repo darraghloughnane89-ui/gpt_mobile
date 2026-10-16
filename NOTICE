@@ -1,0 +1,31 @@
+Robin phone control reuses code from the projects below. The app stays GPL-3.0.
+
+Mobilerun (https://github.com/droidrun/mobilerun)
+Copyright (c) 2025 Niels Schmidt
+Licensed under the MIT License.
+Used for the accessibility-tree index, concise filter, tap-point geometry,
+coordinate conversion, and the click / type / swipe / system-button action schema.
+MIT text is kept in the headers of the adapted Kotlin files.
+
+mobile-use (https://github.com/minitap-ai/mobile-use)
+Copyright 2025 Minitap
+Licensed under the Apache License, Version 2.0.
+Used for the observe / plan / act / verify loop, element targeting
+(resource id, then bounds, then text), and the rule that a goal is complete
+only when the next observation shows a change.
+http://www.apache.org/licenses/LICENSE-2.0
+
+KeePassDX (https://github.com/Kunzisoft/KeePassDX)
+Copyright 2019 Jeremy Jamet / Kunzisoft
+Licensed under the GNU General Public License, version 3.
+Used for autofill structure parsing: hints, HTML attributes, and Android input
+types. Adapted so parsed results keep field ids only and never password values.
+
+Bitwarden Android (https://github.com/bitwarden/android)
+Copyright Bitwarden
+Licensed under the GNU General Public License, version 3.
+Used for the autofill authentication handoff: biometric confirmation before a
+fill, and no secret material in model context.
+
+Robin vault records use the existing SecretVault interface (AES-GCM, Android
+Keystore). They are not synced to GitHub, Obsidian, or Drive.

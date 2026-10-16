@@ -123,7 +123,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToPhoneControl: () -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -256,7 +257,8 @@ fun ChatScreen(
                     } else {
                         isContextPlatformPickerOpen = true
                     }
-                }
+                },
+                onPhoneControlClick = onNavigateToPhoneControl
             )
         }
     ) { innerPadding ->
@@ -689,7 +691,8 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit
+    onChatContextItemClick: () -> Unit,
+    onPhoneControlClick: () -> Unit = {}
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -727,7 +730,8 @@ private fun ChatTopBar(
                     isDropDownMenuExpanded = false
                 },
                 onExportChatItemClick = onExportChatItemClick,
-                onChatContextItemClick = onChatContextItemClick
+                onChatContextItemClick = onChatContextItemClick,
+                onPhoneControlClick = onPhoneControlClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -741,7 +745,8 @@ fun ChatDropdownMenu(
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit = {}
+    onChatContextItemClick: () -> Unit = {},
+    onPhoneControlClick: () -> Unit = {}
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -766,6 +771,13 @@ fun ChatDropdownMenu(
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
                 onExportChatItemClick()
+                onDismissRequest()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.phone_control_title)) },
+            onClick = {
+                onPhoneControlClick()
                 onDismissRequest()
             }
         )

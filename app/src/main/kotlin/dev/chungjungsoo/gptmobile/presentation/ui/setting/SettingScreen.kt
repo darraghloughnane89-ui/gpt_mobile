@@ -60,7 +60,8 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToPhoneControl: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -145,6 +146,13 @@ fun SettingScreen(
                     title = stringResource(R.string.web_tools),
                     description = stringResource(R.string.web_tools_description),
                     onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.phone_control_title),
+                    description = stringResource(R.string.phone_control_settings_description),
+                    onItemClick = onNavigateToPhoneControl,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

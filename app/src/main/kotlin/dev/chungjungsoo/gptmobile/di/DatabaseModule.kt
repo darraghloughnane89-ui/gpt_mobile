@@ -19,8 +19,10 @@ import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.PhoneControlDao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
+import dev.chungjungsoo.gptmobile.data.database.migration.PhoneControlMigrations
 import javax.inject.Singleton
 
 @Module
@@ -43,6 +45,9 @@ object DatabaseModule {
 
     @Provides
     fun provideCompactionDao(chatDatabaseV2: ChatDatabaseV2): CompactionDao = chatDatabaseV2.compactionDao()
+
+    @Provides
+    fun providePhoneControlDao(chatDatabaseV2: ChatDatabaseV2): PhoneControlDao = chatDatabaseV2.phoneControlDao()
 
     @Provides
     fun provideChatPlatformModelV2Dao(chatDatabaseV2: ChatDatabaseV2): ChatPlatformModelV2Dao = chatDatabaseV2.chatPlatformModelDao()
@@ -86,6 +91,7 @@ object DatabaseModule {
         ChatDatabaseV2Migrations.MIGRATION_7_8,
         ChatDatabaseV2Migrations.MIGRATION_8_9,
         ChatDatabaseV2Migrations.MIGRATION_9_10,
-        ChatDatabaseV2Migrations.MIGRATION_10_11
+        ChatDatabaseV2Migrations.MIGRATION_10_11,
+        PhoneControlMigrations.MIGRATION_11_21
     ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK).build()
 }

@@ -10,6 +10,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.PhoneControlDao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
@@ -23,7 +24,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ContextCheckpointEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ModelCapacityEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.PhoneActionLogEntry
+import dev.chungjungsoo.gptmobile.data.database.entity.PhoneAllowlistEntry
+import dev.chungjungsoo.gptmobile.data.database.entity.PhoneRoutine
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.RobinVaultMeta
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
@@ -40,9 +45,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         ToolEvent::class,
         LocalModel::class,
         ContextCheckpointEntity::class,
-        ModelCapacityEntity::class
+        ModelCapacityEntity::class,
+        PhoneAllowlistEntry::class,
+        PhoneActionLogEntry::class,
+        PhoneRoutine::class,
+        RobinVaultMeta::class
     ],
-    version = 11,
+    version = 21,
     exportSchema = true
 )
 @TypeConverters(
@@ -62,4 +71,5 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun toolConnectionDao(): ToolConnectionDao
     abstract fun localModelDao(): LocalModelDao
     abstract fun compactionDao(): CompactionDao
+    abstract fun phoneControlDao(): PhoneControlDao
 }

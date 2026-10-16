@@ -137,6 +137,8 @@ dependencies {
 
     // On-device LiteRT-LM serving
     implementation(libs.litertlm)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
 
     // License page UI
     implementation(libs.auto.license.core)

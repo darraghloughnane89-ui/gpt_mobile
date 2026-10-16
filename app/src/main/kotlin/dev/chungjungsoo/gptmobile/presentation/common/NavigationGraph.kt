@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.phonecontrol.phoneControlNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -70,6 +71,7 @@ fun SetupNavGraph(
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
         chatScreenNavigation(navController)
+        phoneControlNavigation(navController)
     }
 }
 
@@ -189,7 +191,11 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onNavigateToPhoneControl = {
+                val id = it.arguments?.getInt("chatRoomId") ?: -1
+                navController.navigate("phone_control?chatRoomId=$id")
+            }
         )
     }
 }
@@ -216,7 +222,8 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToPhoneControl = { navController.navigate("phone_control?chatRoomId=-1") }
             )
         }
         composable(Route.ADD_PLATFORM) {

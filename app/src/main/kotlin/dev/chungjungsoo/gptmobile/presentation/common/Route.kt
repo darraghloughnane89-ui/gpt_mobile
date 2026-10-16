@@ -39,6 +39,9 @@ object Route {
     const val OLLAMA_SETTINGS = "ollama_settings"
     const val ABOUT_PAGE = "about"
     const val LICENSE = "license"
+    const val PHONE_CONTROL = "phone_control?chatRoomId={chatRoomId}"
+    const val PHONE_ALLOWLIST = "phone_allowlist"
+    const val PHONE_ACTION_LOG = "phone_action_log"
 
     const val MIGRATE_V2 = "migrate_v2"
 }
