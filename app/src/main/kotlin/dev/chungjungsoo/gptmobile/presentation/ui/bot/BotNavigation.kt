@@ -14,7 +14,8 @@ fun NavGraphBuilder.botNavigation(navController: NavHostController) {
             onCreateClick = { navController.navigate(Route.BOT_CREATE) },
             onEditClick = { botUid ->
                 navController.navigate(Route.BOT_EDITOR.replace("{botUid}", botUid))
-            }
+            },
+            onImportPreview = { navController.navigate(Route.PORTABLE_IMPORT) }
         )
     }
     composable(Route.BOT_CREATE) {

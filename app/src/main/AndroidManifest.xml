@@ -103,6 +103,81 @@
                     android:host="phone"
                     android:scheme="dev.chungjungsoo.gptmobile" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="import"
+                    android:scheme="robin" />
+                <data
+                    android:host="bot"
+                    android:scheme="robin" />
+                <data
+                    android:host="skill"
+                    android:scheme="robin" />
+                <data
+                    android:host="prompt"
+                    android:scheme="robin" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data
+                    android:mimeType="application/vnd.robin.bot+json"
+                    android:scheme="content" />
+                <data
+                    android:mimeType="application/vnd.robin.skill+json"
+                    android:scheme="content" />
+                <data
+                    android:mimeType="application/vnd.robin.prompt+json"
+                    android:scheme="content" />
+                <data
+                    android:mimeType="application/vnd.robin.bot+json"
+                    android:scheme="file" />
+                <data
+                    android:mimeType="application/vnd.robin.skill+json"
+                    android:scheme="file" />
+                <data
+                    android:mimeType="application/vnd.robin.prompt+json"
+                    android:scheme="file" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.robin-bot" />
+                <data android:pathPattern=".*\\.robin-skill" />
+                <data android:pathPattern=".*\\.robin-prompt" />
+                <data android:pathPattern=".*\\..*\\.robin-bot" />
+                <data android:pathPattern=".*\\..*\\.robin-skill" />
+                <data android:pathPattern=".*\\..*\\.robin-prompt" />
+                <data android:pathPattern=".*\\..*\\..*\\.robin-bot" />
+                <data android:pathPattern=".*\\..*\\..*\\.robin-skill" />
+                <data android:pathPattern=".*\\..*\\..*\\.robin-prompt" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.robin-bot" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.robin-skill" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.robin-prompt" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="application/vnd.robin.bot+json" />
+                <data android:mimeType="application/vnd.robin.skill+json" />
+                <data android:mimeType="application/vnd.robin.prompt+json" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".presentation.phone.ShareTargetActivity"

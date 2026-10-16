@@ -66,6 +66,16 @@ object Route {
      * See docs/phone-deeplinks.md.
      */
     const val VOICE_SESSION = "voice_session"
+
+    const val PORTABLE_IMPORT = "portable_import"
+    const val PORTABLE_SKILLS = "portable_skills"
+    const val PORTABLE_SKILL_EDITOR = "portable_skills/edit/{skillId}"
+    const val SAVED_PROMPTS = "saved_prompts"
+    const val SAVED_PROMPT_EDITOR = "saved_prompts/edit/{promptId}"
+
+    fun portableSkillEditor(skillId: String?): String = "portable_skills/edit/${skillId ?: "new"}"
+
+    fun savedPromptEditor(promptId: String?): String = "saved_prompts/edit/${promptId ?: "new"}"
 }
 
 fun chatRoomRoute(

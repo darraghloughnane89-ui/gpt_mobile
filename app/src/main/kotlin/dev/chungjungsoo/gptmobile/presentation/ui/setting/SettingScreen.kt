@@ -61,6 +61,8 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
+    onNavigateToSkills: () -> Unit,
+    onNavigateToSavedPrompts: () -> Unit,
     onNavigateToAboutPage: () -> Unit,
     onNavigateToVoiceSettings: () -> Unit = {}
 ) {
@@ -147,6 +149,20 @@ fun SettingScreen(
                     title = stringResource(R.string.bots),
                     description = stringResource(R.string.bots_description),
                     onItemClick = onNavigateToBots,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.portable_skills),
+                    description = stringResource(R.string.portable_skills_description),
+                    onItemClick = onNavigateToSkills,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.saved_prompts),
+                    description = stringResource(R.string.saved_prompts_description),
+                    onItemClick = onNavigateToSavedPrompts,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

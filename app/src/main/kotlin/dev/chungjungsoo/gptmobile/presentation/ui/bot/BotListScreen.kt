@@ -1,5 +1,9 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.bot
 
+import android.content.ClipData
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -31,9 +36,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +52,11 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Bot
+import dev.chungjungsoo.gptmobile.data.portable.PortableKind
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.PortableImportBridgeViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.portableLink
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.sharePortableDocument
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,13 +64,28 @@ fun BotListScreen(
     onNavigationClick: () -> Unit,
     onCreateClick: () -> Unit,
     onEditClick: (String) -> Unit,
-    viewModel: BotListViewModel = hiltViewModel()
+    onImportPreview: () -> Unit,
+    viewModel: BotListViewModel = hiltViewModel(),
+    bridge: PortableImportBridgeViewModel = hiltViewModel()
 ) {
     val bots by viewModel.bots.collectAsStateWithLifecycle()
     val canRestoreBuiltIns by viewModel.canRestoreBuiltIns.collectAsStateWithLifecycle()
+    val importedBotUids by viewModel.importedBotUids.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var pendingDelete by remember { mutableStateOf<Bot?>(null) }
     var pendingReset by remember { mutableStateOf<Bot?>(null) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val shareTitle = stringResource(R.string.share_portable_chooser)
+    val copied = stringResource(R.string.portable_link_copied)
+    val linkTooBig = stringResource(R.string.portable_link_too_large)
+    val shareFailed = stringResource(R.string.portable_share_failed)
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        bridge.inbox.offer(bridge.intake.read(context.contentResolver, uri))
+        onImportPreview()
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refresh()
@@ -70,6 +99,23 @@ fun BotListScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigationClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            launcher.launch(
+                                arrayOf(
+                                    PortableKind.BOT.mime,
+                                    PortableKind.SKILL.mime,
+                                    PortableKind.PROMPT.mime,
+                                    "application/json",
+                                    "application/octet-stream"
+                                )
+                            )
+                        }
+                    ) {
+                        Icon(Icons.Filled.FileOpen, contentDescription = stringResource(R.string.portable_import_action))
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -125,8 +171,35 @@ fun BotListScreen(
                 items(bots, key = { it.botUid }) { bot ->
                     BotListRow(
                         bot = bot,
+                        imported = bot.botUid in importedBotUids,
                         onClick = { onEditClick(bot.botUid) },
                         onDuplicate = { viewModel.duplicate(bot.botUid) },
+                        onShare = {
+                            scope.launch {
+                                val json = viewModel.exportJson(bot.botUid)
+                                if (json == null) {
+                                    Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    runCatching {
+                                        sharePortableDocument(context, json, PortableKind.BOT, bot.name, shareTitle)
+                                    }.onFailure {
+                                        Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        },
+                        onCopyLink = {
+                            scope.launch {
+                                val json = viewModel.exportJson(bot.botUid)
+                                val link = json?.let(::portableLink)
+                                if (link == null) {
+                                    Toast.makeText(context, linkTooBig, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("robin", link)))
+                                    Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
                         onReset = if (bot.builtin) {
                             { pendingReset = bot }
                         } else {
@@ -189,8 +262,11 @@ fun BotListScreen(
 @Composable
 private fun BotListRow(
     bot: Bot,
+    imported: Boolean,
     onClick: () -> Unit,
     onDuplicate: () -> Unit,
+    onShare: () -> Unit,
+    onCopyLink: () -> Unit,
     onReset: (() -> Unit)?,
     onDelete: () -> Unit
 ) {
@@ -210,6 +286,13 @@ private fun BotListRow(
                         text = stringResource(R.string.built_in_bot),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (imported) {
+                    Text(
+                        text = stringResource(R.string.portable_imported_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
                 Text(
@@ -237,6 +320,20 @@ private fun BotListRow(
                         onClick = {
                             menuExpanded = false
                             onDuplicate()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.share_portable)) },
+                        onClick = {
+                            menuExpanded = false
+                            onShare()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.portable_copy_link)) },
+                        onClick = {
+                            menuExpanded = false
+                            onCopyLink()
                         }
                     )
                     if (onReset != null) {

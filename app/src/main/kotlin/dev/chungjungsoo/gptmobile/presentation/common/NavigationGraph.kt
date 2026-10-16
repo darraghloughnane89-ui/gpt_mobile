@@ -27,6 +27,9 @@ import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.PortableImportEffect
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.portableLibraryNavigation
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.portableNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
@@ -55,6 +58,7 @@ fun SetupNavGraph(
     voiceLaunchEnabled: Boolean = false
 ) {
     PhoneDeepLinkEffect(navController)
+    PortableImportEffect(navController)
     NavHost(
         modifier = Modifier
             .fillMaxSize()
@@ -74,6 +78,7 @@ fun SetupNavGraph(
     ) {
         homeScreenNavigation(navController)
         projectsNavigation(navController)
+        portableNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
@@ -249,6 +254,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
+                onNavigateToSkills = { navController.navigate(Route.PORTABLE_SKILLS) },
+                onNavigateToSavedPrompts = { navController.navigate(Route.SAVED_PROMPTS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
                 onNavigateToVoiceSettings = { navController.navigate(Route.VOICE_SETTINGS) }
             )
@@ -309,6 +316,7 @@ fun NavGraphBuilder.settingNavigation(
             )
         }
         botNavigation(navController)
+        portableLibraryNavigation(navController)
         composable(Route.ABOUT_PAGE) {
             AboutScreen(
                 onNavigationClick = { navController.navigateUp() },

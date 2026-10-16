@@ -9,6 +9,7 @@ import dev.chungjungsoo.gptmobile.data.bot.BotRepository
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
+import dev.chungjungsoo.gptmobile.data.portable.PortableLibraryStore
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import java.util.UUID
@@ -25,6 +26,7 @@ data class BotEditorUiState(
     val mcpConnections: List<ToolConnection> = emptyList(),
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
+    val imported: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -33,7 +35,8 @@ class BotEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val botRepository: BotRepository,
     private val settingRepository: SettingRepository,
-    private val toolConnectionRepository: ToolConnectionRepository
+    private val toolConnectionRepository: ToolConnectionRepository,
+    private val library: PortableLibraryStore
 ) : ViewModel() {
     private val editingUid: String? = savedStateHandle.get<String>("botUid")
     private val _uiState = MutableStateFlow(BotEditorUiState())
@@ -109,12 +112,14 @@ class BotEditorViewModel @Inject constructor(
         } else {
             BotDraft.fromBot(bot, bindings)
         }
+        val imported = bot?.let { library.snapshot().importedBotUids.contains(it.botUid) } == true
         _uiState.value = BotEditorUiState(
             draft = draft,
             platforms = platforms,
             searchConnections = connections.filter { it.type != ToolConnectionType.MCP },
             mcpConnections = connections.filter { it.type == ToolConnectionType.MCP },
             isLoading = false,
+            imported = imported,
             errorMessage = if (editingUid != null && bot == null) "This bot was deleted." else null
         )
     }
