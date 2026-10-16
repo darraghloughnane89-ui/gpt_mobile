@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.DefaultRequest
@@ -21,7 +22,8 @@ import kotlinx.serialization.json.Json
 
 @Singleton
 class NetworkClient @Inject constructor(
-    private val httpEngine: HttpClientEngineFactory<*>
+    private val httpEngine: HttpClientEngineFactory<*>,
+    private val secretVault: SecretVault? = null
 ) {
 
     private val client by lazy {
@@ -36,6 +38,10 @@ class NetworkClient @Inject constructor(
 
             install(HttpRequestRetry) { noRetry() }
             install(HttpTimeout)
+
+            install(VaultHeaderPlugin) {
+                vault = secretVault
+            }
 
             install(Logging) {
                 logger = Logger.DEFAULT

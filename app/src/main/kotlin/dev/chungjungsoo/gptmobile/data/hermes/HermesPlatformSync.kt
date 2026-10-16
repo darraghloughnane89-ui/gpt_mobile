@@ -10,11 +10,13 @@ import javax.inject.Singleton
 class HermesPlatformSync @Inject constructor(
     private val settingRepository: SettingRepository
 ) {
-    suspend fun sync(settings: HermesSettings, token: String?) {
+    suspend fun sync(settings: HermesSettings, @Suppress("UNUSED_PARAMETER") token: String?) {
         val existing = settingRepository.fetchPlatformV2s().firstOrNull { it.uid == HermesDefaults.PLATFORM_UID }
         if (!settings.chatModelEnabled) {
             if (existing != null && existing.enabled) {
-                settingRepository.updatePlatformV2(existing.copy(enabled = false, token = token ?: existing.token))
+                settingRepository.updatePlatformV2(
+                    existing.copy(enabled = false, token = null, secretRef = HermesDefaults.SECRET_REF)
+                )
             }
             return
         }
@@ -41,7 +43,8 @@ class HermesPlatformSync @Inject constructor(
             enabled = true,
             apiUrl = apiUrl,
             model = model,
-            token = token ?: existing?.token,
+            token = null,
+            secretRef = HermesDefaults.SECRET_REF,
             stream = true,
             timeout = HermesDefaults.PLATFORM_TIMEOUT_SECONDS,
             systemPrompt = null

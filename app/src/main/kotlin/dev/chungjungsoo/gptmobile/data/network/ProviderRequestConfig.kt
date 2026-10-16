@@ -7,7 +7,8 @@ data class ProviderRequestConfig(
     val token: String?,
     val anthropicBetaFeatures: Set<String> = emptySet(),
     val resumableReplies: Boolean = false,
-    val onUnconfirmedRemoteCancellation: (suspend (responseId: String) -> Unit)? = null
+    val onUnconfirmedRemoteCancellation: (suspend (responseId: String) -> Unit)? = null,
+    val secretRef: String? = null
 )
 
 internal fun throwIfToolDefinitionsRejected(

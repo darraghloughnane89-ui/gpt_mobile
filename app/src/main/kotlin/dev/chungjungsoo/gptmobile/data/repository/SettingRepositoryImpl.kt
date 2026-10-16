@@ -7,6 +7,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
+import dev.chungjungsoo.gptmobile.data.hermes.HermesDefaults
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
@@ -55,7 +56,7 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun fetchPlatformV2s(): List<PlatformV2> = platformV2Dao.getPlatforms().map { platform ->
-        resolvePlatformToken(platform)
+        if (platform.isHermesChatPlatform()) platform.asHermesVaultReference() else resolvePlatformToken(platform)
     }
 
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
@@ -160,7 +161,7 @@ class SettingRepositoryImpl @Inject constructor(
             ?: platform.id.takeIf { it > 0 }?.let { platformV2Dao.getPlatform(it)?.secretRef }
         val securedPlatform = securePlatform(platform)
         platformV2Dao.editPlatform(securedPlatform)
-        if (previousSecretRef != securedPlatform.secretRef) {
+        if (previousSecretRef != securedPlatform.secretRef && previousSecretRef != HermesDefaults.SECRET_REF) {
             previousSecretRef?.let { secretVault.delete(it) }
         }
     }
@@ -170,14 +171,17 @@ class SettingRepositoryImpl @Inject constructor(
             ?: platform.id.takeIf { it > 0 }?.let { platformV2Dao.getPlatform(it)?.secretRef }
         chatPlatformModelV2Dao.deleteByPlatformUid(platform.uid)
         platformV2Dao.deletePlatform(platform)
-        secretRef?.let { secretVault.delete(it) }
+        if (secretRef != null && secretRef != HermesDefaults.SECRET_REF) {
+            secretVault.delete(secretRef)
+        }
     }
 
     override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)?.let { platform ->
-        resolvePlatformToken(platform)
+        if (platform.isHermesChatPlatform()) platform.asHermesVaultReference() else resolvePlatformToken(platform)
     }
 
     private suspend fun securePlatform(platform: PlatformV2): PlatformV2 {
+        if (platform.isHermesChatPlatform()) return platform.asHermesVaultReference()
         val secret = platform.token
         if (secret == null) {
             return platform.copy(token = null, secretRef = null)
@@ -189,10 +193,15 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     private suspend fun resolvePlatformToken(platform: PlatformV2): PlatformV2 {
+        if (platform.isHermesChatPlatform()) return platform.asHermesVaultReference()
         if (platform.token != null) return platform
         val secretRef = platform.secretRef ?: return platform
         return platform.copy(token = readSecret(secretRef))
     }
+
+    private fun PlatformV2.isHermesChatPlatform(): Boolean = uid == HermesDefaults.PLATFORM_UID || secretRef == HermesDefaults.SECRET_REF
+
+    private fun PlatformV2.asHermesVaultReference(): PlatformV2 = copy(token = null, secretRef = HermesDefaults.SECRET_REF)
 
     private suspend fun resolveLegacyToken(apiType: ApiType): String? = settingDataSource.getToken(apiType)
         ?: readSecret(legacySecretRef(apiType))

@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.network.GroqAPIImpl
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPIImpl
+import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.ktor.client.engine.cio.CIO
 import javax.inject.Singleton
 
@@ -22,7 +23,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideNetworkClient(): NetworkClient = NetworkClient(CIO)
+    fun provideNetworkClient(secretVault: SecretVault): NetworkClient = NetworkClient(CIO, secretVault)
 
     @Provides
     @Singleton
