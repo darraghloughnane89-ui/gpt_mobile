@@ -108,6 +108,7 @@ fun ChatModelDialog(
     remoteStatus: Map<String, String?> = emptyMap(),
     onRefreshRemote: (String) -> Unit = {},
     ggufModels: List<GgufModelRecord> = emptyList(),
+    ggufDefaultModelId: String? = null,
     onNavigateToGgufModels: () -> Unit = {},
     onDismissRequest: () -> Unit,
     onConfirmRequest: (Map<String, String>) -> Unit
@@ -159,7 +160,8 @@ fun ChatModelDialog(
                                     models = models.toMutableMap().apply { put(platformUid, record.id) }
                                 },
                                 onManage = onNavigateToGgufModels,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                defaultModelId = ggufDefaultModelId
                             )
                         }
 

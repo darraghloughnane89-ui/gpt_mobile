@@ -23,7 +23,10 @@ private data class GgufIndex(
 @Singleton
 class GgufModelStore {
     private val root: File
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+    }
     private val mutex = Mutex()
 
     @Inject
@@ -42,6 +45,33 @@ class GgufModelStore {
     }
 
     fun fileFor(record: GgufModelRecord): File = File(filesDir(), record.fileName)
+
+    fun partialDirectory(): File = File(root, "partials").apply { mkdirs() }
+
+    fun partialFile(downloadKey: String): File {
+        require(GgufPartialFiles.isSafeKey(downloadKey)) { "Invalid download id" }
+        return File(partialDirectory(), "$downloadKey.gguf.partial")
+    }
+
+    suspend fun partialSizes(): Map<String, Long> = withContext(Dispatchers.IO) {
+        val directory = File(root, "partials")
+        if (!directory.isDirectory) return@withContext emptyMap()
+        directory.listFiles().orEmpty()
+            .filter { it.isFile && it.name.endsWith(GgufPartialFiles.PARTIAL_SUFFIX) }
+            .associate { file ->
+                file.name.removeSuffix(GgufPartialFiles.PARTIAL_SUFFIX) to file.length()
+            }
+    }
+
+    suspend fun findByCatalogOrHash(catalogId: String?, sha256: String?): GgufModelRecord? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            readIndex().models.firstOrNull { record ->
+                val sameCatalog = !catalogId.isNullOrBlank() && record.catalogId == catalogId
+                val sameHash = !sha256.isNullOrBlank() && record.sha256.equals(sha256, ignoreCase = true)
+                sameCatalog || sameHash
+            }
+        }
+    }
 
     suspend fun importStream(
         displayName: String,
@@ -75,6 +105,58 @@ class GgufModelStore {
                 contextSize = GgufRamPolicy.clampContext(fromFile ?: assessment.recommendedContext, totalMemBytes),
                 sourceLabel = sourceLabel,
                 createdAtEpochMs = System.currentTimeMillis()
+            )
+            mutex.withLock {
+                val current = readIndex().models
+                writeIndex(GgufIndex(current + record))
+            }
+            record
+        } catch (error: Throwable) {
+            destination.delete()
+            throw error
+        }
+    }
+
+    suspend fun adoptFile(
+        displayName: String,
+        sourceLabel: String?,
+        source: File,
+        totalMemBytes: Long,
+        sha256: String?,
+        licenseName: String?,
+        catalogId: String?
+    ): GgufModelRecord = withContext(Dispatchers.IO) {
+        val id = UUID.randomUUID().toString().replace("-", "")
+        val safeName = "$id.gguf"
+        filesDir().mkdirs()
+        val destination = File(filesDir(), safeName)
+        if (!source.renameTo(destination)) {
+            source.copyTo(destination, overwrite = true)
+            source.delete()
+        }
+        try {
+            if (!GgufMetadata.isGguf(destination)) {
+                destination.delete()
+                error("That file is not a GGUF model")
+            }
+            val size = destination.length()
+            val assessment = GgufRamPolicy.assess(size, totalMemBytes)
+            if (assessment.fit == RamFit.REFUSE) {
+                destination.delete()
+                error(assessment.detail ?: "Model is too large for this device")
+            }
+            val fromFile = GgufMetadata.contextLength(destination)?.takeIf { it in 1..Int.MAX_VALUE.toLong() }?.toInt()
+            val record = GgufModelRecord(
+                id = id,
+                displayName = displayName.ifBlank { "GGUF model" },
+                fileName = safeName,
+                sizeBytes = size,
+                contextSize = GgufRamPolicy.clampContext(fromFile ?: assessment.recommendedContext, totalMemBytes),
+                sourceLabel = sourceLabel,
+                createdAtEpochMs = System.currentTimeMillis(),
+                sha256 = sha256?.lowercase(),
+                licenseName = licenseName,
+                catalogId = catalogId
             )
             mutex.withLock {
                 val current = readIndex().models

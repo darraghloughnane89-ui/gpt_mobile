@@ -328,6 +328,15 @@ fun AddPlatformScreen(
                         val ggufViewModel: dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelsViewModel = hiltViewModel()
                         val ggufState by ggufViewModel.uiState.collectAsStateWithLifecycle()
                         Spacer(modifier = Modifier.height(16.dp))
+                        dev.chungjungsoo.gptmobile.presentation.ui.gguf.SelectDefaultGgufWhenUnset(
+                            defaultModelId = ggufState.defaultModelId,
+                            models = ggufState.models,
+                            selectedId = model,
+                            onSelect = { record ->
+                                model = record.id
+                                ggufTemperature = record.temperature
+                            }
+                        )
                         dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices(
                             models = ggufState.models,
                             selectedId = model,
@@ -335,7 +344,8 @@ fun AddPlatformScreen(
                                 model = record.id
                                 ggufTemperature = record.temperature
                             },
-                            onManage = onNavigateToGgufModels
+                            onManage = onNavigateToGgufModels,
+                            defaultModelId = ggufState.defaultModelId
                         )
                     } else {
                         Spacer(modifier = Modifier.height(16.dp))

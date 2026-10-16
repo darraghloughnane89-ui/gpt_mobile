@@ -61,6 +61,7 @@ fun ChatModelDialogHost(
             catalog.refresh(platform.compatibleType, platform.apiUrl, platform.token)
         },
         ggufModels = ggufState.models,
+        ggufDefaultModelId = ggufState.defaultModelId,
         onNavigateToGgufModels = onNavigateToGgufModels,
         onDismissRequest = onDismissRequest,
         onConfirmRequest = onConfirmRequest

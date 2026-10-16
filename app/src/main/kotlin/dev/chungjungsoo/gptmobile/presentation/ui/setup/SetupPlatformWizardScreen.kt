@@ -172,12 +172,19 @@ fun SetupPlatformWizardScreen(
                             if (selectedClientType == ClientType.LLAMA_CPP) {
                                 val ggufViewModel: dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelsViewModel = hiltViewModel()
                                 val ggufState by ggufViewModel.uiState.collectAsStateWithLifecycle()
+                                dev.chungjungsoo.gptmobile.presentation.ui.gguf.SelectDefaultGgufWhenUnset(
+                                    defaultModelId = ggufState.defaultModelId,
+                                    models = ggufState.models,
+                                    selectedId = currentModel,
+                                    onSelect = { record -> setupViewModel.selectGgufModel(record.id, record.temperature) }
+                                )
                                 dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices(
                                     models = ggufState.models,
                                     selectedId = currentModel,
                                     onSelected = { record -> setupViewModel.selectGgufModel(record.id, record.temperature) },
                                     onManage = onNavigateToGgufModels,
-                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                    modifier = Modifier.padding(horizontal = 24.dp),
+                                    defaultModelId = ggufState.defaultModelId
                                 )
                             } else if (selectedClientType == ClientType.LITERT_LM) {
                                 LocalModelStep(

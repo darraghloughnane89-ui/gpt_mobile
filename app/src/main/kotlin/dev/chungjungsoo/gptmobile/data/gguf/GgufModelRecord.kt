@@ -11,5 +11,8 @@ data class GgufModelRecord(
     val contextSize: Int = GgufRamPolicy.DEFAULT_CONTEXT,
     val temperature: Float = 0.8f,
     val sourceLabel: String? = null,
-    val createdAtEpochMs: Long = 0L
+    val createdAtEpochMs: Long = 0L,
+    val sha256: String? = null,
+    val licenseName: String? = null,
+    val catalogId: String? = null
 )

@@ -5,15 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.gguf.DeviceMemory
-import dev.chungjungsoo.gptmobile.data.gguf.GgufDownloader
+import dev.chungjungsoo.gptmobile.data.gguf.GgufDownloadSnapshot
+import dev.chungjungsoo.gptmobile.data.gguf.GgufDownloadState
+import dev.chungjungsoo.gptmobile.data.gguf.GgufModelCoordinator
 import dev.chungjungsoo.gptmobile.data.gguf.GgufModelRecord
 import dev.chungjungsoo.gptmobile.data.gguf.GgufModelStore
+import dev.chungjungsoo.gptmobile.data.gguf.GgufPendingDownload
 import dev.chungjungsoo.gptmobile.data.gguf.GgufRamPolicy
-import dev.chungjungsoo.gptmobile.data.network.NetworkClient
-import java.io.File
+import dev.chungjungsoo.gptmobile.data.gguf.GgufStartResult
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,8 +24,10 @@ import kotlinx.coroutines.launch
 data class GgufModelsUiState(
     val models: List<GgufModelRecord> = emptyList(),
     val isLoading: Boolean = true,
-    val downloadFraction: Float? = null,
-    val downloadLabel: String? = null,
+    val downloads: List<GgufDownloadSnapshot> = emptyList(),
+    val partialBytes: Map<String, Long> = emptyMap(),
+    val defaultModelId: String? = null,
+    val pendingConfirmation: GgufPendingDownload? = null,
     val message: String? = null,
     val editing: GgufModelRecord? = null
 )
@@ -33,14 +36,34 @@ data class GgufModelsUiState(
 class GgufModelsViewModel @Inject constructor(
     private val store: GgufModelStore,
     private val memory: DeviceMemory,
-    networkClient: NetworkClient
+    private val coordinator: GgufModelCoordinator
 ) : ViewModel() {
-    private val downloader = GgufDownloader(networkClient())
     private val _uiState = MutableStateFlow(GgufModelsUiState())
     val uiState: StateFlow<GgufModelsUiState> = _uiState.asStateFlow()
-    private var downloadJob: Job? = null
+    private val seenSuccess = mutableSetOf<String>()
+    private var reportedFailure: String? = null
 
     init {
+        viewModelScope.launch {
+            coordinator.pending.collect { pending ->
+                _uiState.update { it.copy(pendingConfirmation = pending) }
+            }
+        }
+        viewModelScope.launch {
+            coordinator.downloads.collect { downloads ->
+                _uiState.update { it.copy(downloads = downloads) }
+                val failure = downloads.firstOrNull { it.state == GgufDownloadState.FAILED }?.errorMessage
+                if (!failure.isNullOrBlank() && failure != reportedFailure) {
+                    reportedFailure = failure
+                    _uiState.update { it.copy(message = failure) }
+                }
+                val finished = downloads.filter { it.state == GgufDownloadState.SUCCEEDED }.map { it.downloadKey }
+                if (finished.any { it !in seenSuccess }) {
+                    seenSuccess += finished
+                    refresh()
+                }
+            }
+        }
         refresh()
     }
 
@@ -48,7 +71,16 @@ class GgufModelsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val models = runCatching { store.list() }.getOrDefault(emptyList())
-            _uiState.update { it.copy(isLoading = false, models = models) }
+            val defaultId = runCatching { coordinator.defaultModelId() }.getOrNull()
+            val partials = runCatching { store.partialSizes() }.getOrDefault(emptyMap())
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    models = models,
+                    defaultModelId = defaultId?.takeIf { id -> models.any { model -> model.id == id } },
+                    partialBytes = partials
+                )
+            }
         }
     }
 
@@ -73,47 +105,48 @@ class GgufModelsViewModel @Inject constructor(
         }
     }
 
-    fun download(url: String, cacheDir: File) {
-        val trimmed = url.trim()
-        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-            _uiState.update { it.copy(message = "Enter an http or https URL") }
-            return
-        }
-        downloadJob?.cancel()
-        downloadJob = viewModelScope.launch {
-            val name = trimmed.substringAfterLast('/').substringBefore('?').ifBlank { "model.gguf" }
-            val safe = name.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }.ifBlank { "model.gguf" }
-            val temp = File(cacheDir, "gguf-download-$safe")
-            _uiState.update { it.copy(downloadFraction = 0f, downloadLabel = safe, message = null) }
-            val downloaded = runCatching {
-                downloader.download(trimmed, temp) { read, total ->
-                    val fraction = if (total != null && total > 0L) read.toFloat() / total.toFloat() else 0f
-                    _uiState.update { state -> state.copy(downloadFraction = fraction.coerceIn(0f, 1f)) }
-                }
-                store.importStream(
-                    displayName = safe.removeSuffix(".gguf"),
-                    sourceLabel = trimmed,
-                    input = temp.inputStream(),
-                    sizeHint = temp.length(),
-                    totalMemBytes = memory.totalBytes()
-                )
-            }
-            temp.delete()
-            publish(downloaded.exceptionOrNull())
-            _uiState.update { it.copy(downloadFraction = null, downloadLabel = null) }
-            if (downloaded.isSuccess) refresh()
+    fun downloadCatalog(catalogId: String) {
+        viewModelScope.launch {
+            publishResult(coordinator.requestCatalogDownload(catalogId))
         }
     }
 
-    fun cancelDownload() {
-        downloadJob?.cancel()
-        downloadJob = null
-        _uiState.update { it.copy(downloadFraction = null, downloadLabel = null, message = null) }
+    fun downloadUrl(url: String) {
+        viewModelScope.launch {
+            publishResult(coordinator.requestPastedUrl(url))
+        }
+    }
+
+    fun confirmDownload() {
+        viewModelScope.launch {
+            publishResult(coordinator.confirmPending())
+        }
+    }
+
+    fun dismissDownloadConfirmation() {
+        coordinator.dismissPending()
+    }
+
+    fun cancelDownload(downloadKey: String) {
+        coordinator.cancelDownload(downloadKey)
+    }
+
+    fun discardPartial(downloadKey: String) {
+        coordinator.discardPartial(downloadKey)
+        refresh()
+    }
+
+    fun setDefault(modelId: String) {
+        viewModelScope.launch {
+            val result = runCatching { coordinator.setDefault(modelId) }
+            publish(result.exceptionOrNull())
+            if (result.isSuccess) refresh()
+        }
     }
 
     fun delete(id: String) {
         viewModelScope.launch {
-            store.delete(id)
+            coordinator.deleteInstalled(id)
             refresh()
         }
     }
@@ -141,6 +174,14 @@ class GgufModelsViewModel @Inject constructor(
         _uiState.update { it.copy(message = null) }
     }
 
+    private fun publishResult(result: GgufStartResult) {
+        when (result) {
+            GgufStartResult.Started, GgufStartResult.AlreadyRunning -> Unit
+            is GgufStartResult.NeedsConfirmation -> Unit
+            is GgufStartResult.Rejected -> _uiState.update { it.copy(message = result.message) }
+        }
+    }
+
     private fun displayName(context: android.content.Context, uri: Uri): String = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
         val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
         if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
@@ -149,10 +190,5 @@ class GgufModelsViewModel @Inject constructor(
     private fun publish(error: Throwable?) {
         if (error is CancellationException) return
         _uiState.update { it.copy(message = error?.message) }
-    }
-
-    override fun onCleared() {
-        downloadJob?.cancel()
-        super.onCleared()
     }
 }
