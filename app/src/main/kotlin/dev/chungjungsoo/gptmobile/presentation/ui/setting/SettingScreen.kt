@@ -46,6 +46,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.util.Brand
 import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
@@ -60,7 +61,8 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToObsidianSync: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -150,6 +152,13 @@ fun SettingScreen(
                 )
             }
             SettingsSection(title = stringResource(R.string.settings_app)) {
+                SettingItem(
+                    title = stringResource(R.string.obsidian_sync_settings_title, Brand.NAME),
+                    description = stringResource(R.string.obsidian_sync_settings_description),
+                    onItemClick = onNavigateToObsidianSync,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
 
