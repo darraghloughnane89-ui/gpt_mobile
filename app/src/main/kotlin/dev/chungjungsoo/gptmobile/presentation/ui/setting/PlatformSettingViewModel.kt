@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
+import dev.chungjungsoo.gptmobile.data.gguf.GgufModelStore
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.localmodel.SocVariantResolver
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorOption
@@ -21,6 +22,9 @@ import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.localruntime.resolvedEngineMaxTokens
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import dev.chungjungsoo.gptmobile.data.model.usesOpenAiCompatibleBaseUrl
+import dev.chungjungsoo.gptmobile.data.oauth.ProviderOAuthSessionStore
+import dev.chungjungsoo.gptmobile.data.provider.OpenAiCompatiblePresets
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -59,6 +63,8 @@ class PlatformSettingViewModel @Inject constructor(
     private val agentToolResolver: AgentToolResolver,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val localModelRepository: LocalModelRepository,
+    private val ggufModelStore: GgufModelStore,
+    private val oauthSessions: ProviderOAuthSessionStore,
     @param:DeviceSocModel private val deviceSocModel: String,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -187,6 +193,18 @@ class PlatformSettingViewModel @Inject constructor(
             }
             return
         }
+        if (enabling && platform.compatibleType == ClientType.LLAMA_CPP) {
+            viewModelScope.launch {
+                val model = ggufModelStore.get(platform.model)
+                val file = model?.let(ggufModelStore::fileFor)
+                if (model == null || file == null || !file.isFile) {
+                    _userMessage.value = R.string.gguf_enable_model_missing
+                    return@launch
+                }
+                updatePlatform(platform.copy(enabled = true))
+            }
+            return
+        }
         updatePlatform(platform.copy(enabled = !platform.enabled))
     }
 
@@ -252,12 +270,25 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun updateApiUrl(url: String) {
         _platformState.value?.let { platform ->
-            updatePlatform(platform.copy(apiUrl = url.trim()))
+            val normalized = if (platform.compatibleType.usesOpenAiCompatibleBaseUrl()) {
+                OpenAiCompatiblePresets.normalizeBaseUrl(url)
+            } else {
+                url.trim()
+            }
+            updatePlatform(platform.copy(apiUrl = normalized))
             closeApiUrlDialog()
         }
     }
 
     fun updateApiToken(token: String) {
+        _platformState.value?.let { platform ->
+            viewModelScope.launch { oauthSessions.clear(platform.uid) }
+            updatePlatform(platform.copy(token = token.trim().takeIf { it.isNotEmpty() }))
+            closeApiTokenDialog()
+        }
+    }
+
+    fun applySignedInToken(token: String) {
         _platformState.value?.let { platform ->
             updatePlatform(platform.copy(token = token.trim().takeIf { it.isNotEmpty() }))
             closeApiTokenDialog()

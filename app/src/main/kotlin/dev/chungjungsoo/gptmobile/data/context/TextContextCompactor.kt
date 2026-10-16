@@ -1,7 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.context
 
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
-import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
 
 class TextContextCompactor(
     private val generator: SamePlatformTextGenerator
@@ -16,7 +16,7 @@ class TextContextCompactor(
         )
         val summaryPlatform = input.platform.copy(
             reasoning = false,
-            maxTokens = if (input.platform.compatibleType == ClientType.LITERT_LM) input.platform.maxTokens else input.targetTokens,
+            maxTokens = if (input.platform.compatibleType.isOnDevice()) input.platform.maxTokens else input.targetTokens,
             resumableReplies = false
         )
         val summary = generator.generate(

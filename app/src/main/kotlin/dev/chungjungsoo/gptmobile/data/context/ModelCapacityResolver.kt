@@ -4,14 +4,17 @@ import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.resolvedEngineMaxTokens
+import dev.chungjungsoo.gptmobile.data.gguf.GgufRamPolicy
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 
 open class ModelCapacityResolver(
     private val store: CompactionStore,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val deviceSocModel: String,
-    private val remoteLookup: RemoteContextWindowLookup = RemoteContextWindowLookup { null }
+    private val remoteLookup: RemoteContextWindowLookup = RemoteContextWindowLookup { null },
+    private val ggufContextTokens: suspend (PlatformV2) -> Int? = { null }
 ) {
     open suspend fun resolve(platform: PlatformV2): ModelCapacityResolution {
         val stored = store.getCapacity(platform.uid, platform.apiUrl, platform.model)
@@ -67,6 +70,9 @@ open class ModelCapacityResolver(
     }
 
     private suspend fun detectLocal(platform: PlatformV2): Int? {
+        if (platform.compatibleType == ClientType.LLAMA_CPP) {
+            return ggufContextTokens(platform)?.takeIf { it > 0 } ?: GgufRamPolicy.DEFAULT_CONTEXT
+        }
         val entry = modelCatalogRepository.getCachedVisibleEntries().firstOrNull { it.id == platform.model }
         val requested = platform.maxTokens?.takeIf { it > 0 } ?: LiteRtLmAdapter.DEFAULT_MAX_TOKENS
         return resolvedEngineMaxTokens(
@@ -82,7 +88,7 @@ open class ModelCapacityResolver(
         return if (isLocal(platform) && detected != null) minOf(override, detected) else override
     }
 
-    private fun isLocal(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.LITERT_LM
+    private fun isLocal(platform: PlatformV2): Boolean = platform.compatibleType.isOnDevice()
 
     companion object {
         fun supportsResumableReplies(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.OPENAI &&

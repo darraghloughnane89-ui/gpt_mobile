@@ -594,4 +594,43 @@
     <string name="chat_context_timeout">Compaction timed out. The transcript and last valid checkpoint were kept.</string>
     <string name="agent_run_timeout">The response timed out. Partial output was kept.</string>
     <string name="agent_run_save_failed">Could not save this reply.</string>
+    <string name="xai" translatable="false">Grok</string>
+    <string name="xai_description">Chat with xAI Grok through the OpenAI-compatible API.</string>
+    <string name="client_type_xai_desc">xAI Grok at api.x.ai, with streaming and image input where the model supports it</string>
+    <string name="llama_cpp">GGUF</string>
+    <string name="llama_cpp_description">Run a GGUF model on this device with llama.cpp. No API key.</string>
+    <string name="client_type_llama_cpp_desc">On-device GGUF chat via llama.cpp</string>
+    <string name="gguf_models">GGUF models</string>
+    <string name="gguf_models_description">Import or download GGUF weights for offline chat</string>
+    <string name="gguf_add_model">Add a GGUF model</string>
+    <string name="gguf_add_model_description">Import a .gguf file, or download one from an http or https URL. Generation streams into the chat, and the chat stop button cancels it. Files that cannot fit in device memory are refused.</string>
+    <string name="gguf_import">Import .gguf file</string>
+    <string name="gguf_download_url">Model URL</string>
+    <string name="gguf_download">Download</string>
+    <string name="gguf_stop_download">Stop download</string>
+    <string name="gguf_empty_title">No GGUF models yet</string>
+    <string name="gguf_empty_description">Import a .gguf file or download one, then choose it for a GGUF platform.</string>
+    <string name="gguf_parameters">Context and temperature</string>
+    <string name="gguf_parameters_description">Context is how much of the chat this file can hold. Low-memory devices keep the context small. Temperature here is the default for a new platform.</string>
+    <string name="gguf_context">Context tokens</string>
+    <string name="gguf_model_summary">Context %1$d · temperature %2$.2f · %3$s</string>
+    <string name="gguf_selected">Selected</string>
+    <string name="gguf_manage">Manage GGUF models</string>
+    <string name="gguf_enable_model_missing">Import this GGUF model before enabling the platform.</string>
+    <string name="search_models">Search models</string>
+    <string name="refresh_models">Refresh model list</string>
+    <string name="model_id_override">Model id</string>
+    <string name="model_id_override_supporting">Pick a model below or type an id. The typed id is what gets saved.</string>
+    <string name="model_list_empty">No models match that search. Type an id to use one anyway.</string>
+    <string name="openai_compatible_presets">OpenAI-compatible endpoints</string>
+    <string name="openai_compatible_presets_description">Fill the API URL for a common server. You can still edit it.</string>
+    <string name="xai_vision_note">Images are sent as OpenAI image parts. Refresh the list to see which Grok models report image input.</string>
+    <string name="mimo" translatable="false">MiMo</string>
+    <string name="mimo_description">Chat with Xiaomi MiMo. The API URL stays editable, and the Europe token-plan host is the default.</string>
+    <string name="client_type_mimo_desc">Xiaomi MiMo at the token-plan endpoint, with streaming chat plus ASR and TTS model ids</string>
+    <string name="provider_sign_in">Sign in</string>
+    <string name="provider_sign_in_code">Authorization code</string>
+    <string name="provider_sign_in_exchange">Use code</string>
+    <string name="provider_sign_in_openrouter">OpenRouter sign-in opens a browser, then stores a user API key in the keystore. There is no refresh token. Paste a key if you already have one.</string>
+    <string name="provider_sign_in_xai">xAI sign-in uses a browser and PKCE. Tokens stay in the keystore and refresh until the login expires. A subscription may still be required. Paste a key if sign-in is declined.</string>
 </resources>

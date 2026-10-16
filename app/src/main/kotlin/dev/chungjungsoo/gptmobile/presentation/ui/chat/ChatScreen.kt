@@ -123,7 +123,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToGgufModels: () -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -402,13 +403,14 @@ fun ChatScreen(
             val platformNames = chatViewModel.enabledPlatformsInChat.associateWith { uid ->
                 appAllPlatforms.find { it.uid == uid }?.name ?: stringResource(R.string.unknown)
             }
-            ChatModelDialog(
+            ChatModelDialogHost(
+                platforms = appAllPlatforms,
                 platformOrder = chatViewModel.enabledPlatformsInChat,
                 initialModels = chatPlatformModels,
                 platformNames = platformNames,
-                platformClientTypes = appAllPlatforms.associate { it.uid to it.compatibleType },
                 downloadedLocalModels = downloadedLocalModels,
                 onNavigateToLocalModels = onNavigateToLocalModels,
+                onNavigateToGgufModels = onNavigateToGgufModels,
                 onDismissRequest = chatViewModel::closeChatModelDialog,
                 onConfirmRequest = { models ->
                     chatViewModel.updateChatPlatformModels(models)

@@ -74,10 +74,20 @@ extensions.configure<ApplicationExtension> {
         buildConfig = true
     }
     packaging {
+        jniLibs {
+            // llama.cpp ships arm64-v8a and x86_64 in the AAR. Keep the phone ABI only.
+            excludes += "**/x86_64/libjllama.so"
+            excludes += "**/x86/libjllama.so"
+            excludes += "**/armeabi-v7a/libjllama.so"
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/io.netty.versions.properties"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
         }
     }
 }
@@ -137,6 +147,9 @@ dependencies {
 
     // On-device LiteRT-LM serving
     implementation(libs.litertlm)
+
+    // On-device GGUF via llama.cpp (arm64-v8a). x86_64 is packaged in the AAR and excluded above.
+    implementation(libs.llama.android)
 
     // License page UI
     implementation(libs.auto.license.core)

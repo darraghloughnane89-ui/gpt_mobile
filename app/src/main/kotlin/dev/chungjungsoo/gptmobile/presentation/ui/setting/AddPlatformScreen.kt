@@ -53,6 +53,9 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
+import dev.chungjungsoo.gptmobile.data.model.usesOpenAiCompatibleBaseUrl
+import dev.chungjungsoo.gptmobile.data.oauth.supportsProviderSignIn
 import dev.chungjungsoo.gptmobile.presentation.common.DestinationCard
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.rememberLocalModelDownloader
@@ -69,7 +72,8 @@ fun AddPlatformScreen(
     settingViewModel: SettingViewModelV2,
     onNavigationClick: () -> Unit,
     onSave: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToGgufModels: () -> Unit = {}
 ) {
     var step by rememberSaveable { mutableStateOf(AddPlatformStep.API_TYPE) }
     var selectedClientType by rememberSaveable { mutableStateOf<ClientType?>(null) }
@@ -78,6 +82,8 @@ fun AddPlatformScreen(
     var apiKey by remember { mutableStateOf("") }
     var model by rememberSaveable { mutableStateOf("") }
     var isReasoningEnabled by rememberSaveable { mutableStateOf(false) }
+    var ggufTemperature by rememberSaveable { mutableStateOf(0.8f) }
+    var platformUid by rememberSaveable { mutableStateOf(java.util.UUID.randomUUID().toString()) }
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
         canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
@@ -92,11 +98,15 @@ fun AddPlatformScreen(
         viewModel.selectLocalModel(entry.id)
     }
     val isLocalPlatform = selectedClientType == ClientType.LITERT_LM
+    val isGgufPlatform = selectedClientType == ClientType.LLAMA_CPP
+    val isOnDevicePlatform = isLocalPlatform || isGgufPlatform
     val title = stringResource(if (step == AddPlatformStep.API_TYPE) R.string.choose_platform_type else R.string.platform_details)
     val isSaveEnabled = !saveState.isSaving &&
         platformName.isNotBlank() &&
         if (isLocalPlatform) {
             canSave
+        } else if (isGgufPlatform) {
+            model.isNotBlank()
         } else {
             model.isNotBlank() && apiUrl.isNotBlank()
         }
@@ -109,10 +119,9 @@ fun AddPlatformScreen(
 
     fun savePlatform() {
         val clientType = selectedClientType ?: return
-        val selectedModel = if (clientType == ClientType.LITERT_LM) {
-            selectedLocalModelId.trim()
-        } else {
-            model.trim()
+        val selectedModel = when (clientType) {
+            ClientType.LITERT_LM -> selectedLocalModelId.trim()
+            else -> model.trim()
         }
         if (clientType == ClientType.LITERT_LM && !viewModel.canSaveLocalModel()) return
         val defaults = if (clientType == ClientType.LITERT_LM) {
@@ -122,6 +131,7 @@ fun AddPlatformScreen(
         }
         settingViewModel.addPlatform(
             PlatformV2(
+                uid = platformUid,
                 name = platformName.trim(),
                 compatibleType = clientType,
                 enabled = if (clientType == ClientType.LITERT_LM) {
@@ -129,17 +139,21 @@ fun AddPlatformScreen(
                 } else {
                     true
                 },
-                apiUrl = if (clientType == ClientType.LITERT_LM) "" else apiUrl.trim(),
-                token = apiKey.trim().takeIf { it.isNotEmpty() && clientType != ClientType.LITERT_LM },
+                apiUrl = when {
+                    clientType.isOnDevice() -> ""
+                    clientType.usesOpenAiCompatibleBaseUrl() -> dev.chungjungsoo.gptmobile.data.provider.OpenAiCompatiblePresets.normalizeBaseUrl(apiUrl)
+                    else -> apiUrl.trim()
+                },
+                token = apiKey.trim().takeIf { it.isNotEmpty() && !clientType.isOnDevice() },
                 model = selectedModel,
-                temperature = defaults?.temperature ?: 1.0f,
+                temperature = if (clientType == ClientType.LLAMA_CPP) ggufTemperature else defaults?.temperature ?: 1.0f,
                 topP = defaults?.topP ?: 1.0f,
                 topK = defaults?.topK,
                 maxTokens = defaults?.maxTokens,
                 accelerator = defaults?.accelerator,
                 systemPrompt = ModelConstants.DEFAULT_PROMPT,
                 stream = true,
-                reasoning = isReasoningEnabled && clientType != ClientType.LITERT_LM,
+                reasoning = isReasoningEnabled && !clientType.isOnDevice(),
                 timeout = 30
             ),
             onSuccess = {
@@ -233,7 +247,13 @@ fun AddPlatformScreen(
                             )
                         }
                     )
-                    if (clientType != ClientType.LITERT_LM) {
+                    if (clientType.usesOpenAiCompatibleBaseUrl()) {
+                        dev.chungjungsoo.gptmobile.presentation.ui.provider.EndpointPresetChips(
+                            onSelected = { apiUrl = it },
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    if (!isOnDevicePlatform) {
                         OutlinedTextField(
                             value = apiUrl,
                             onValueChange = { apiUrl = it },
@@ -247,6 +267,14 @@ fun AddPlatformScreen(
                                 if (apiUrl.isBlank()) Text(stringResource(R.string.field_required))
                             }
                         )
+                        if (clientType.supportsProviderSignIn()) {
+                            dev.chungjungsoo.gptmobile.presentation.ui.oauth.ProviderSignInControls(
+                                clientType = clientType,
+                                platformUid = platformUid,
+                                onAccessToken = { token -> apiKey = token },
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                         OutlinedTextField(
                             value = apiKey,
                             onValueChange = { apiKey = it },
@@ -258,24 +286,21 @@ fun AddPlatformScreen(
                             visualTransformation = PasswordVisualTransformation(),
                             supportingText = { Text(stringResource(R.string.api_key_supporting)) }
                         )
-                        OutlinedTextField(
-                            value = model,
-                            onValueChange = { model = it },
-                            label = { Text(stringResource(R.string.model)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            singleLine = true,
-                            isError = model.isBlank(),
-                            supportingText = {
-                                Text(
-                                    if (model.isBlank()) {
-                                        stringResource(R.string.field_required)
-                                    } else {
-                                        stringResource(R.string.model_supporting)
-                                    }
-                                )
-                            }
+                        if (clientType == ClientType.XAI) {
+                            Text(
+                                text = stringResource(R.string.xai_vision_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                        dev.chungjungsoo.gptmobile.presentation.ui.provider.RemoteModelPickerField(
+                            clientType = clientType,
+                            apiUrl = apiUrl,
+                            token = apiKey,
+                            model = model,
+                            onModelChange = { model = it },
+                            modifier = Modifier.padding(top = 12.dp)
                         )
                         Row(
                             modifier = Modifier
@@ -299,6 +324,19 @@ fun AddPlatformScreen(
                                 onCheckedChange = { isReasoningEnabled = it }
                             )
                         }
+                    } else if (isGgufPlatform) {
+                        val ggufViewModel: dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelsViewModel = hiltViewModel()
+                        val ggufState by ggufViewModel.uiState.collectAsStateWithLifecycle()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices(
+                            models = ggufState.models,
+                            selectedId = model,
+                            onSelected = { record ->
+                                model = record.id
+                                ggufTemperature = record.temperature
+                            },
+                            onManage = onNavigateToGgufModels
+                        )
                     } else {
                         Spacer(modifier = Modifier.height(16.dp))
                         LocalModelCatalogPicker(
@@ -428,5 +466,8 @@ private fun getClientTypeDescription(clientType: ClientType): String = when (cli
     ClientType.OLLAMA -> stringResource(R.string.client_type_ollama_desc)
     ClientType.OPENROUTER -> stringResource(R.string.client_type_openrouter_desc)
     ClientType.CUSTOM -> stringResource(R.string.client_type_custom_desc)
+    ClientType.XAI -> stringResource(R.string.client_type_xai_desc)
+    ClientType.MIMO -> stringResource(R.string.client_type_mimo_desc)
     ClientType.LITERT_LM -> stringResource(R.string.client_type_litert_lm_desc)
+    ClientType.LLAMA_CPP -> stringResource(R.string.client_type_llama_cpp_desc)
 }

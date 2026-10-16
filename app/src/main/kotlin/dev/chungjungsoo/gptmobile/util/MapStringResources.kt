@@ -159,5 +159,8 @@ fun getClientTypeDisplayName(clientType: ClientType): String = when (clientType)
     ClientType.OPENROUTER -> "OpenRouter"
     ClientType.OLLAMA -> "Ollama"
     ClientType.CUSTOM -> "Custom"
+    ClientType.XAI -> "Grok"
+    ClientType.MIMO -> "MiMo"
     ClientType.LITERT_LM -> "Local"
+    ClientType.LLAMA_CPP -> "GGUF"
 }

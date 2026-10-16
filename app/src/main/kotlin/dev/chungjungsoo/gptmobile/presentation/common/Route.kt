@@ -28,6 +28,7 @@ object Route {
     const val SETTINGS = "settings"
     const val ADD_PLATFORM = "add_platform"
     const val LOCAL_MODELS = "local_models"
+    const val GGUF_MODELS = "gguf_models"
     const val TOOL_CONNECTIONS = "tool_connections"
     const val ADD_TOOL_CONNECTION = "tool_connections/add"
     const val EDIT_TOOL_CONNECTION = "tool_connections/edit/{connectionUid}"

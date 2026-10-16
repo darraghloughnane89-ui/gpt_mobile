@@ -7,6 +7,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.data.gguf.AndroidDeviceMemory
+import dev.chungjungsoo.gptmobile.data.gguf.DeviceMemory
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalEngineHolder
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeImpl
@@ -25,4 +27,8 @@ object LocalRuntimeModule {
     @Singleton
     @DeviceSocModel
     fun provideDeviceSocModel(): String = Build.SOC_MODEL.orEmpty()
+
+    @Provides
+    @Singleton
+    fun provideDeviceMemory(memory: AndroidDeviceMemory): DeviceMemory = memory
 }

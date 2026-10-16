@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.agent.provider.AnthropicMessagesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.GeminiAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
+import dev.chungjungsoo.gptmobile.data.agent.provider.LlamaCppAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAICompatibleAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAIResponsesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.ProviderAttachmentEncoder
@@ -61,6 +62,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.gguf.AndroidDeviceMemory
+import dev.chungjungsoo.gptmobile.data.gguf.GgufModelStore
+import dev.chungjungsoo.gptmobile.data.gguf.LlamaCppGgufEngine
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
@@ -156,8 +160,27 @@ class ChatRepositoryImpl @Inject constructor(
         compactionStore,
         modelCatalogRepository,
         deviceSocModel,
-        remoteContextWindowLookup
+        remoteContextWindowLookup,
+        ggufContextTokens = { platform ->
+            if (platform.compatibleType != ClientType.LLAMA_CPP) {
+                null
+            } else {
+                GgufModelStore(java.io.File(context.filesDir, "gguf")).get(platform.model)?.contextSize
+            }
+        }
     )
+    private val llamaCppAdapter by lazy {
+        LlamaCppAdapter(
+            models = GgufModelStore(java.io.File(context.filesDir, "gguf")),
+            runtime = LlamaCppGgufEngine(),
+            memory = AndroidDeviceMemory(context),
+            missingModelMessage = contextString(R.string.gguf_enable_model_missing, LlamaCppAdapter.DEFAULT_MISSING_MODEL),
+            nativeUnavailableMessage = contextString(R.string.client_type_llama_cpp_desc, LlamaCppAdapter.DEFAULT_NATIVE_UNAVAILABLE),
+            attachmentsNotice = contextString(R.string.gguf_add_model_description, LlamaCppAdapter.DEFAULT_ATTACHMENTS),
+            waitingNotice = contextString(R.string.local_platform_waiting_for_engine, LlamaCppAdapter.DEFAULT_WAITING),
+            loadingNotice = contextString(R.string.local_platform_loading_model, LlamaCppAdapter.DEFAULT_LOADING)
+        )
+    }
     private val compactionCoordinator = CompactionCoordinator(
         store = compactionStore,
         contextBuilder = contextBuilder,
@@ -736,7 +759,7 @@ class ChatRepositoryImpl @Inject constructor(
         return when (platform.compatibleType) {
             ClientType.OPENAI -> openAIResponsesAdapter.openSession(preparedTurns, platform, prepared, onUnconfirmedRemoteCancellation)
 
-            ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
+            ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.XAI, ClientType.MIMO ->
                 openAICompatibleAdapter.openSession(preparedTurns, platform)
 
             ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(preparedTurns, platform, prepared)
@@ -744,6 +767,8 @@ class ChatRepositoryImpl @Inject constructor(
             ClientType.GOOGLE -> geminiAdapter.openSession(preparedTurns, platform)
 
             ClientType.LITERT_LM -> liteRtLmAdapter.openSession(preparedTurns, platform, tools)
+
+            ClientType.LLAMA_CPP -> llamaCppAdapter.openSession(preparedTurns, platform)
         }
     }
 

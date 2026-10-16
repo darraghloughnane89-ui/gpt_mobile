@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.context
 
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
+import dev.chungjungsoo.gptmobile.data.gguf.GgufRamPolicy
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.catalog.SocVariant
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -129,6 +130,47 @@ class ModelCapacityResolverTest {
         resolver.saveOverride(platform, -8)
         assertNull(store.getCapacity(platform.uid, platform.apiUrl, platform.model)?.overrideContextWindowTokens)
         assertTrue(resolver.resolve(platform) is ModelCapacityResolution.Unknown)
+    }
+
+    @Test
+    fun `gguf capacity uses the imported model context`() = runBlocking {
+        val resolver = ModelCapacityResolver(
+            InMemoryCompactionStore(),
+            FakeModelCatalogRepository(),
+            "",
+            ggufContextTokens = { 2048 }
+        )
+        val platform = PlatformV2(
+            uid = "gguf",
+            name = "GGUF",
+            compatibleType = ClientType.LLAMA_CPP,
+            apiUrl = "",
+            model = "record-id"
+        )
+
+        val resolution = resolver.resolve(platform) as ModelCapacityResolution.Known
+
+        assertEquals(2048, resolution.capacity.detectedContextWindowTokens)
+    }
+
+    @Test
+    fun `gguf capacity falls back to the default context`() = runBlocking {
+        val resolver = ModelCapacityResolver(
+            InMemoryCompactionStore(),
+            FakeModelCatalogRepository(),
+            ""
+        )
+        val platform = PlatformV2(
+            uid = "gguf",
+            name = "GGUF",
+            compatibleType = ClientType.LLAMA_CPP,
+            apiUrl = "",
+            model = "missing"
+        )
+
+        val resolution = resolver.resolve(platform) as ModelCapacityResolution.Known
+
+        assertEquals(GgufRamPolicy.DEFAULT_CONTEXT, resolution.capacity.detectedContextWindowTokens)
     }
 
     @Test

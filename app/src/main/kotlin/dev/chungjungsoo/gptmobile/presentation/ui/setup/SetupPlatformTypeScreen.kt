@@ -66,6 +66,16 @@ private val platformTypes = listOf(
         descriptionResId = R.string.openrouter_description
     ),
     PlatformTypeInfo(
+        clientType = ClientType.XAI,
+        titleResId = R.string.xai,
+        descriptionResId = R.string.xai_description
+    ),
+    PlatformTypeInfo(
+        clientType = ClientType.MIMO,
+        titleResId = R.string.mimo,
+        descriptionResId = R.string.mimo_description
+    ),
+    PlatformTypeInfo(
         clientType = ClientType.CUSTOM,
         titleResId = R.string.custom_provider,
         descriptionResId = R.string.custom_provider_description
@@ -74,6 +84,11 @@ private val platformTypes = listOf(
         clientType = ClientType.LITERT_LM,
         titleResId = R.string.litert_lm,
         descriptionResId = R.string.litert_lm_description
+    ),
+    PlatformTypeInfo(
+        clientType = ClientType.LLAMA_CPP,
+        titleResId = R.string.llama_cpp,
+        descriptionResId = R.string.llama_cpp_description
     )
 )
 

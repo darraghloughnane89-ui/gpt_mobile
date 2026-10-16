@@ -70,6 +70,7 @@ fun SetupNavGraph(
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
         chatScreenNavigation(navController)
+        ggufModelsNavigation(navController)
     }
 }
 
@@ -128,7 +129,8 @@ fun NavGraphBuilder.setupNavigation(
                     navController.popBackStack(Route.SETUP_PLATFORM_LIST, inclusive = false)
                 },
                 onBackAction = { navController.navigateUp() },
-                onNavigateToLocalModels = { navController.navigate(Route.SETUP_LOCAL_MODELS) }
+                onNavigateToLocalModels = { navController.navigate(Route.SETUP_LOCAL_MODELS) },
+                onNavigateToGgufModels = { navController.navigate(Route.GGUF_MODELS) }
             )
         }
         composable(route = Route.SETUP_LOCAL_MODELS) {
@@ -189,7 +191,8 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onNavigateToGgufModels = { navController.navigate(Route.GGUF_MODELS) }
         )
     }
 }
@@ -215,6 +218,7 @@ fun NavGraphBuilder.settingNavigation(
                     )
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+                onNavigateToGgufModels = { navController.navigate(Route.GGUF_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
@@ -228,7 +232,8 @@ fun NavGraphBuilder.settingNavigation(
                 settingViewModel = settingViewModel,
                 onNavigationClick = { navController.navigateUp() },
                 onSave = { navController.navigateUp() },
-                onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+                onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+                onNavigateToGgufModels = { navController.navigate(Route.GGUF_MODELS) }
             )
         }
         composable(
@@ -237,7 +242,8 @@ fun NavGraphBuilder.settingNavigation(
         ) {
             PlatformSettingScreen(
                 onNavigationClick = { navController.navigateUp() },
-                onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+                onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+                onNavigateToGgufModels = { navController.navigate(Route.GGUF_MODELS) }
             )
         }
         composable(Route.LOCAL_MODELS) {

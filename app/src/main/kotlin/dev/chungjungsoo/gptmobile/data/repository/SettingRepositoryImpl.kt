@@ -11,14 +11,15 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.data.oauth.PlatformTokenRefresher
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
-import javax.inject.Inject
 
-class SettingRepositoryImpl @Inject constructor(
+class SettingRepositoryImpl(
     private val settingDataSource: SettingDataSource,
     private val platformV2Dao: PlatformV2Dao,
     private val chatPlatformModelV2Dao: ChatPlatformModelV2Dao,
-    private val secretVault: SecretVault
+    private val secretVault: SecretVault,
+    private val oauthRefresher: PlatformTokenRefresher = PlatformTokenRefresher { it }
 ) : SettingRepository {
 
     override suspend fun fetchPlatforms(): List<Platform> = ApiType.entries.map { apiType ->
@@ -191,7 +192,13 @@ class SettingRepositoryImpl @Inject constructor(
     private suspend fun resolvePlatformToken(platform: PlatformV2): PlatformV2 {
         if (platform.token != null) return platform
         val secretRef = platform.secretRef ?: return platform
-        return platform.copy(token = readSecret(secretRef))
+        val loaded = platform.copy(token = readSecret(secretRef))
+        val refreshed = runCatching { oauthRefresher.refresh(loaded) }.getOrDefault(loaded)
+        val refreshedToken = refreshed.token
+        if (refreshedToken != null && refreshedToken != loaded.token) {
+            storeVerified(secretRef, refreshedToken)
+        }
+        return refreshed.copy(secretRef = secretRef)
     }
 
     private suspend fun resolveLegacyToken(apiType: ApiType): String? = settingDataSource.getToken(apiType)

@@ -45,6 +45,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
+import dev.chungjungsoo.gptmobile.data.model.usesOpenAiCompatibleBaseUrl
+import dev.chungjungsoo.gptmobile.data.oauth.supportsProviderSignIn
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
@@ -61,7 +64,8 @@ fun SetupPlatformWizardScreen(
     setupViewModel: SetupViewModelV2 = hiltViewModel(),
     onComplete: () -> Unit,
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToGgufModels: () -> Unit = {}
 ) {
     val wizardStep by setupViewModel.wizardStep.collectAsStateWithLifecycle()
     val selectedClientType by setupViewModel.selectedClientType.collectAsStateWithLifecycle()
@@ -112,7 +116,7 @@ fun SetupPlatformWizardScreen(
                 WizardProgressIndicator(
                     currentStep = setupViewModel.wizardDisplayStep(),
                     totalSteps = setupViewModel.wizardTotalSteps(),
-                    isLocalPlatform = selectedClientType == ClientType.LITERT_LM
+                    isLocalPlatform = selectedClientType?.isOnDevice() == true
                 )
 
                 AnimatedContent(
@@ -149,7 +153,7 @@ fun SetupPlatformWizardScreen(
                                 onPlatformNameChange = setupViewModel::updatePlatformName,
                                 apiUrl = currentApiUrl,
                                 onApiUrlChange = setupViewModel::updateApiUrl,
-                                isApiUrlVisible = selectedClientType != ClientType.LITERT_LM
+                                isApiUrlVisible = selectedClientType?.isOnDevice() != true
                             )
                         }
 
@@ -158,13 +162,24 @@ fun SetupPlatformWizardScreen(
                             ApiKeyStep(
                                 clientType = selectedClientType,
                                 apiKey = currentApiKey,
-                                onApiKeyChange = setupViewModel::updateApiKey
+                                onApiKeyChange = setupViewModel::updateApiKey,
+                                onOAuthPlatformUid = setupViewModel::stagePlatformUid
                             )
                         }
 
                         WIZARD_STEP_MODEL -> {
                             val currentModel by setupViewModel.model.collectAsStateWithLifecycle()
-                            if (selectedClientType == ClientType.LITERT_LM) {
+                            if (selectedClientType == ClientType.LLAMA_CPP) {
+                                val ggufViewModel: dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelsViewModel = hiltViewModel()
+                                val ggufState by ggufViewModel.uiState.collectAsStateWithLifecycle()
+                                dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices(
+                                    models = ggufState.models,
+                                    selectedId = currentModel,
+                                    onSelected = { record -> setupViewModel.selectGgufModel(record.id, record.temperature) },
+                                    onManage = onNavigateToGgufModels,
+                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                )
+                            } else if (selectedClientType == ClientType.LITERT_LM) {
                                 LocalModelStep(
                                     items = catalogModels,
                                     selectedCatalogEntryId = currentModel,
@@ -181,7 +196,12 @@ fun SetupPlatformWizardScreen(
                                     onNavigateToLocalModels = onNavigateToLocalModels
                                 )
                             } else {
+                                val currentApiUrl by setupViewModel.apiUrl.collectAsStateWithLifecycle()
+                                val currentApiKey by setupViewModel.apiKey.collectAsStateWithLifecycle()
                                 ModelStep(
+                                    clientType = selectedClientType ?: ClientType.CUSTOM,
+                                    apiUrl = currentApiUrl,
+                                    token = currentApiKey,
                                     model = currentModel,
                                     onModelChange = setupViewModel::updateModel
                                 )
@@ -359,6 +379,13 @@ private fun BasicsStep(
             }
         )
 
+        if (clientType?.usesOpenAiCompatibleBaseUrl() == true) {
+            dev.chungjungsoo.gptmobile.presentation.ui.provider.EndpointPresetChips(
+                onSelected = onApiUrlChange,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
         if (isApiUrlVisible) {
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -388,6 +415,7 @@ private fun ApiKeyStep(
     clientType: ClientType?,
     apiKey: String,
     onApiKeyChange: (String) -> Unit,
+    onOAuthPlatformUid: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -422,6 +450,19 @@ private fun ApiKeyStep(
         Spacer(modifier = Modifier.height(24.dp))
 
         // API Key
+        if (clientType != null && clientType.supportsProviderSignIn()) {
+            val oauthUid = androidx.compose.runtime.saveable.rememberSaveable { java.util.UUID.randomUUID().toString() }
+            dev.chungjungsoo.gptmobile.presentation.ui.oauth.ProviderSignInControls(
+                clientType = clientType,
+                platformUid = oauthUid,
+                onAccessToken = { token ->
+                    onOAuthPlatformUid(oauthUid)
+                    onApiKeyChange(token)
+                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         OutlinedTextField(
             value = apiKey,
             onValueChange = onApiKeyChange,
@@ -492,6 +533,9 @@ private fun LocalModelStep(
 
 @Composable
 private fun ModelStep(
+    clientType: ClientType,
+    apiUrl: String,
+    token: String,
     model: String,
     onModelChange: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -518,17 +562,21 @@ private fun ModelStep(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Model
-        OutlinedTextField(
-            value = model,
-            onValueChange = onModelChange,
-            label = { Text(stringResource(R.string.model)) },
-            placeholder = { Text(stringResource(R.string.model_name)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            supportingText = {
-                Text(stringResource(R.string.model_supporting))
-            }
+        if (clientType == ClientType.XAI) {
+            Text(
+                text = stringResource(R.string.xai_vision_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        dev.chungjungsoo.gptmobile.presentation.ui.provider.RemoteModelPickerField(
+            clientType = clientType,
+            apiUrl = apiUrl,
+            token = token,
+            model = model,
+            onModelChange = onModelChange
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -591,5 +639,8 @@ private fun getApiHelpUrl(clientType: ClientType): String? = when (clientType) {
     ClientType.OLLAMA -> "https://ollama.com/blog/openai-compatibility"
     ClientType.OPENROUTER -> "https://openrouter.ai/keys"
     ClientType.CUSTOM -> null
+    ClientType.XAI -> "https://console.x.ai/"
+    ClientType.MIMO -> "https://mimo.mi.com/docs/en-US/tokenplan/Token%20Plan/quick-access"
     ClientType.LITERT_LM -> null
+    ClientType.LLAMA_CPP -> null
 }

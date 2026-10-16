@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -86,28 +87,88 @@ fun APIKeyDialog(
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiTokenDialogOpen) {
+        val platform by settingViewModel.platformState.collectAsStateWithLifecycle()
         APIKeyDialog(
-            onDismissRequest = settingViewModel::closeApiTokenDialog
-        ) { apiToken ->
-            settingViewModel.updateApiToken(apiToken)
-        }
+            clientType = platform?.compatibleType,
+            platformUid = platform?.uid,
+            onDismissRequest = settingViewModel::closeApiTokenDialog,
+            onSignIn = settingViewModel::applySignedInToken,
+            onConfirmRequest = settingViewModel::updateApiToken
+        )
     }
 }
 
 @Composable
 fun ModelDialog(
     dialogState: PlatformSettingViewModel.DialogState,
-    model: String,
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiModelDialogOpen) {
-        ModelDialog(
-            initModel = model,
-            onDismissRequest = settingViewModel::closeApiModelDialog
-        ) { m ->
-            settingViewModel.updateApiModel(m)
-        }
+        RemoteModelDialog(
+            platform = platform,
+            onDismissRequest = settingViewModel::closeApiModelDialog,
+            onConfirmRequest = settingViewModel::updateApiModel
+        )
     }
+}
+
+@Composable
+private fun RemoteModelDialog(
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (String) -> Unit
+) {
+    var model by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(platform.model) }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = stringResource(R.string.api_model)) },
+        text = {
+            dev.chungjungsoo.gptmobile.presentation.ui.provider.RemoteModelPickerField(
+                clientType = platform.compatibleType,
+                apiUrl = platform.apiUrl,
+                token = platform.token,
+                model = model,
+                onModelChange = { model = it }
+            )
+        },
+        confirmButton = {
+            TextButton(enabled = model.isNotBlank(), onClick = { onConfirmRequest(model.trim()) }) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+fun GgufPlatformModelDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    selectedId: String,
+    onDismiss: () -> Unit,
+    onSelected: (String) -> Unit,
+    onManage: () -> Unit
+) {
+    if (!dialogState.isApiModelDialogOpen) return
+    val ggufViewModel: dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
+    val uiState by ggufViewModel.uiState.collectAsStateWithLifecycle()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.gguf_models)) },
+        text = {
+            dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices(
+                models = uiState.models,
+                selectedId = selectedId,
+                onSelected = { record -> onSelected(record.id) },
+                onManage = onManage
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        }
+    )
 }
 
 @Composable
@@ -364,7 +425,10 @@ private fun APIUrlDialog(
 
 @Composable
 private fun APIKeyDialog(
+    clientType: dev.chungjungsoo.gptmobile.data.model.ClientType?,
+    platformUid: String?,
     onDismissRequest: () -> Unit,
+    onSignIn: (token: String) -> Unit,
     onConfirmRequest: (token: String) -> Unit
 ) {
     var token by remember { mutableStateOf("") }
@@ -379,14 +443,24 @@ private fun APIKeyDialog(
             .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_key)) },
         text = {
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(stringResource(R.string.api_key)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-            )
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(stringResource(R.string.api_key)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                )
+                if (clientType != null && platformUid != null) {
+                    dev.chungjungsoo.gptmobile.presentation.ui.oauth.ProviderSignInControls(
+                        clientType = clientType,
+                        platformUid = platformUid,
+                        onAccessToken = onSignIn,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {

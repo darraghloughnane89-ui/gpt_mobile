@@ -108,7 +108,8 @@ fun PlatformSettingScreen(
     modifier: Modifier = Modifier,
     settingViewModel: PlatformSettingViewModel = hiltViewModel(),
     onNavigationClick: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToGgufModels: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -225,13 +226,15 @@ fun PlatformSettingScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     val isLocalPlatform = platformData.compatibleType == ClientType.LITERT_LM
+                    val isGgufPlatform = platformData.compatibleType == ClientType.LLAMA_CPP
+                    val isOnDevicePlatform = isLocalPlatform || isGgufPlatform
                     val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI && platformData.reasoning
                     val notSetText = stringResource(R.string.not_set)
                     var isAdvancedExpanded by rememberSaveable(platformData.uid) { mutableStateOf(false) }
 
                     SettingsSection(title = stringResource(R.string.connection)) {
                         PreferenceSwitchWithContainer(
-                            title = stringResource(if (isLocalPlatform) R.string.enable_platform else R.string.enable_api),
+                            title = stringResource(if (isOnDevicePlatform) R.string.enable_platform else R.string.enable_api),
                             isChecked = platformData.enabled
                         ) { settingViewModel.toggleEnabled() }
                         SettingItem(
@@ -249,7 +252,7 @@ fun PlatformSettingScreen(
                                 )
                             }
                         )
-                        if (!isLocalPlatform) {
+                        if (!isOnDevicePlatform) {
                             SettingItem(
                                 modifier = Modifier.heightIn(min = 64.dp),
                                 title = stringResource(R.string.api_url),
@@ -307,7 +310,7 @@ fun PlatformSettingScreen(
                                 )
                             }
                         )
-                        if (!isLocalPlatform) {
+                        if (!isOnDevicePlatform) {
                             ExtendedThinkingSwitch(
                                 modifier = Modifier.heightIn(min = 64.dp),
                                 enabled = platformData.enabled,
@@ -326,7 +329,7 @@ fun PlatformSettingScreen(
                                         stringResource(R.string.temperature) to (platformData.temperature?.toString() ?: notSetText),
                                         stringResource(R.string.top_p) to (platformData.topP?.toString() ?: notSetText),
                                         stringResource(R.string.top_k) to if (isLocalPlatform) platformData.topK?.toString() ?: notSetText else null,
-                                        stringResource(R.string.max_tokens) to if (isLocalPlatform) platformData.maxTokens?.toString() ?: notSetText else null
+                                        stringResource(R.string.max_tokens) to if (isOnDevicePlatform) platformData.maxTokens?.toString() ?: notSetText else null
                                     )
                                 )
                             },
@@ -405,6 +408,23 @@ fun PlatformSettingScreen(
                                         }
                                     )
                                 }
+                                if (isGgufPlatform) {
+                                    SettingItem(
+                                        modifier = Modifier.heightIn(min = 64.dp),
+                                        title = stringResource(R.string.max_tokens),
+                                        description = platformData.maxTokens?.toString() ?: notSetText,
+                                        enabled = platformData.enabled,
+                                        onItemClick = settingViewModel::openMaxTokensDialog,
+                                        showTrailingIcon = true,
+                                        showLeadingIcon = true,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Numbers,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                }
                                 if (platformData.compatibleType == ClientType.GOOGLE) {
                                     SettingItem(
                                         modifier = Modifier.heightIn(min = 64.dp),
@@ -461,7 +481,7 @@ fun PlatformSettingScreen(
                                     )
                                 }
                             )
-                        } else {
+                        } else if (!isGgufPlatform) {
                             SettingItem(
                                 modifier = Modifier.heightIn(min = 64.dp),
                                 title = stringResource(R.string.timeout),
@@ -528,11 +548,20 @@ fun PlatformSettingScreen(
                     }
 
                     PlatformNameDialog(dialogState, platformData.name, settingViewModel)
-                    if (!isLocalPlatform) {
+                    if (!isOnDevicePlatform) {
                         APIUrlDialog(dialogState, platformData.apiUrl, settingViewModel)
                         APIKeyDialog(dialogState, settingViewModel)
-                        ModelDialog(dialogState, platformData.model, settingViewModel)
+                        ModelDialog(dialogState, platformData, settingViewModel)
                         TimeoutDialog(dialogState, platformData.timeout, settingViewModel)
+                    } else if (isGgufPlatform) {
+                        GgufPlatformModelDialog(
+                            dialogState = dialogState,
+                            selectedId = platformData.model,
+                            onDismiss = settingViewModel::closeApiModelDialog,
+                            onSelected = settingViewModel::updateApiModel,
+                            onManage = onNavigateToGgufModels
+                        )
+                        MaxTokensDialog(dialogState, platformData.maxTokens, settingViewModel)
                     } else {
                         LocalModelDialog(
                             dialogState = dialogState,

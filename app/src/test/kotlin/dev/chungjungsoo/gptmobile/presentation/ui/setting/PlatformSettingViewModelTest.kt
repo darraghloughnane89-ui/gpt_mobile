@@ -581,6 +581,8 @@ class PlatformSettingViewModelTest {
             agentToolResolver = resolver,
             modelCatalogRepository = catalogRepository,
             localModelRepository = localModelRepository,
+            ggufModelStore = dev.chungjungsoo.gptmobile.data.gguf.GgufModelStore(java.io.File(System.getProperty("java.io.tmpdir"), "gguf-vm-test")),
+            oauthSessions = dev.chungjungsoo.gptmobile.data.oauth.ProviderOAuthSessionStore(vault),
             deviceSocModel = deviceSocModel,
             savedStateHandle = SavedStateHandle(mapOf("platformUid" to platformUid))
         )

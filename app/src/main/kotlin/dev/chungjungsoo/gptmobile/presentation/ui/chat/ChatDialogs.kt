@@ -38,8 +38,13 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
+import dev.chungjungsoo.gptmobile.data.gguf.GgufModelRecord
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.supportsRemoteModelList
+import dev.chungjungsoo.gptmobile.data.provider.RemoteModel
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.presentation.ui.gguf.GgufModelChoices
+import dev.chungjungsoo.gptmobile.presentation.ui.provider.RemoteModelPicker
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +103,12 @@ fun ChatModelDialog(
     platformClientTypes: Map<String, ClientType> = emptyMap(),
     downloadedLocalModels: List<DownloadedLocalModelOption> = emptyList(),
     onNavigateToLocalModels: () -> Unit = {},
+    remoteModels: Map<String, List<RemoteModel>> = emptyMap(),
+    remoteLoading: Set<String> = emptySet(),
+    remoteStatus: Map<String, String?> = emptyMap(),
+    onRefreshRemote: (String) -> Unit = {},
+    ggufModels: List<GgufModelRecord> = emptyList(),
+    onNavigateToGgufModels: () -> Unit = {},
     onDismissRequest: () -> Unit,
     onConfirmRequest: (Map<String, String>) -> Unit
 ) {
@@ -122,35 +133,66 @@ fun ChatModelDialog(
                 )
                 platformOrder.forEach { platformUid ->
                     val platformName = platformNames[platformUid] ?: stringResource(R.string.unknown)
-                    if (platformClientTypes[platformUid] == ClientType.LITERT_LM) {
-                        Text(
-                            text = stringResource(R.string.chat_model_for_platform, platformName),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                        LocalModelPicker(
-                            models = downloadedLocalModels,
-                            selectedCatalogEntryId = models[platformUid].orEmpty(),
-                            onModelSelected = { value ->
-                                models = models.toMutableMap().apply { put(platformUid, value) }
-                            },
-                            onNavigateToLocalModels = onNavigateToLocalModels,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-                        )
-                    } else {
-                        OutlinedTextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                            value = models[platformUid].orEmpty(),
-                            onValueChange = { value ->
-                                models = models.toMutableMap().apply { put(platformUid, value) }
-                            },
-                            singleLine = true,
-                            label = { Text(text = stringResource(R.string.chat_model_for_platform, platformName)) },
-                            supportingText = {
-                                Text(stringResource(R.string.model_supporting))
-                            }
-                        )
+                    val clientType = platformClientTypes[platformUid]
+                    Text(
+                        text = stringResource(R.string.chat_model_for_platform, platformName),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    when {
+                        clientType == ClientType.LITERT_LM -> {
+                            LocalModelPicker(
+                                models = downloadedLocalModels,
+                                selectedCatalogEntryId = models[platformUid].orEmpty(),
+                                onModelSelected = { value ->
+                                    models = models.toMutableMap().apply { put(platformUid, value) }
+                                },
+                                onNavigateToLocalModels = onNavigateToLocalModels,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        clientType == ClientType.LLAMA_CPP -> {
+                            GgufModelChoices(
+                                models = ggufModels,
+                                selectedId = models[platformUid].orEmpty(),
+                                onSelected = { record ->
+                                    models = models.toMutableMap().apply { put(platformUid, record.id) }
+                                },
+                                onManage = onNavigateToGgufModels,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        clientType?.supportsRemoteModelList() == true && remoteModels.containsKey(platformUid) -> {
+                            RemoteChatModelField(
+                                platformUid = platformUid,
+                                model = models[platformUid].orEmpty(),
+                                onModelChange = { value ->
+                                    models = models.toMutableMap().apply { put(platformUid, value) }
+                                },
+                                models = remoteModels[platformUid].orEmpty(),
+                                isLoading = platformUid in remoteLoading,
+                                statusMessage = remoteStatus[platformUid],
+                                onRefresh = { onRefreshRemote(platformUid) }
+                            )
+                        }
+
+                        else -> {
+                            OutlinedTextField(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                value = models[platformUid].orEmpty(),
+                                onValueChange = { value ->
+                                    models = models.toMutableMap().apply { put(platformUid, value) }
+                                },
+                                singleLine = true,
+                                label = { Text(text = stringResource(R.string.model)) },
+                                supportingText = {
+                                    Text(stringResource(R.string.model_supporting))
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -174,6 +216,30 @@ fun ChatModelDialog(
                 Text(stringResource(R.string.cancel))
             }
         }
+    )
+}
+
+@Composable
+private fun RemoteChatModelField(
+    platformUid: String,
+    model: String,
+    onModelChange: (String) -> Unit,
+    models: List<RemoteModel>,
+    isLoading: Boolean,
+    statusMessage: String?,
+    onRefresh: () -> Unit
+) {
+    var query by rememberSaveable(platformUid) { mutableStateOf("") }
+    RemoteModelPicker(
+        query = query,
+        onQueryChange = { query = it },
+        manualModel = model,
+        onManualModelChange = onModelChange,
+        models = models,
+        isLoading = isLoading,
+        statusMessage = statusMessage,
+        onRefresh = onRefresh,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
     )
 }
 

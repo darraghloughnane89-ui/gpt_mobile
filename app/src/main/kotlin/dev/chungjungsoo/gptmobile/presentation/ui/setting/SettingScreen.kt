@@ -59,6 +59,7 @@ fun SettingScreen(
     onNavigateToAddPlatform: () -> Unit,
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
+    onNavigateToGgufModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
@@ -121,6 +122,13 @@ fun SettingScreen(
                     title = stringResource(R.string.local_models),
                     description = stringResource(R.string.local_models_description),
                     onItemClick = onNavigateToLocalModels,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.gguf_models),
+                    description = stringResource(R.string.gguf_models_description),
+                    onItemClick = onNavigateToGgufModels,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

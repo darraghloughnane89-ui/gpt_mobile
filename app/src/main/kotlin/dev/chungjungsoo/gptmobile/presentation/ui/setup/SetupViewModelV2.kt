@@ -11,6 +11,9 @@ import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
 import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
+import dev.chungjungsoo.gptmobile.data.model.usesOpenAiCompatibleBaseUrl
+import dev.chungjungsoo.gptmobile.data.provider.OpenAiCompatiblePresets
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -148,6 +151,8 @@ class SetupViewModelV2 @Inject constructor(
         _apiUrl.value = getDefaultApiUrl(clientType)
         _apiKey.value = ""
         _model.value = ModelConstants.defaultModel(clientType)
+        ggufTemperature = null
+        stagedPlatformUid = null
         _wizardStep.value = 0
     }
 
@@ -161,6 +166,10 @@ class SetupViewModelV2 @Inject constructor(
 
     fun updateApiKey(key: String) {
         _apiKey.value = key
+    }
+
+    fun stagePlatformUid(uid: String) {
+        stagedPlatformUid = uid
     }
 
     fun updateModel(modelName: String) {
@@ -201,8 +210,16 @@ class SetupViewModelV2 @Inject constructor(
 
     fun isWaitingForModelDownload(): Boolean = isWaitingForDownload.value
 
+    private var ggufTemperature: Float? = null
+    private var stagedPlatformUid: String? = null
+
+    fun selectGgufModel(modelId: String, temperature: Float) {
+        _model.value = modelId
+        ggufTemperature = temperature
+    }
+
     fun nextWizardStep() {
-        if (isLiteRtLm() && _wizardStep.value == WIZARD_STEP_BASICS) {
+        if (isOnDeviceWizard() && _wizardStep.value == WIZARD_STEP_BASICS) {
             _wizardStep.value = WIZARD_STEP_MODEL
         } else {
             _wizardStep.update { it + 1 }
@@ -210,7 +227,7 @@ class SetupViewModelV2 @Inject constructor(
     }
 
     fun previousWizardStep() {
-        if (isLiteRtLm() && _wizardStep.value == WIZARD_STEP_MODEL) {
+        if (isOnDeviceWizard() && _wizardStep.value == WIZARD_STEP_MODEL) {
             _wizardStep.value = WIZARD_STEP_BASICS
         } else {
             _wizardStep.update { maxOf(0, it - 1) }
@@ -224,6 +241,8 @@ class SetupViewModelV2 @Inject constructor(
         _apiUrl.value = ""
         _apiKey.value = ""
         _model.value = ""
+        ggufTemperature = null
+        stagedPlatformUid = null
     }
 
     fun saveHuggingFaceAccessToken(token: String) {
@@ -246,14 +265,24 @@ class SetupViewModelV2 @Inject constructor(
                 } else {
                     null
                 }
+                val apiUrl = when {
+                    clientType.isOnDevice() -> ""
+                    clientType.usesOpenAiCompatibleBaseUrl() -> OpenAiCompatiblePresets.normalizeBaseUrl(_apiUrl.value)
+                    else -> _apiUrl.value.trim()
+                }
                 val platform = PlatformV2(
+                    uid = stagedPlatformUid ?: java.util.UUID.randomUUID().toString(),
                     name = _platformName.value.trim(),
                     compatibleType = clientType,
                     enabled = clientType != ClientType.LITERT_LM || selectedLocalModelIsDownloaded(),
-                    apiUrl = if (clientType == ClientType.LITERT_LM) "" else _apiUrl.value.trim(),
-                    token = _apiKey.value.trim().takeIf { it.isNotEmpty() && clientType != ClientType.LITERT_LM },
+                    apiUrl = apiUrl,
+                    token = _apiKey.value.trim().takeIf { it.isNotEmpty() && !clientType.isOnDevice() },
                     model = _model.value.trim(),
-                    temperature = defaults?.temperature ?: 1.0f,
+                    temperature = when {
+                        clientType == ClientType.LLAMA_CPP -> ggufTemperature ?: 0.8f
+                        defaults != null -> defaults.temperature
+                        else -> 1.0f
+                    },
                     topP = defaults?.topP ?: 1.0f,
                     topK = defaults?.topK,
                     maxTokens = defaults?.maxTokens,
@@ -302,9 +331,11 @@ class SetupViewModelV2 @Inject constructor(
 
     fun isLiteRtLm(): Boolean = _selectedClientType.value == ClientType.LITERT_LM
 
-    fun wizardTotalSteps(): Int = if (isLiteRtLm()) WIZARD_LOCAL_STEPS else WIZARD_TOTAL_STEPS
+    fun isOnDeviceWizard(): Boolean = _selectedClientType.value?.isOnDevice() == true
 
-    fun wizardDisplayStep(): Int = if (isLiteRtLm() && _wizardStep.value == WIZARD_STEP_MODEL) {
+    fun wizardTotalSteps(): Int = if (isOnDeviceWizard()) WIZARD_LOCAL_STEPS else WIZARD_TOTAL_STEPS
+
+    fun wizardDisplayStep(): Int = if (isOnDeviceWizard() && _wizardStep.value == WIZARD_STEP_MODEL) {
         1
     } else {
         _wizardStep.value
@@ -326,7 +357,7 @@ class SetupViewModelV2 @Inject constructor(
     ): Boolean = when (step) {
         WIZARD_STEP_BASICS -> {
             val hasName = platformName.isNotBlank()
-            if (clientType == ClientType.LITERT_LM) hasName else hasName && apiUrl.isNotBlank()
+            if (clientType?.isOnDevice() == true) hasName else hasName && apiUrl.isNotBlank()
         }
 
         WIZARD_STEP_API_KEY -> true

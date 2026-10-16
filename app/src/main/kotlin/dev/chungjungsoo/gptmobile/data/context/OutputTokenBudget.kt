@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.context
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.ThinkingConfig
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.isOnDevice
 
 object OutputTokenBudget {
     const val DEFAULT_HOSTED_OUTPUT_TOKENS = 4_096
@@ -66,7 +67,7 @@ fun anthropicThinkingPolicy(
 }
 
 fun resolvedOutputTokenCap(platform: PlatformV2, hasTools: Boolean = false): Int? {
-    if (platform.compatibleType == ClientType.LITERT_LM) return null
+    if (platform.compatibleType.isOnDevice()) return null
     return when (platform.compatibleType) {
         ClientType.ANTHROPIC -> {
             if (anthropicThinkingPolicy(platform.model, platform.reasoning, hasTools).isThinkingActive) {
@@ -87,6 +88,6 @@ fun resolvedOutputTokenCap(platform: PlatformV2, hasTools: Boolean = false): Int
 }
 
 fun outputReserveTokens(platform: PlatformV2, hasTools: Boolean = false): Int {
-    if (platform.compatibleType == ClientType.LITERT_LM) return OutputTokenBudget.LOCAL_OUTPUT_RESERVE
+    if (platform.compatibleType.isOnDevice()) return OutputTokenBudget.LOCAL_OUTPUT_RESERVE
     return resolvedOutputTokenCap(platform, hasTools) ?: OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS
 }
