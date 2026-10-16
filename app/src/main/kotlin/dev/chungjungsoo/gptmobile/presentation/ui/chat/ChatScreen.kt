@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -71,6 +72,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,6 +121,20 @@ import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
 import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ChatTemperatureDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ComposerAction
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ComposerCommandBar
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ComposerSubmit
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ConversationSearchBanner
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.ConversationSearchDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.PromptPlaceholderDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.clearsComposer
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.composerFeaturesAvailableOnMain
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.conversationMatchIndices
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.interpretComposerSubmit
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.mentionInsertion
+import dev.chungjungsoo.gptmobile.presentation.ui.composer.replaceComposerRange
+import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -131,7 +147,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onOpenPromptLibrary: () -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -174,7 +191,16 @@ fun ChatScreen(
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
     val bots by chatViewModel.bots.collectAsStateWithLifecycle()
     val selectedBot by chatViewModel.selectedBot.collectAsStateWithLifecycle()
+    val projects by chatViewModel.projects.collectAsStateWithLifecycle()
+    val savedPrompts by chatViewModel.savedPrompts.collectAsStateWithLifecycle()
     var botPickerOpen by rememberSaveable { mutableStateOf(false) }
+    var projectPickerOpen by rememberSaveable { mutableStateOf(false) }
+    var temperatureDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var searchDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var messageSearch by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingFill by remember { mutableStateOf<ComposerAction.FillPrompt?>(null) }
+    var imagePickRequests by remember { mutableIntStateOf(0) }
+    val composerFeatures = remember { composerFeaturesAvailableOnMain() }
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
@@ -215,6 +241,66 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val messageSearchQuery = messageSearch
+    val visibleTurns = if (messageSearchQuery.isNullOrBlank()) {
+        groupedMessages.userMessages.indices.toList()
+    } else {
+        conversationMatchIndices(
+            userContents = groupedMessages.userMessages.map { it.content },
+            assistantContents = groupedMessages.assistantMessages.map { row -> row.map { it.effectiveContent() } },
+            query = messageSearchQuery
+        )
+    }
+    fun handleComposerAction(action: ComposerAction) {
+        val question = chatViewModel.question
+        if (clearsComposer(action)) question.clearText()
+        when (action) {
+            ComposerAction.None -> Unit
+            ComposerAction.OpenBot -> botPickerOpen = true
+            ComposerAction.OpenModel -> chatViewModel.openChatModelDialog()
+            ComposerAction.OpenProject -> projectPickerOpen = true
+            ComposerAction.PickImage -> imagePickRequests += 1
+            ComposerAction.ExportChat -> exportChat(context, chatViewModel)
+            ComposerAction.OpenPromptLibrary -> onOpenPromptLibrary()
+            ComposerAction.OpenTemperature -> temperatureDialogOpen = true
+            is ComposerAction.SetTemperature -> chatViewModel.updateChatTemperature(action.value)
+            ComposerAction.OpenSearch -> searchDialogOpen = true
+            is ComposerAction.SearchConversation -> messageSearch = action.query
+            is ComposerAction.InsertText -> question.replaceComposerRange(action.start, action.end, action.text)
+            is ComposerAction.FillPrompt -> pendingFill = action
+            is ComposerAction.MentionBot -> {
+                question.replaceComposerRange(action.start, action.end, mentionInsertion(action.label))
+                chatViewModel.selectBot(action.botUid)
+            }
+            is ComposerAction.MentionProject -> {
+                question.replaceComposerRange(action.start, action.end, mentionInsertion(action.label))
+                chatViewModel.assignProject(action.projectId)
+            }
+        }
+    }
+    fun sendComposerMessage() {
+        when (val submit = interpretComposerSubmit(chatViewModel.question.text.toString(), composerFeatures, savedPrompts)) {
+            ComposerSubmit.Message -> {
+                if (!requestedNotificationPermission &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    sendAfterNotificationPermission = true
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else if (needsLocalNetworkAccess &&
+                    Build.VERSION.SDK_INT >= 37 &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    sendAfterLocalNetworkPermission = true
+                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                } else {
+                    chatViewModel.askQuestion()
+                    focusManager.clearFocus()
+                }
+            }
+            is ComposerSubmit.Run -> handleComposerAction(submit.action)
+        }
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
@@ -301,23 +387,24 @@ fun ChatScreen(
                     state = listState
                 ) {
                     itemsIndexed(
-                        items = groupedMessages.userMessages,
-                        key = { index, message -> chatMessagePairKey(message, index) }
-                    ) { index, message ->
+                        items = visibleTurns,
+                        key = { _, turnIndex -> chatMessagePairKey(groupedMessages.userMessages[turnIndex], turnIndex) }
+                    ) { _, turnIndex ->
+                        val message = groupedMessages.userMessages[turnIndex]
                         ChatMessagePair(
-                            messageIndex = index,
+                            messageIndex = turnIndex,
                             message = message,
-                            assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
+                            assistantMessages = groupedMessages.assistantMessages.getOrNull(turnIndex) ?: emptyList(),
                             agentRunsById = agentRunsById,
                             runNoticesById = runNoticesById,
                             toolEventsByRun = toolEventsByRun,
-                            platformIndexState = indexStates.getOrElse(index) { 0 },
+                            platformIndexState = indexStates.getOrElse(turnIndex) { 0 },
                             loadingStates = loadingStates,
                             enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
                             enabledPlatformLookup = enabledPlatformLookup,
                             canUseChat = canUseChat,
                             isIdle = isIdle,
-                            isActiveMessage = index == lastMessageIndex,
+                            isActiveMessage = turnIndex == lastMessageIndex,
                             maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                             maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
                             onEditQuestion = chatViewModel::openUserMessageEditDialog,
@@ -364,33 +451,33 @@ fun ChatScreen(
                     onPromptClick = chatViewModel::applyStarterPrompt
                 )
             }
+            if (!messageSearchQuery.isNullOrBlank()) {
+                ConversationSearchBanner(
+                    query = messageSearchQuery,
+                    matchCount = visibleTurns.size,
+                    onClear = { messageSearch = null }
+                )
+            }
+            ComposerCommandBar(
+                inputState = chatViewModel.question,
+                prompts = savedPrompts,
+                bots = bots,
+                projects = projects,
+                features = composerFeatures,
+                onAction = ::handleComposerAction
+            )
             ChatInputBox(
                 inputState = chatViewModel.question,
                 chatEnabled = canUseChat,
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
                 selectedAttachments = selectedAttachments,
+                imagePickRequests = imagePickRequests,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                 onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
-                onCancelButtonClick = chatViewModel::cancelActiveRuns
-            ) {
-                if (!requestedNotificationPermission &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterNotificationPermission = true
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (needsLocalNetworkAccess &&
-                    Build.VERSION.SDK_INT >= 37 &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterLocalNetworkPermission = true
-                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-                } else {
-                    chatViewModel.askQuestion()
-                    focusManager.clearFocus()
-                }
-            }
+                onCancelButtonClick = chatViewModel::cancelActiveRuns,
+                onSendButtonClick = ::sendComposerMessage
+            )
         }
 
         if (botPickerOpen) {
@@ -399,6 +486,48 @@ fun ChatScreen(
                 selectedBotUid = selectedBot?.botUid,
                 onSelect = chatViewModel::selectBot,
                 onDismiss = { botPickerOpen = false }
+            )
+        }
+        if (projectPickerOpen) {
+            MoveToProjectDialog(
+                projects = projects,
+                onDismiss = { projectPickerOpen = false },
+                onSelect = { projectId ->
+                    projectPickerOpen = false
+                    chatViewModel.assignProject(projectId)
+                }
+            )
+        }
+        if (temperatureDialogOpen) {
+            val initialTemperature = chatViewModel.enabledPlatformsInChat.firstNotNullOfOrNull { uid ->
+                appAllPlatforms.firstOrNull { it.uid == uid }?.temperature
+            }
+            ChatTemperatureDialog(
+                initial = initialTemperature,
+                onDismiss = { temperatureDialogOpen = false },
+                onConfirm = { temperature ->
+                    temperatureDialogOpen = false
+                    chatViewModel.updateChatTemperature(temperature)
+                }
+            )
+        }
+        if (searchDialogOpen) {
+            ConversationSearchDialog(
+                onDismiss = { searchDialogOpen = false },
+                onConfirm = { query ->
+                    searchDialogOpen = false
+                    messageSearch = query
+                }
+            )
+        }
+        pendingFill?.let { fill ->
+            PromptPlaceholderDialog(
+                prompt = fill.prompt,
+                onDismiss = { pendingFill = null },
+                onConfirm = { filled ->
+                    chatViewModel.question.replaceComposerRange(fill.start, fill.end, filled)
+                    pendingFill = null
+                }
             )
         }
 
@@ -906,6 +1035,7 @@ fun ChatInputBox(
     sendButtonEnabled: Boolean = true,
     isRunning: Boolean = false,
     selectedAttachments: List<ChatAttachmentDraft> = emptyList(),
+    imagePickRequests: Int = 0,
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
@@ -929,6 +1059,9 @@ fun ChatInputBox(
                 filePath?.let { path -> onFileSelected(path) }
             }
         }
+    }
+    LaunchedEffect(imagePickRequests) {
+        if (imagePickRequests > 0) filePickerLauncher.launch("image/*")
     }
     val openCamera = rememberCameraPhotoLauncher(onFileSelected)
 

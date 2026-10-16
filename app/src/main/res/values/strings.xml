@@ -129,7 +129,7 @@
     <string name="copy_code">Copy Code</string>
     <string name="code">Code</string>
     <string name="retry">Retry</string>
-    <string name="ask_a_question">Ask a question…</string>
+    <string name="ask_a_question">Ask a question… (/ commands, @ mentions)</string>
     <string name="some_platforms_disabled">Some APIs are disabled</string>
     <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
     <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
@@ -700,4 +700,48 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="prompt_library">Prompt library</string>
+    <string name="prompt_library_description">Saved prompts you can insert from the composer with /</string>
+    <string name="slash_commands">Commands</string>
+    <string name="slash_bot_description">Choose which bot answers this chat</string>
+    <string name="slash_model_description">Change the model for this chat</string>
+    <string name="slash_project_description">Move this chat into a project</string>
+    <string name="slash_skill_description">Skills are not available</string>
+    <string name="slash_search_description">Find text in this conversation</string>
+    <string name="slash_image_description">Attach an image</string>
+    <string name="slash_temp_description">Set the sampling temperature for platforms in this chat</string>
+    <string name="slash_clear_description">Clear is not available</string>
+    <string name="slash_export_description">Export this chat</string>
+    <string name="slash_saved_prompts">Saved prompts</string>
+    <string name="slash_manage_prompts">Manage prompts</string>
+    <string name="mention_bots">Bots</string>
+    <string name="mention_projects">Projects</string>
+    <string name="prompt_placeholders_title">Fill in prompt</string>
+    <string name="prompt_placeholder_hint">%1$s</string>
+    <string name="create_prompt">Create prompt</string>
+    <string name="edit_prompt">Edit prompt</string>
+    <string name="prompt_title">Title</string>
+    <string name="prompt_body">Prompt</string>
+    <string name="prompt_body_hint">Use {placeholders} for text you fill in when inserting the prompt.</string>
+    <string name="prompt_favourite">Favourite</string>
+    <string name="no_prompts">No saved prompts yet</string>
+    <string name="no_prompts_description">Create a prompt to insert it from the composer with /.</string>
+    <string name="import_prompts">Import prompts</string>
+    <string name="export_prompts">Export prompts</string>
+    <string name="delete_prompt_title">Delete prompt?</string>
+    <string name="delete_prompt_message">%1$s will be removed from this device.</string>
+    <string name="prompts_imported">Imported %1$d new, updated %2$d, skipped %3$d</string>
+    <string name="prompts_import_failed">Could not read that prompt file</string>
+    <string name="prompt_needs_title_and_body">Add a title and a prompt</string>
+    <string name="prompt_saved">Prompt saved</string>
+    <string name="conversation_search_matches">Matches for “%1$s”</string>
+    <string name="conversation_search_empty">No messages match “%1$s”</string>
+    <string name="clear_search">Clear search</string>
+    <string name="search_conversation">Search conversation</string>
+    <string name="temperature_updated">Temperature set to %1$s</string>
+    <string name="temperature_invalid">Enter a temperature from 0 to 2</string>
+    <string name="chat_moved_to_project">Moved to %1$s</string>
+    <string name="chat_removed_from_project">Removed from project</string>
+    <string name="mark_favourite">Mark as favourite</string>
+    <string name="unmark_favourite">Remove favourite</string>
 </resources>

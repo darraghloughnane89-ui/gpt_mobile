@@ -28,6 +28,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
+import dev.chungjungsoo.gptmobile.presentation.ui.prompt.PromptLibraryScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -71,6 +72,7 @@ fun SetupNavGraph(
     ) {
         homeScreenNavigation(navController)
         projectsNavigation(navController)
+        promptLibraryNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
@@ -212,8 +214,15 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onOpenPromptLibrary = { navController.navigate(Route.PROMPT_LIBRARY) }
         )
+    }
+}
+
+fun NavGraphBuilder.promptLibraryNavigation(navController: NavHostController) {
+    composable(Route.PROMPT_LIBRARY) {
+        PromptLibraryScreen(onBack = { navController.navigateUp() })
     }
 }
 
@@ -240,6 +249,7 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
+                onNavigateToPromptLibrary = { navController.navigate(Route.PROMPT_LIBRARY) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }

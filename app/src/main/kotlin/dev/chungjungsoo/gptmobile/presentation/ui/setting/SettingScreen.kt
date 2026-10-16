@@ -61,6 +61,7 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
+    onNavigateToPromptLibrary: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -146,6 +147,15 @@ fun SettingScreen(
                     title = stringResource(R.string.bots),
                     description = stringResource(R.string.bots_description),
                     onItemClick = onNavigateToBots,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+            }
+            SettingsSection(title = stringResource(R.string.prompt_library)) {
+                SettingItem(
+                    title = stringResource(R.string.prompt_library),
+                    description = stringResource(R.string.prompt_library_description),
+                    onItemClick = onNavigateToPromptLibrary,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

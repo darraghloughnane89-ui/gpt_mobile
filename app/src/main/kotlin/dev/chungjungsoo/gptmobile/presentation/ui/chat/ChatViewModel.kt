@@ -43,6 +43,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRe
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.phone.PhoneHandoffStore
 import dev.chungjungsoo.gptmobile.data.project.ProjectInstructionBinder
+import dev.chungjungsoo.gptmobile.data.project.ProjectRepository
+import dev.chungjungsoo.gptmobile.data.prompt.PromptLibraryRepository
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -89,6 +91,8 @@ class ChatViewModel @Inject constructor(
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val projectInstructionBinder: ProjectInstructionBinder,
+    private val projectRepository: ProjectRepository,
+    private val promptLibraryRepository: PromptLibraryRepository,
     private val chatBotSession: ChatBotSession,
     private val phoneHandoffStore: PhoneHandoffStore
 ) : ViewModel() {
@@ -118,6 +122,8 @@ class ChatViewModel @Inject constructor(
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     private val launchedProjectId: Int = savedStateHandle.get<Int>("projectId") ?: -1
+    private var projectAssignmentExplicit = false
+    private var projectAssignment: Int? = launchedProjectId.takeIf { chatRoomId == 0 && it > 0 }
     val enabledPlatformsInChat = enabledPlatformString.split(',')
 
     private val currentTimeStamp: Long
@@ -181,6 +187,16 @@ class ChatViewModel @Inject constructor(
 
     val bots = chatBotSession.bots
     val selectedBot = chatBotSession.selectedBot
+    val projects = projectRepository.observeProjects().stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyList()
+    )
+    val savedPrompts = promptLibraryRepository.observe().stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyList()
+    )
 
     // Enabled platforms list in app
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<PlatformV2>())
@@ -360,6 +376,42 @@ class ChatViewModel @Inject constructor(
                 _isContextBusy.value = false
                 contextOperationJob = null
             }
+        }
+    }
+
+    fun assignProject(projectId: Int?) {
+        val normalized = projectId?.takeIf { it > 0 }
+        projectAssignmentExplicit = true
+        projectAssignment = normalized
+        viewModelScope.launch {
+            _chatRoom.update { it.copy(projectId = normalized) }
+            val id = _chatRoom.value.id
+            if (id > 0) projectRepository.moveChats(listOf(id), normalized)
+            val name = normalized?.let { projectRepository.getProject(it)?.name }
+            _attachmentNotice.value = if (name == null) {
+                context.getString(R.string.chat_removed_from_project)
+            } else {
+                context.getString(R.string.chat_moved_to_project, name)
+            }
+        }
+    }
+
+    fun updateChatTemperature(temperature: Float) {
+        val clamped = temperature.coerceIn(0f, 2f)
+        viewModelScope.launch {
+            val selected = enabledPlatformsInChat.toSet()
+            val targets = _platformsInApp.value.filter { it.uid in selected }
+            if (targets.isEmpty()) return@launch
+            targets.forEach { platform ->
+                settingRepository.updatePlatformV2(platform.copy(temperature = clamped))
+            }
+            _platformsInApp.update { platforms ->
+                platforms.map { if (it.uid in selected) it.copy(temperature = clamped) else it }
+            }
+            _enabledPlatformsInApp.update { platforms ->
+                platforms.map { if (it.uid in selected) it.copy(temperature = clamped) else it }
+            }
+            _attachmentNotice.value = context.getString(R.string.temperature_updated, "%.1f".format(clamped))
         }
     }
 
@@ -1223,13 +1275,18 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             if (chatRoomId == 0) {
                 val botUid = chatBotSession.prepareNewChat()
+                val projectId = if (projectAssignmentExplicit) {
+                    projectAssignment
+                } else {
+                    launchedProjectId.takeIf { it > 0 }
+                }
                 _chatRoom.update {
                     it.copy(
                         id = 0,
                         title = "Untitled Chat",
                         enabledPlatform = enabledPlatformsInChat,
                         botUid = botUid,
-                        projectId = launchedProjectId.takeIf { projectId -> projectId > 0 }
+                        projectId = projectId
                     )
                 }
                 applyNewChatBotModel()
@@ -1237,9 +1294,13 @@ class ChatViewModel @Inject constructor(
                 val room = chatRepository.fetchChatListV2().first { it.id == chatRoomId }
                 chatBotSession.bind(room.botUid)
                 val resolvedUid = chatBotSession.selectedBot.value?.botUid
-                _chatRoom.update { room.copy(botUid = resolvedUid) }
+                val projectId = if (projectAssignmentExplicit) projectAssignment else room.projectId
+                _chatRoom.update { room.copy(botUid = resolvedUid, projectId = projectId) }
                 if (resolvedUid != room.botUid) {
                     chatBotSession.assignChat(room.id, resolvedUid)
+                }
+                if (projectAssignmentExplicit && projectId != room.projectId) {
+                    projectRepository.moveChats(listOf(room.id), projectId)
                 }
             }
             updateLocalNetworkRequirement(_platformsInApp.value)
