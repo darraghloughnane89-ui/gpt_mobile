@@ -40,6 +40,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.rebuildAssistantTimelineF
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
+import dev.chungjungsoo.gptmobile.data.fetch.LinkContextController
+import dev.chungjungsoo.gptmobile.data.fetch.LinkMessage
+import dev.chungjungsoo.gptmobile.data.fetch.LinkReader
+import dev.chungjungsoo.gptmobile.data.fetch.LinkUrls
+import dev.chungjungsoo.gptmobile.data.fetch.SharedLinkInbox
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
@@ -86,7 +91,9 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
-    private val chatBotSession: ChatBotSession
+    private val chatBotSession: ChatBotSession,
+    private val linkReader: LinkReader,
+    private val sharedLinkInbox: SharedLinkInbox
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -178,6 +185,10 @@ class ChatViewModel @Inject constructor(
     private val _selectedAttachments = MutableStateFlow(listOf<ChatAttachmentDraft>())
     val selectedAttachments = _selectedAttachments.asStateFlow()
 
+    private val linkContext = LinkContextController()
+    val linkChips = linkContext.chips
+    private var linkOfferActive = false
+
     private val _attachmentNotice = MutableStateFlow<String?>(null)
     val attachmentNotice = _attachmentNotice.asStateFlow()
 
@@ -231,6 +242,51 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
         }
+        viewModelScope.launch {
+            sharedLinkInbox.pending.collect { url ->
+                if (url != null && linkOfferActive) consumeSharedLink()
+            }
+        }
+    }
+
+    fun setLinkOfferActive(active: Boolean) {
+        linkOfferActive = active
+        if (active) consumeSharedLink()
+    }
+
+    fun consumeSharedLink() {
+        val url = sharedLinkInbox.consume() ?: return
+        val current = question.text.toString()
+        if (LinkUrls.firstHttpUrl(current) == url) return
+        val next = if (current.isBlank()) url else "$current $url"
+        question.setTextAndPlaceCursorAtEnd(next)
+    }
+
+    fun readLink(url: String) {
+        if (!linkContext.begin(url)) return
+        viewModelScope.launch {
+            try {
+                val document = withContext(Dispatchers.IO) { linkReader.read(url) }
+                linkContext.succeed(url, document)
+                if (LinkUrls.onlyUrl(question.text.toString()) == url) question.clearText()
+            } catch (error: CancellationException) {
+                linkContext.remove(url)
+                throw error
+            } catch (error: Exception) {
+                linkContext.fail(url)
+                _attachmentNotice.value = context.getString(R.string.read_link_failed)
+            }
+        }
+    }
+
+    fun removeLink(url: String) {
+        linkContext.remove(url)
+    }
+
+    fun summariseLink(url: String) {
+        if (linkContext.snapshot().none { it.url == url && it.toReadLink() != null }) return
+        question.setTextAndPlaceCursorAtEnd(context.getString(R.string.read_link_summarise_prompt))
+        askQuestion()
     }
 
     fun addMessage(userMessage: MessageV2) {
@@ -249,11 +305,15 @@ class ChatViewModel @Inject constructor(
         val questionText = question.text.toString()
         val hasReadyAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Ready }
         val hasPreparingAttachments = _selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Preparing }
-        if (questionText.isBlank() && !hasReadyAttachments && !hasPreparingAttachments) return
         if (_selectedAttachments.value.any { it.status == ChatAttachmentDraft.Status.Failed }) {
             _attachmentNotice.update { "Remove failed attachments before sending." }
             return
         }
+        if (linkContext.isReading()) {
+            _attachmentNotice.value = context.getString(R.string.read_link_reading)
+            return
+        }
+        val storedContent = linkContext.messageContent(questionText, hasReadyAttachments) ?: return
 
         if (hasPreparingAttachments) {
             pendingQuestionText = questionText
@@ -263,7 +323,7 @@ class ChatViewModel @Inject constructor(
             return
         }
 
-        sendQuestion(questionText, _selectedAttachments.value)
+        sendQuestion(questionText, storedContent, _selectedAttachments.value)
     }
 
     fun cancelActiveRuns() {
@@ -579,6 +639,10 @@ class ChatViewModel @Inject constructor(
     ): Boolean {
         if (attachments.any { it.status != ChatAttachmentDraft.Status.Ready }) {
             _attachmentNotice.update { "Wait for attachments to finish processing before saving." }
+            return false
+        }
+        val edited = LinkMessage.parse(editedMessage.content)
+        if (edited.question.isBlank() && edited.links.isNotEmpty() && attachments.none { it.status == ChatAttachmentDraft.Status.Ready }) {
             return false
         }
 
@@ -1021,23 +1085,34 @@ class ChatViewModel @Inject constructor(
             return
         }
 
-        if (queuedQuestion.isBlank() && attachments.none { it.status == ChatAttachmentDraft.Status.Ready }) {
+        if (linkContext.isReading()) return
+        val storedContent = linkContext.messageContent(
+            queuedQuestion,
+            attachments.any { it.status == ChatAttachmentDraft.Status.Ready }
+        )
+        if (storedContent == null) {
+            restoreQueuedQuestion(queuedQuestion)
             pendingQuestionText = null
             _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Idle } }
             return
         }
 
         pendingQuestionText = null
-        sendQuestion(queuedQuestion, attachments)
+        sendQuestion(queuedQuestion, storedContent, attachments)
     }
 
-    private fun sendQuestion(questionText: String, attachments: List<ChatAttachmentDraft>) {
+    private fun sendQuestion(
+        questionText: String,
+        storedContent: String,
+        attachments: List<ChatAttachmentDraft>
+    ) {
         if (_isContextBusy.value) return
         if (question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
         val draftAtStart = question.text.toString()
+        val chipsAtStart = linkContext.snapshot()
         val message = MessageV2(
             chatId = chatRoomId,
-            content = questionText,
+            content = storedContent,
             attachments = attachments.mapNotNull { it.attachment },
             platformType = null,
             createdAt = currentTimeStamp
@@ -1058,10 +1133,13 @@ class ChatViewModel @Inject constructor(
                     }
                     return@launch
                 }
-                if (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments) return@launch
+                if (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments || linkContext.snapshot() != chipsAtStart) {
+                    return@launch
+                }
                 addMessage(message)
                 if (question.text.toString() == questionText) question.clearText()
                 clearSelectedFiles()
+                linkContext.clear()
                 completeChat()
             } catch (error: CancellationException) {
                 throw error

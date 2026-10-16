@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,6 +69,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +82,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
@@ -114,6 +118,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.data.fetch.LinkChip
+import dev.chungjungsoo.gptmobile.data.fetch.LinkMessage
+import dev.chungjungsoo.gptmobile.data.fetch.LinkUrls
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
@@ -157,6 +164,7 @@ fun ChatScreen(
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
+    val linkChips by chatViewModel.linkChips.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
@@ -209,6 +217,10 @@ fun ChatScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
         chatViewModel.refreshBots()
+        chatViewModel.setLinkOfferActive(true)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        chatViewModel.setLinkOfferActive(false)
     }
 
     LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
@@ -359,6 +371,10 @@ fun ChatScreen(
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
                 selectedAttachments = selectedAttachments,
+                linkChips = linkChips,
+                onReadLink = chatViewModel::readLink,
+                onSummariseLink = chatViewModel::summariseLink,
+                onRemoveLink = chatViewModel::removeLink,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                 onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
                 onCancelButtonClick = chatViewModel::cancelActiveRuns
@@ -449,14 +465,17 @@ fun ChatScreen(
             when (session.role) {
                 ChatViewModel.MessageEditRole.USER -> {
                     UserMessageEditDialog(
-                        initialQuestion = session.message,
+                        initialQuestion = session.message.copy(
+                            content = LinkMessage.parse(session.message.content).question
+                        ),
                         attachments = session.attachments,
                         onFileSelected = chatViewModel::addMessageEditFile,
                         onCopyFailed = chatViewModel::notifyAttachmentCopyFailed,
                         onFileRemoved = chatViewModel::removeMessageEditFile,
                         onDismissRequest = chatViewModel::discardMessageEditDialog,
                         onConfirmRequest = { question ->
-                            if (chatViewModel.saveUserMessageEdit(question, session.attachments)) {
+                            val stored = LinkMessage.replaceQuestion(session.message.content, question.content)
+                            if (chatViewModel.saveUserMessageEdit(question.copy(content = stored), session.attachments)) {
                                 chatViewModel.finishMessageEditDialog()
                             }
                         }
@@ -552,13 +571,15 @@ private fun ChatMessagePair(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.End
         ) {
+            val parsedLink = LinkMessage.parse(message.content)
             UserChatBubble(
                 modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
-                text = message.content,
+                text = parsedLink.question,
                 files = message.attachments.map { it.filePathForDisplay },
+                links = parsedLink.links,
                 contentIdentity = chatMessagePairKey(message, messageIndex),
                 canEdit = canEdit,
-                onCopyClick = { onCopyText(message.content) },
+                onCopyClick = { onCopyText(parsedLink.question.ifBlank { message.content }) },
                 onEditClick = { onEditQuestion(message) }
             )
         }
@@ -881,6 +902,10 @@ fun ChatInputBox(
     sendButtonEnabled: Boolean = true,
     isRunning: Boolean = false,
     selectedAttachments: List<ChatAttachmentDraft> = emptyList(),
+    linkChips: List<LinkChip> = emptyList(),
+    onReadLink: (String) -> Unit = {},
+    onSummariseLink: (String) -> Unit = {},
+    onRemoveLink: (String) -> Unit = {},
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
@@ -891,7 +916,12 @@ fun ChatInputBox(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
-    val hasQuestionText = inputState.text.isNotEmpty()
+    val focusRequester = remember { FocusRequester() }
+    val composerText by remember(inputState) { derivedStateOf { inputState.text.toString() } }
+    val hasQuestionText = composerText.isNotEmpty()
+    val hasReadyLink = linkChips.any { it.status == LinkChip.Status.READY }
+    val offeredUrl = LinkUrls.firstHttpUrl(composerText)
+        ?.takeUnless { url -> linkChips.any { it.url == url && it.status != LinkChip.Status.FAILED } }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -921,9 +951,32 @@ fun ChatInputBox(
                     onFileRemoved = onFileRemoved
                 )
             }
+            if (offeredUrl != null || linkChips.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (offeredUrl != null) {
+                        ReadLinkOffer(onReadLink = { onReadLink(offeredUrl) })
+                    }
+                    if (linkChips.isNotEmpty()) {
+                        ComposerLinkChips(
+                            chips = linkChips,
+                            onSummarise = onSummariseLink,
+                            onAsk = { focusRequester.requestFocus() },
+                            onRemove = onRemoveLink,
+                            onRetry = onReadLink
+                        )
+                    }
+                }
+            }
             BasicTextField(
                 state = inputState,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
                 enabled = chatEnabled,
                 textStyle = mergedStyle,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -952,7 +1005,11 @@ fun ChatInputBox(
                             if (inputState.text.isEmpty()) {
                                 Text(
                                     modifier = Modifier.alpha(0.38f),
-                                    text = if (chatEnabled) stringResource(R.string.ask_a_question) else stringResource(R.string.some_platforms_disabled)
+                                    text = when {
+                                        !chatEnabled -> stringResource(R.string.some_platforms_disabled)
+                                        hasReadyLink -> stringResource(R.string.read_link_ask_hint)
+                                        else -> stringResource(R.string.ask_a_question)
+                                    }
                                 )
                             }
                             Box(modifier = Modifier.fillMaxWidth()) {

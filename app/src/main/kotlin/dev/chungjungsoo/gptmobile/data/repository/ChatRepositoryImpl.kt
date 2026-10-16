@@ -62,6 +62,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.fetch.LinkMessage
 import dev.chungjungsoo.gptmobile.data.instruction.ChatCompletionContext
 import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
 import dev.chungjungsoo.gptmobile.data.instruction.NullProjectInstructionSource
@@ -589,7 +590,9 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun generateDefaultChatTitle(messages: List<MessageV2>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+    override fun generateDefaultChatTitle(messages: List<MessageV2>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.let { content ->
+        LinkMessage.parse(content).question.ifBlank { content }
+    }?.replace('\n', ' ')?.take(50)
 
     override suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String) {
         chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))

@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
+import dev.chungjungsoo.gptmobile.data.fetch.SharedLinkInbox
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -32,6 +33,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -40,6 +42,9 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
     private val toolConnectionsViewModel: ToolConnectionsViewModel by viewModels()
+
+    @Inject
+    lateinit var sharedLinkInbox: SharedLinkInbox
     private lateinit var authTabLauncher: ActivityResultLauncher<Intent>
     private lateinit var oauthCustomTabLauncher: ActivityResultLauncher<Intent>
     private var lastOAuthCallback: String? = null
@@ -101,12 +106,20 @@ class MainActivity : ComponentActivity() {
             }
         }
         dispatchOAuthIntent(intent)
+        offerSharedLink(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        offerSharedLink(intent)
+    }
+
+    private fun offerSharedLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        if (intent.type != "text/plain") return
+        sharedLinkInbox.offer(intent.getStringExtra(Intent.EXTRA_TEXT))
     }
 
     private fun launchOAuth(authorizationUri: String) {

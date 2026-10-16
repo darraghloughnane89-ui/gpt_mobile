@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,6 +81,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.ui.chat.SharedLinkViewModel
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -100,6 +102,8 @@ fun HomeScreen(
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+    val pendingSharedUrl by hiltViewModel<SharedLinkViewModel>().pendingUrl.collectAsStateWithLifecycle()
+    var routedSharedUrl by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val selectedChatCount = chatListState.selectedChats.count { it }
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
@@ -118,6 +122,20 @@ fun HomeScreen(
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
             homeViewModel.fetchChats()
             homeViewModel.fetchPlatformStatus()
+        }
+    }
+
+    LaunchedEffect(pendingSharedUrl, platformState, lifecycleState, chatListState.isSelectionMode) {
+        val url = pendingSharedUrl ?: return@LaunchedEffect
+        if (lifecycleState != Lifecycle.State.RESUMED || chatListState.isSelectionMode) return@LaunchedEffect
+        if (url == routedSharedUrl) return@LaunchedEffect
+        val enabled = platformState.filter { it.enabled }
+        if (enabled.isEmpty()) return@LaunchedEffect
+        routedSharedUrl = url
+        if (enabled.size == 1) {
+            navigateToNewChat(enabled.map { it.uid })
+        } else {
+            homeViewModel.openSelectModelDialog()
         }
     }
 

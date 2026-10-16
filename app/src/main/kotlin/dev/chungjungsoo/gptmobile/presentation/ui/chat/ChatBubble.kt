@@ -70,6 +70,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.hasUnavailableAssistantOrder
+import dev.chungjungsoo.gptmobile.data.fetch.AttachedLink
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
@@ -80,6 +81,7 @@ fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
     files: List<String> = emptyList(),
+    links: List<AttachedLink> = emptyList(),
     contentIdentity: Any = text,
     canEdit: Boolean = false,
     onCopyClick: () -> Unit = {},
@@ -96,24 +98,30 @@ fun UserChatBubble(
     val messageActionsLabel = stringResource(R.string.message_actions)
 
     Column(horizontalAlignment = Alignment.End) {
-        Card(
-            modifier = modifier
-                .semantics(mergeDescendants = true) {
-                    onLongClick(label = messageActionsLabel) {
-                        isActionsSheetOpen = true
-                        true
+        SentLinkChips(
+            links = links,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        if (text.isNotBlank() || links.isEmpty()) {
+            Card(
+                modifier = modifier
+                    .semantics(mergeDescendants = true) {
+                        onLongClick(label = messageActionsLabel) {
+                            isActionsSheetOpen = true
+                            true
+                        }
                     }
-                }
-                .pointerInput(contentIdentity) {
-                    detectTapGestures(onLongPress = { isActionsSheetOpen = true })
-                },
-            shape = RoundedCornerShape(32.dp),
-            colors = cardColor
-        ) {
-            ChatMarkdown(
-                content = text,
-                modifier = Modifier.padding(16.dp)
-            )
+                    .pointerInput(contentIdentity) {
+                        detectTapGestures(onLongPress = { isActionsSheetOpen = true })
+                    },
+                shape = RoundedCornerShape(32.dp),
+                colors = cardColor
+            ) {
+                ChatMarkdown(
+                    content = text,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
         }
         MessageFileThumbnailRow(
             files = files,

@@ -130,6 +130,15 @@
     <string name="code">Code</string>
     <string name="retry">Retry</string>
     <string name="ask_a_question">Ask a question…</string>
+    <string name="read_link">Read link</string>
+    <string name="read_link_summarise">Summarise</string>
+    <string name="read_link_ask">Ask</string>
+    <string name="read_link_untrusted">Untrusted page</string>
+    <string name="read_link_captions">Captions</string>
+    <string name="read_link_reading">Still reading that link.</string>
+    <string name="read_link_failed">Couldn\'t read that link. Nothing was sent.</string>
+    <string name="read_link_summarise_prompt">Summarise this</string>
+    <string name="read_link_ask_hint">Ask about this link…</string>
     <string name="some_platforms_disabled">Some APIs are disabled</string>
     <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
     <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
