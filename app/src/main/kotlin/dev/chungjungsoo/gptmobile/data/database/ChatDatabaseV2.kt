@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
+import dev.chungjungsoo.gptmobile.data.database.dao.BotDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
@@ -16,6 +17,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentToolBinding
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineListConverter
+import dev.chungjungsoo.gptmobile.data.database.entity.Bot
+import dev.chungjungsoo.gptmobile.data.database.entity.BotToolBinding
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatPlatformModelV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
@@ -40,9 +43,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         ToolEvent::class,
         LocalModel::class,
         ContextCheckpointEntity::class,
-        ModelCapacityEntity::class
+        ModelCapacityEntity::class,
+        Bot::class,
+        BotToolBinding::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(
@@ -62,4 +67,5 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun toolConnectionDao(): ToolConnectionDao
     abstract fun localModelDao(): LocalModelDao
     abstract fun compactionDao(): CompactionDao
+    abstract fun botDao(): BotDao
 }
