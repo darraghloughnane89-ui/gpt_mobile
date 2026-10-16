@@ -21,6 +21,9 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE project_id = :projectId")
     suspend fun getProject(projectId: Int): Project?
 
+    @Query("SELECT * FROM projects WHERE import_key = :importKey LIMIT 1")
+    suspend fun getProjectByImportKey(importKey: String): Project?
+
     @Query("SELECT * FROM projects WHERE project_id = :projectId")
     fun observeProject(projectId: Int): Flow<Project?>
 
@@ -45,11 +48,17 @@ interface ProjectDao {
     @Insert
     suspend fun insertFile(file: ProjectFile): Long
 
+    @Update
+    suspend fun updateFile(file: ProjectFile)
+
     @Delete
     suspend fun deleteFile(file: ProjectFile)
 
     @Query("SELECT * FROM chats_v2 WHERE project_id = :projectId ORDER BY updated_at DESC")
     fun observeChats(projectId: Int): Flow<List<ChatRoomV2>>
+
+    @Query("SELECT * FROM chats_v2 WHERE project_id = :projectId ORDER BY created_at ASC, chat_id ASC")
+    suspend fun getChatsInProject(projectId: Int): List<ChatRoomV2>
 
     @Query("SELECT * FROM chats_v2 ORDER BY updated_at DESC")
     suspend fun getChats(): List<ChatRoomV2>

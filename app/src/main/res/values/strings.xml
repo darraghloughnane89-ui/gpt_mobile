@@ -626,4 +626,18 @@
     <string name="project_file_unsupported">Use a text, Markdown, PDF, or image file.</string>
     <string name="project_file_unreadable">Could not read that file.</string>
     <string name="project_file_empty">That file is empty.</string>
+    <string name="project_import">Import</string>
+    <string name="project_import_zip">Import zip</string>
+    <string name="project_import_folder">Import folder</string>
+    <string name="project_export">Export</string>
+    <string name="project_import_reading">Reading archive</string>
+    <string name="project_import_parsing">Reading project layout</string>
+    <string name="project_import_writing">Importing %1$s</string>
+    <string name="project_import_done">Imported %1$d projects and %2$d chats.</string>
+    <string name="project_import_unrecognized">That folder is not a Robin, ChatGPT, Claude, or Grok export.</string>
+    <string name="project_import_unreadable">Could not read that archive.</string>
+    <string name="project_import_empty">That archive has no project files.</string>
+    <string name="project_import_too_large">That archive is too large to import.</string>
+    <string name="project_export_writing">Exporting project</string>
+    <string name="project_export_done">Project exported.</string>
 </resources>

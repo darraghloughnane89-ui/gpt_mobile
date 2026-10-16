@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -69,7 +70,15 @@ fun ProjectsScreen(
     viewModel: ProjectsViewModel = hiltViewModel()
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
+    val transfer by viewModel.transfer.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<Project?>(null) }
+    var importMenu by remember { mutableStateOf(false) }
+    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importZip(uri)
+    }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) viewModel.importFolder(uri)
+    }
 
     Scaffold(
         topBar = {
@@ -78,6 +87,29 @@ fun ProjectsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
+                    }
+                },
+                actions = {
+                    Box {
+                        TextButton(onClick = { importMenu = true }) {
+                            Text(stringResource(R.string.project_import))
+                        }
+                        DropdownMenu(expanded = importMenu, onDismissRequest = { importMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.project_import_zip)) },
+                                onClick = {
+                                    importMenu = false
+                                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.project_import_folder)) },
+                                onClick = {
+                                    importMenu = false
+                                    folderPicker.launch(null)
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -150,6 +182,10 @@ fun ProjectsScreen(
             }
         )
     }
+
+    transfer?.let { state ->
+        ProjectTransferDialog(state = state, onDismiss = viewModel::dismissTransfer)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -221,6 +257,7 @@ fun ProjectDetailScreen(
     val showAddChat by viewModel.showAddChat.collectAsStateWithLifecycle()
     val availableChats by viewModel.availableChats.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
+    val transfer by viewModel.transfer.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.refreshPlatforms() }
     LaunchedEffect(notice) {
@@ -233,6 +270,9 @@ fun ProjectDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.importFile(uri)
+    }
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) viewModel.export(uri)
     }
 
     val current = project
@@ -251,6 +291,13 @@ fun ProjectDetailScreen(
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_options))
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.project_export)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    exportPicker.launch(projectZipName(current.name))
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.project_edit)) },
                                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
@@ -427,6 +474,44 @@ fun ProjectDetailScreen(
             }
         )
     }
+
+    transfer?.let { state ->
+        ProjectTransferDialog(state = state, onDismiss = viewModel::dismissTransfer)
+    }
+}
+
+@Composable
+private fun ProjectTransferDialog(state: ProjectTransferUi, onDismiss: () -> Unit) {
+    val fraction = if (state.total > 0) state.completed.toFloat() / state.total.toFloat() else null
+    AlertDialog(
+        onDismissRequest = { if (!state.running) onDismiss() },
+        title = { Text(state.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(state.detail)
+                if (state.running) {
+                    if (fraction == null) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { fraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!state.running) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+            }
+        }
+    )
+}
+
+private fun projectZipName(name: String): String {
+    val cleaned = name.replace(Regex("[^A-Za-z0-9._ -]"), "").trim().ifBlank { "project" }
+    return "$cleaned.zip"
 }
 
 @Composable

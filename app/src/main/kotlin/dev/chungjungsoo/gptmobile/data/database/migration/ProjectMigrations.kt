@@ -23,9 +23,11 @@ object ProjectMigrations {
             `color` INTEGER NOT NULL,
             `instructions` TEXT NOT NULL,
             `created_at` INTEGER NOT NULL,
-            `updated_at` INTEGER NOT NULL
+            `updated_at` INTEGER NOT NULL,
+            `import_key` TEXT
         )
         """.trimIndent(),
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_projects_import_key` ON `projects` (`import_key`)",
         """
         CREATE TABLE IF NOT EXISTS `project_files` (
             `file_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

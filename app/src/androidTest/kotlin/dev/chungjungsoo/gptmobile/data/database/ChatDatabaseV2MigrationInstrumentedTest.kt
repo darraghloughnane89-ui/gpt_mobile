@@ -469,6 +469,13 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         }
         assertCount(database, "projects", 0)
         assertCount(database, "project_files", 0)
+        database.query("PRAGMA table_info(projects)").use { cursor ->
+            val names = mutableSetOf<String>()
+            while (cursor.moveToNext()) {
+                names += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+            assertTrue(names.contains("import_key"))
+        }
         database.close()
     }
 

@@ -12,6 +12,17 @@ class ProjectFileStore @Inject constructor(
         file(projectId, storageName).writeBytes(bytes)
     }
 
+    fun read(projectId: Int, storageName: String): ByteArray? {
+        val target = file(projectId, storageName)
+        return if (target.isFile) target.readBytes() else null
+    }
+
+    fun readText(projectId: Int, storageName: String): String? = read(projectId, storageName)?.toString(Charsets.UTF_8)
+
+    fun writeText(projectId: Int, storageName: String, text: String) {
+        write(projectId, storageName, text.toByteArray(Charsets.UTF_8))
+    }
+
     fun delete(projectId: Int, storageName: String) {
         file(projectId, storageName).delete()
     }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "7e1e87d6f5e99ed7a9b741b9208196a9",
+    "identityHash": "1c5c3802630be1a048fd2cf9f7e6250b",
     "entities": [
       {
         "tableName": "chats_v2",
@@ -1015,7 +1015,7 @@
       },
       {
         "tableName": "projects",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`project_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `icon` TEXT NOT NULL, `color` INTEGER NOT NULL, `instructions` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`project_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `icon` TEXT NOT NULL, `color` INTEGER NOT NULL, `instructions` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `import_key` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -1058,6 +1058,11 @@
             "columnName": "updated_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "importKey",
+            "columnName": "import_key",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1065,7 +1070,18 @@
           "columnNames": [
             "project_id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_projects_import_key",
+            "unique": true,
+            "columnNames": [
+              "import_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_projects_import_key` ON `${TABLE_NAME}` (`import_key`)"
+          }
+        ]
       },
       {
         "tableName": "project_files",
@@ -1153,7 +1169,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7e1e87d6f5e99ed7a9b741b9208196a9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1c5c3802630be1a048fd2cf9f7e6250b')"
     ]
   }
 }

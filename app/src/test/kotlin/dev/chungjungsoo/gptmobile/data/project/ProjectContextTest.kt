@@ -172,6 +172,8 @@ class ProjectContextTest {
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS `project_files`"))
         assertTrue(sql.contains("ALTER TABLE `chats_v2` ADD COLUMN `project_id` INTEGER"))
         assertTrue(sql.contains("index_chats_v2_project_id"))
+        assertTrue(sql.contains("`import_key` TEXT"))
+        assertTrue(sql.contains("index_projects_import_key"))
         assertFalse(sql.contains("bot_uid"))
     }
 
@@ -191,6 +193,17 @@ class ProjectContextTest {
             .first { it.getValue("columnName").jsonPrimitive.content == "project_id" }
         assertEquals("INTEGER", projectId.getValue("affinity").jsonPrimitive.content)
         assertFalse(projectId.containsKey("notNull") && projectId.getValue("notNull").jsonPrimitive.content == "true")
+        val importKey = tables.getValue("projects").getValue("fields").jsonArray.map { it.jsonObject }
+            .first { it.getValue("columnName").jsonPrimitive.content == "import_key" }
+        assertEquals("TEXT", importKey.getValue("affinity").jsonPrimitive.content)
+        assertFalse(importKey.containsKey("notNull") && importKey.getValue("notNull").jsonPrimitive.content == "true")
+        val indexes = tables.getValue("projects").getValue("indices").jsonArray.map { it.jsonObject }
+        assertTrue(
+            indexes.any {
+                it.getValue("name").jsonPrimitive.content == "index_projects_import_key" &&
+                    it.getValue("unique").jsonPrimitive.content == "true"
+            }
+        )
     }
 
     private fun schemaFile(): File {
