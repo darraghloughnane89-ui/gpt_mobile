@@ -55,6 +55,35 @@ class ChatArtifactTest {
     }
 
     @Test
+    fun sanitizePreviewMarkup_blocksNetworkAndIntentEscapes() {
+        val sanitized = sanitizePreviewMarkup(
+            """
+            <img src="https://evil.test/pixel">
+            <meta http-equiv="refresh" content="0;url=intent://evil.test">
+            <base href="https://evil.test/">
+            <a href="javascript&#58;alert(1)">x</a>
+            <svg><image href="file:///data/secret"></image></svg>
+            """.trimIndent()
+        )
+        val document = artifactPreviewDocument(
+            ChatArtifact(title = "HTML", language = "html", source = "<h1>Hi</h1>", kind = ArtifactKind.Html)
+        )
+
+        assertFalse(sanitized.contains("https://evil.test"))
+        assertFalse(sanitized.contains("intent:"))
+        assertFalse(sanitized.contains("javascript"))
+        assertFalse(sanitized.contains("file:"))
+        assertFalse(artifactResourceAllowed("https://evil.test/pixel"))
+        assertFalse(artifactResourceAllowed("file:///data/secret"))
+        assertFalse(artifactResourceAllowed("intent://evil.test"))
+        assertFalse(artifactResourceAllowed("javascript:alert(1)"))
+        assertTrue(artifactResourceAllowed("about:blank"))
+        assertTrue(artifactResourceAllowed("data:image/png;base64,aaaa"))
+        assertTrue(document.contains("Content-Security-Policy"))
+        assertTrue(document.contains("default-src 'none'"))
+    }
+
+    @Test
     fun extractChatArtifacts_ignoresUnclosedAndMarkdownFencesAreKept() {
         assertTrue(extractChatArtifacts("```html\n<h1>Open").isEmpty())
         val markdown = extractChatArtifacts("```md\n# Notes\n```")

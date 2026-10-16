@@ -9,6 +9,11 @@ private val SCRIPT_TAG = Regex("(?is)</?script\\b[^>]*>")
 private val EVENT_HANDLER = Regex("(?i)\\son[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)")
 private val JS_URL = Regex("(?i)javascript\\s*:")
 private val FRAMED_CONTENT = Regex("(?is)<(iframe|object|embed)\\b[^>]*>.*?</\\1>|<iframe\\b[^>]*>|<object\\b[^>]*>|<embed\\b[^>]*>")
+private val BREAKOUT_TAGS = Regex("(?is)</?(?:meta|base|link|form|foreignobject|html|head|body)\\b[^>]*>")
+private val URL_ATTRIBUTE = Regex(
+    """(?i)(\s)(src|href|xlink:href|action|formaction|poster|data)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)"""
+)
+private val NUMERIC_ENTITY = Regex("&#(x?[0-9a-fA-F]+);")
 
 enum class ArtifactKind {
     Html,
@@ -44,12 +49,28 @@ fun artifactKind(language: String, body: String): ArtifactKind? = when (language
     else -> null
 }
 
-fun sanitizePreviewMarkup(source: String): String = source
-    .replace(SCRIPT_BLOCK, "")
-    .replace(SCRIPT_TAG, "")
-    .replace(FRAMED_CONTENT, "")
-    .replace(EVENT_HANDLER, "")
-    .replace(JS_URL, "")
+fun artifactResourceAllowed(url: String): Boolean {
+    val trimmed = url.trim()
+    val separator = trimmed.indexOf(':')
+    if (separator <= 0) return false
+    val scheme = trimmed.substring(0, separator).lowercase()
+    return scheme == "about" || scheme == "data"
+}
+
+fun sanitizePreviewMarkup(source: String): String {
+    val stripped = source
+        .replace(SCRIPT_BLOCK, "")
+        .replace(SCRIPT_TAG, "")
+        .replace(FRAMED_CONTENT, "")
+        .replace(EVENT_HANDLER, "")
+        .replace(JS_URL, "")
+        .replace(BREAKOUT_TAGS, "")
+    return URL_ATTRIBUTE.replace(stripped) { match ->
+        val raw = match.groupValues[3].trim('"', '\'')
+        val decoded = decodePreviewEntities(raw).trim()
+        if (previewUrlAllowed(decoded)) match.value else ""
+    }
+}
 
 fun artifactPreviewDocument(artifact: ChatArtifact): String {
     val body = sanitizePreviewMarkup(artifact.source)
@@ -63,6 +84,7 @@ fun artifactPreviewDocument(artifact: ChatArtifact): String {
         <html>
         <head>
         <meta charset="utf-8">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
           html, body { margin: 0; padding: 16px; font-family: sans-serif; }
@@ -73,6 +95,27 @@ fun artifactPreviewDocument(artifact: ChatArtifact): String {
         <body>$wrapped</body>
         </html>
     """.trimIndent()
+}
+
+private fun previewUrlAllowed(value: String): Boolean {
+    if (value.isEmpty() || value.startsWith("#")) return true
+    return artifactResourceAllowed(value)
+}
+
+private fun decodePreviewEntities(value: String): String {
+    val named = value
+        .replace("&colon;", ":", ignoreCase = true)
+        .replace("&amp;", "&", ignoreCase = true)
+        .replace("&quot;", "\"", ignoreCase = true)
+    return NUMERIC_ENTITY.replace(named) { match ->
+        val body = match.groupValues[1]
+        val code = if (body.startsWith("x", ignoreCase = true)) {
+            body.drop(1).toIntOrNull(16)
+        } else {
+            body.toIntOrNull()
+        }
+        if (code == null || code !in 0..0x10FFFF) match.value else code.toChar().toString()
+    }
 }
 
 private fun titleArtifacts(artifacts: List<ChatArtifact>): List<ChatArtifact> {
