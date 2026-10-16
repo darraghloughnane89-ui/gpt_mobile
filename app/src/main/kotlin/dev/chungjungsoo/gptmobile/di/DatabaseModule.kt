@@ -25,6 +25,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ProjectDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
 import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
+import dev.chungjungsoo.gptmobile.util.OffMainLazy
 import javax.inject.Singleton
 
 @Module
@@ -74,32 +75,36 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase = Room.databaseBuilder(
-        appContext,
-        ChatDatabase::class.java,
-        DB_NAME
-    ).build()
+    fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase = OffMainLazy("room-chat") {
+        Room.databaseBuilder(
+            appContext,
+            ChatDatabase::class.java,
+            DB_NAME
+        ).build()
+    }.get()
 
     @Provides
     @Singleton
-    fun provideChatDatabaseV2(@ApplicationContext appContext: Context): ChatDatabaseV2 = Room.databaseBuilder(
-        appContext,
-        ChatDatabaseV2::class.java,
-        DB_NAME_V2
-    ).addMigrations(
-        ChatDatabaseV2Migrations.MIGRATION_1_2,
-        ChatDatabaseV2Migrations.MIGRATION_2_3,
-        ChatDatabaseV2Migrations.MIGRATION_3_4,
-        ChatDatabaseV2Migrations.MIGRATION_4_5,
-        ChatDatabaseV2Migrations.MIGRATION_5_6,
-        ChatDatabaseV2Migrations.MIGRATION_6_7,
-        ChatDatabaseV2Migrations.MIGRATION_7_8,
-        ChatDatabaseV2Migrations.MIGRATION_8_9,
-        ChatDatabaseV2Migrations.MIGRATION_9_10,
-        ChatDatabaseV2Migrations.MIGRATION_10_11,
-        BotDatabaseV2Migration.MIGRATION_11_12,
-        ProjectMigrations.MIGRATION_12_13
-    ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
-        .addCallback(BotDatabaseV2Migration.SEED_CALLBACK)
-        .build()
+    fun provideChatDatabaseV2(@ApplicationContext appContext: Context): ChatDatabaseV2 = OffMainLazy("room-chat-v2") {
+        Room.databaseBuilder(
+            appContext,
+            ChatDatabaseV2::class.java,
+            DB_NAME_V2
+        ).addMigrations(
+            ChatDatabaseV2Migrations.MIGRATION_1_2,
+            ChatDatabaseV2Migrations.MIGRATION_2_3,
+            ChatDatabaseV2Migrations.MIGRATION_3_4,
+            ChatDatabaseV2Migrations.MIGRATION_4_5,
+            ChatDatabaseV2Migrations.MIGRATION_5_6,
+            ChatDatabaseV2Migrations.MIGRATION_6_7,
+            ChatDatabaseV2Migrations.MIGRATION_7_8,
+            ChatDatabaseV2Migrations.MIGRATION_8_9,
+            ChatDatabaseV2Migrations.MIGRATION_9_10,
+            ChatDatabaseV2Migrations.MIGRATION_10_11,
+            BotDatabaseV2Migration.MIGRATION_11_12,
+            ProjectMigrations.MIGRATION_12_13
+        ).addCallback(ChatDatabaseV2Migrations.AGENT_TOOL_BINDING_CALLBACK)
+            .addCallback(BotDatabaseV2Migration.SEED_CALLBACK)
+            .build()
+    }.get()
 }

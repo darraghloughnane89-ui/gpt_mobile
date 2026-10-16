@@ -7,6 +7,7 @@ import org.gradle.kotlin.dsl.configure
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.android.hilt)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.ksp)
@@ -108,6 +109,10 @@ dependencies {
     // SplashScreen
     implementation(libs.splashscreen)
 
+    // Installs the checked-in baseline profile on first launch.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":benchmark"))
+
     // DataStore
     implementation(libs.androidx.datastore)
 
@@ -180,4 +185,8 @@ aboutLibraries {
     export {
         excludeFields.add("generated")
     }
+}
+
+baselineProfile {
+    automaticGenerationDuringBuild = false
 }

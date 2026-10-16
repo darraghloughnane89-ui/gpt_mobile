@@ -69,7 +69,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +92,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -110,7 +113,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
-import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
@@ -118,6 +120,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
 import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
 import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
+import dev.chungjungsoo.gptmobile.presentation.ui.BenchmarkTags
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceChatHost
@@ -140,25 +143,29 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboard.current
     val systemChatMargin = 32.dp
-    val maximumUserChatBubbleWidth = (screenWidthDp - systemChatMargin) * 0.8F
-    val maximumOpponentChatBubbleWidth = screenWidthDp - systemChatMargin
+    val maximumUserChatBubbleWidth = remember(screenWidthDp) { (screenWidthDp - systemChatMargin) * 0.8F }
+    val maximumOpponentChatBubbleWidth = remember(screenWidthDp) { screenWidthDp - systemChatMargin }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val projectName by chatViewModel.projectName.collectAsStateWithLifecycle()
-    val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
+    val groupedMessagesState = chatViewModel.groupedMessages.collectAsStateWithLifecycle()
+    val groupedMessages = groupedMessagesState.value
     val listState = rememberChatListState(groupedMessages.userMessages.size)
+    val canScrollForward by remember { derivedStateOf { listState.canScrollForward } }
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
     var isFollowingBottom by remember { mutableStateOf(true) }
     val agentRunsById by chatViewModel.agentRunsById.collectAsStateWithLifecycle()
     val runNoticesById by chatViewModel.runNoticesById.collectAsStateWithLifecycle()
     val toolEventsByRun by chatViewModel.toolEventsByRun.collectAsStateWithLifecycle()
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
-    val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
+    val loadingStatesState = chatViewModel.loadingStates.collectAsStateWithLifecycle()
+    val loadingStates = loadingStatesState.value
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
     val chatContextState by chatViewModel.chatContextState.collectAsStateWithLifecycle()
-    val isContextBusy by chatViewModel.isContextBusy.collectAsStateWithLifecycle()
+    val isContextBusyState = chatViewModel.isContextBusy.collectAsStateWithLifecycle()
+    val isContextBusy = isContextBusyState.value
     var isContextPlatformPickerOpen by rememberSaveable { mutableStateOf(false) }
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
@@ -171,7 +178,8 @@ fun ChatScreen(
         onPhotoReady = chatViewModel::addSelectedFile
     )
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
-    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
+    val appEnabledPlatformsState = chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
+    val appEnabledPlatforms = appEnabledPlatformsState.value
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
     val bots by chatViewModel.bots.collectAsStateWithLifecycle()
@@ -179,10 +187,21 @@ fun ChatScreen(
     var botPickerOpen by rememberSaveable { mutableStateOf(false) }
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
-    val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
-    val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusy
+    val canUseChat by remember(chatViewModel.enabledPlatformsInChat) {
+        derivedStateOf {
+            val enabledUids = appEnabledPlatformsState.value.map { it.uid }.toSet()
+            (chatViewModel.enabledPlatformsInChat.toSet() - enabledUids).isEmpty()
+        }
+    }
+    val isIdle by remember {
+        derivedStateOf {
+            loadingStatesState.value.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusyState.value
+        }
+    }
     val context = LocalContext.current
-    val lastMessageIndex = groupedMessages.userMessages.lastIndex
+    val lastMessageIndex by remember {
+        derivedStateOf { groupedMessagesState.value.userMessages.lastIndex }
+    }
     var requestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var sendAfterNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var sendAfterLocalNetworkPermission by rememberSaveable { mutableStateOf(false) }
@@ -217,6 +236,14 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val onCopyText: (String) -> Unit = remember(clipboardManager, scope) {
+        { copiedText: String ->
+            scope.launch {
+                clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
+            }
+            Unit
+        }
+    }
     var showVoice by rememberSaveable { mutableStateOf(chatViewModel.openVoiceOnStart) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -224,27 +251,40 @@ fun ChatScreen(
         chatViewModel.refreshBots()
     }
 
-    LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
-        isFollowingBottom = nextFollowBottom(
-            isFollowing = isFollowingBottom,
-            isUserScrolling = isUserDragging || listState.isScrollInProgress,
-            isScrollingAway = listState.lastScrolledBackward,
-            canScrollForward = listState.canScrollForward
-        )
+    LaunchedEffect(listState, isUserDragging) {
+        snapshotFlow {
+            ScrollFollowSample(
+                isScrollInProgress = listState.isScrollInProgress,
+                canScrollForward = listState.canScrollForward,
+                lastScrolledBackward = listState.lastScrolledBackward
+            )
+        }.collect { sample ->
+            isFollowingBottom = nextFollowBottom(
+                isFollowing = isFollowingBottom,
+                isUserScrolling = isUserDragging || sample.isScrollInProgress,
+                isScrollingAway = sample.lastScrolledBackward,
+                canScrollForward = sample.canScrollForward
+            )
+        }
     }
 
     LaunchedEffect(lastMessageIndex) {
         isFollowingBottom = true
     }
 
+    val autoScrollEnabled by remember(isUserDragging) {
+        derivedStateOf {
+            shouldAutoScrollToBottom(
+                isFollowing = isFollowingBottom,
+                isUserDragging = isUserDragging,
+                isScrollInProgress = listState.isScrollInProgress,
+                isScrollingAway = listState.lastScrolledBackward
+            )
+        }
+    }
     ChatBottomAutoScroller(
         listState = listState,
-        isEnabled = shouldAutoScrollToBottom(
-            isFollowing = isFollowingBottom,
-            isUserDragging = isUserDragging,
-            isScrollInProgress = listState.isScrollInProgress,
-            isScrollingAway = listState.lastScrolledBackward
-        )
+        isEnabled = autoScrollEnabled
     )
 
     LaunchedEffect(attachmentNotice) {
@@ -301,36 +341,51 @@ fun ChatScreen(
                         .fillMaxWidth()
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag(BenchmarkTags.MESSAGE_LIST),
                         state = listState
                     ) {
                         itemsIndexed(
                             items = groupedMessages.userMessages,
-                            key = { index, message -> chatMessagePairKey(message, index) }
+                            key = { index, message -> chatMessagePairKey(message, index) },
+                            contentType = { _, _ -> "message-turn" }
                         ) { index, message ->
+                            val assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList()
+                            val platformIndex = indexStates.getOrElse(index) { 0 }
+                            val assistantMessage = assistantMessages.getOrNull(platformIndex)
+                            val runId = assistantMessage?.effectiveRunId()
                             ChatMessagePair(
-                                messageIndex = index,
-                                message = message,
-                                assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
-                                agentRunsById = agentRunsById,
-                                runNoticesById = runNoticesById,
-                                toolEventsByRun = toolEventsByRun,
-                                platformIndexState = indexStates.getOrElse(index) { 0 },
-                                loadingStates = loadingStates,
-                                enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
-                                enabledPlatformLookup = enabledPlatformLookup,
-                                canUseChat = canUseChat,
-                                isIdle = isIdle,
-                                isActiveMessage = index == lastMessageIndex,
+                                state = ChatTurnRenderState(
+                                    messageIndex = index,
+                                    message = message,
+                                    assistantMessage = assistantMessage,
+                                    agentRun = runId?.let { agentRunsById[it] },
+                                    runNotices = runId?.let { runNoticesById[it] }.orEmpty(),
+                                    toolEvents = runId?.let { toolEventsByRun[it] }.orEmpty(),
+                                    platformIndex = platformIndex,
+                                    platformUid = chatViewModel.enabledPlatformsInChat.getOrElse(platformIndex) { "" },
+                                    platformNames = chatViewModel.enabledPlatformsInChat.map { uid ->
+                                        enabledPlatformLookup[uid]?.name
+                                    },
+                                    isCurrentPlatformLoading = loadingStates.getOrElse(platformIndex) {
+                                        ChatViewModel.LoadingState.Idle
+                                    } == ChatViewModel.LoadingState.Loading,
+                                    showReplyLoading = shouldShowReplyLoadingIndicator(
+                                        isActiveMessage = index == lastMessageIndex,
+                                        loadingStates = loadingStates
+                                    ),
+                                    canUseChat = canUseChat,
+                                    isIdle = isIdle,
+                                    isActiveMessage = index == lastMessageIndex,
+                                    userFiles = message.attachments.map { it.filePathForDisplay },
+                                    assistantFiles = assistantMessage?.attachments.orEmpty().map { it.filePathForDisplay }
+                                ),
                                 maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                                 maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
                                 onEditQuestion = chatViewModel::openUserMessageEditDialog,
                                 onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
-                                onCopyText = { copiedText ->
-                                    scope.launch {
-                                        clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
-                                    }
-                                },
+                                onCopyText = onCopyText,
                                 onPlatformClick = chatViewModel::updateChatPlatformIndex,
                                 onSelectText = chatViewModel::openSelectTextSheet,
                                 onRetry = chatViewModel::retryChat,
@@ -345,7 +400,7 @@ fun ChatScreen(
                         }
                     }
 
-                    if (!isFollowingBottom && listState.canScrollForward) {
+                    if (!isFollowingBottom && canScrollForward) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -524,21 +579,35 @@ fun ChatScreen(
     }
 }
 
+@Immutable
+internal data class ChatTurnRenderState(
+    val messageIndex: Int,
+    val message: MessageV2,
+    val assistantMessage: MessageV2?,
+    val agentRun: AgentRun?,
+    val runNotices: List<ChatRunNotice>,
+    val toolEvents: List<ToolEvent>,
+    val platformIndex: Int,
+    val platformUid: String,
+    val platformNames: List<String?>,
+    val isCurrentPlatformLoading: Boolean,
+    val showReplyLoading: Boolean,
+    val canUseChat: Boolean,
+    val isIdle: Boolean,
+    val isActiveMessage: Boolean,
+    val userFiles: List<String>,
+    val assistantFiles: List<String>
+)
+
+private data class ScrollFollowSample(
+    val isScrollInProgress: Boolean,
+    val canScrollForward: Boolean,
+    val lastScrolledBackward: Boolean
+)
+
 @Composable
 private fun ChatMessagePair(
-    messageIndex: Int,
-    message: MessageV2,
-    assistantMessages: List<MessageV2>,
-    agentRunsById: Map<String, AgentRun>,
-    runNoticesById: Map<String, List<ChatRunNotice>>,
-    toolEventsByRun: Map<String, List<ToolEvent>>,
-    platformIndexState: Int,
-    loadingStates: List<ChatViewModel.LoadingState>,
-    enabledPlatformsInChat: List<String>,
-    enabledPlatformLookup: Map<String, PlatformV2>,
-    canUseChat: Boolean,
-    isIdle: Boolean,
-    isActiveMessage: Boolean,
+    state: ChatTurnRenderState,
     maximumUserChatBubbleWidth: Dp,
     maximumOpponentChatBubbleWidth: Dp,
     onEditQuestion: (MessageV2) -> Unit,
@@ -550,26 +619,30 @@ private fun ChatMessagePair(
     onShowPreviousRevision: (Int, Int) -> Unit,
     onShowNextRevision: (Int, Int) -> Unit
 ) {
-    val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
-    val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
-    val assistantThoughts = selectedAssistantMessage?.effectiveThoughts() ?: ""
-    val assistantTimeline = selectedAssistantMessage?.effectiveTimeline().orEmpty()
-    val selectedRunId = selectedAssistantMessage?.effectiveRunId()
-    val agentRun = selectedRunId?.let(agentRunsById::get)
-    val toolEvents = selectedRunId?.let(toolEventsByRun::get).orEmpty()
-    val canShowPreviousRevision = selectedAssistantMessage?.let { assistantMessage ->
-        assistantMessage.revisions.isNotEmpty() &&
-            assistantMessage.activeRevisionIndex < assistantMessage.revisions.lastIndex
-    } ?: false
-    val canShowNextRevision = selectedAssistantMessage?.let { assistantMessage ->
-        assistantMessage.revisions.isNotEmpty() &&
-            assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
-    } ?: false
-    val selectedPlatformUid = enabledPlatformsInChat.getOrElse(platformIndexState) { "" }
-    val isCurrentPlatformLoading =
-        loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
-    val canEdit = canUseChat && isIdle
-    val canRetry = canUseChat && isActiveMessage && !isCurrentPlatformLoading
+    val message = state.message
+    val selectedAssistantMessage = state.assistantMessage
+    val assistantContent = remember(selectedAssistantMessage) { selectedAssistantMessage?.effectiveContent() ?: "" }
+    val assistantThoughts = remember(selectedAssistantMessage) { selectedAssistantMessage?.effectiveThoughts() ?: "" }
+    val assistantTimeline = remember(selectedAssistantMessage) { selectedAssistantMessage?.effectiveTimeline().orEmpty() }
+    val agentRun = state.agentRun
+    val toolEvents = state.toolEvents
+    val canShowPreviousRevision = remember(selectedAssistantMessage) {
+        selectedAssistantMessage?.let { assistantMessage ->
+            assistantMessage.revisions.isNotEmpty() &&
+                assistantMessage.activeRevisionIndex < assistantMessage.revisions.lastIndex
+        } ?: false
+    }
+    val canShowNextRevision = remember(selectedAssistantMessage) {
+        selectedAssistantMessage?.let { assistantMessage ->
+            assistantMessage.revisions.isNotEmpty() &&
+                assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
+        } ?: false
+    }
+    val userPaths = remember(state.userFiles) { DisplayPaths(state.userFiles) }
+    val onCopyUser = remember(message.content, onCopyText) { { onCopyText(message.content) } }
+    val onCopyAssistant = remember(assistantContent, onCopyText) { { onCopyText(assistantContent) } }
+    val canEdit = state.canUseChat && state.isIdle
+    val canRetry = state.canUseChat && state.isActiveMessage && !state.isCurrentPlatformLoading
     val isError = agentRun?.status == AgentRunStatus.FAILED && isAssistantErrorMessage(assistantContent)
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -582,10 +655,10 @@ private fun ChatMessagePair(
             UserChatBubble(
                 modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
                 text = message.content,
-                files = message.attachments.map { it.filePathForDisplay },
-                contentIdentity = chatMessagePairKey(message, messageIndex),
+                files = userPaths,
+                contentIdentity = chatMessagePairKey(message, state.messageIndex),
                 canEdit = canEdit,
-                onCopyClick = { onCopyText(message.content) },
+                onCopyClick = onCopyUser,
                 onEditClick = { onEditQuestion(message) }
             )
         }
@@ -598,27 +671,29 @@ private fun ChatMessagePair(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = 12.dp)
+                    .then(
+                        if (state.showReplyLoading) {
+                            Modifier.testTag(BenchmarkTags.REPLY_STREAMING)
+                        } else {
+                            Modifier
+                        }
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GPTMobileIcon(
-                    loading = shouldShowReplyLoadingIndicator(
-                        isActiveMessage = isActiveMessage,
-                        loadingStates = loadingStates
-                    )
-                )
-                if (enabledPlatformsInChat.size > 1) {
+                GPTMobileIcon(loading = state.showReplyLoading)
+                if (state.platformNames.size > 1) {
                     Row(
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                     ) {
-                        enabledPlatformsInChat.forEachIndexed { platformIndex, uid ->
+                        state.platformNames.forEachIndexed { platformIndex, name ->
                             PlatformButton(
-                                name = enabledPlatformLookup[uid]?.name ?: stringResource(R.string.unknown),
-                                selected = platformIndexState == platformIndex,
-                                onPlatformClick = { onPlatformClick(messageIndex, platformIndex) }
+                                name = name ?: stringResource(R.string.unknown),
+                                selected = state.platformIndex == platformIndex,
+                                onPlatformClick = { onPlatformClick(state.messageIndex, platformIndex) }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
@@ -632,16 +707,16 @@ private fun ChatMessagePair(
                     .widthIn(max = maximumOpponentChatBubbleWidth),
                 canEdit = canEdit,
                 canRetry = canRetry,
-                isLoading = isActiveMessage && isCurrentPlatformLoading,
+                isLoading = state.isActiveMessage && state.isCurrentPlatformLoading,
                 isError = isError,
                 text = assistantContent,
                 thoughts = assistantThoughts,
                 timeline = assistantTimeline,
-                attachments = selectedAssistantMessage?.attachments.orEmpty().map { it.filePathForDisplay },
+                attachments = state.assistantFiles,
                 agentRun = agentRun,
-                runNotices = selectedRunId?.let(runNoticesById::get).orEmpty(),
+                runNotices = state.runNotices,
                 toolEvents = toolEvents,
-                contentIdentity = "$messageIndex:$selectedPlatformUid:${selectedRunId.orEmpty()}:${selectedAssistantMessage?.activeRevisionIndex}",
+                contentIdentity = "${state.messageIndex}:${state.platformUid}:${selectedAssistantMessage?.effectiveRunId().orEmpty()}:${selectedAssistantMessage?.activeRevisionIndex}",
                 revisionIndexLabel = selectedAssistantMessage?.let { assistantMessage ->
                     val totalRevisions = assistantMessage.revisions.size + 1
                     if (assistantMessage.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
@@ -660,13 +735,13 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                onCopyClick = { onCopyText(assistantContent) },
+                onCopyClick = onCopyAssistant,
                 onSelectClick = { onSelectText(assistantContent) },
                 onViewFull = onSelectText,
-                onRetryClick = { onRetry(messageIndex, platformIndexState) },
-                onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
-                onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
-                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
+                onRetryClick = { onRetry(state.messageIndex, state.platformIndex) },
+                onEditClick = { onEditAssistant(state.messageIndex, state.platformIndex) },
+                onShowPreviousRevision = { onShowPreviousRevision(state.messageIndex, state.platformIndex) },
+                onShowNextRevision = { onShowNextRevision(state.messageIndex, state.platformIndex) }
             )
         }
     }
@@ -966,7 +1041,9 @@ fun ChatInputBox(
             }
             BasicTextField(
                 state = inputState,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(BenchmarkTags.CHAT_INPUT),
                 enabled = chatEnabled,
                 textStyle = mergedStyle,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1023,6 +1100,7 @@ fun ChatInputBox(
                             }
                         }
                         IconButton(
+                            modifier = Modifier.testTag(BenchmarkTags.SEND_MESSAGE),
                             enabled = isRunning || (chatEnabled && sendButtonEnabled && hasQuestionText),
                             onClick = if (isRunning) onCancelButtonClick else onSendButtonClick
                         ) {

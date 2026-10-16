@@ -76,13 +76,23 @@ class McpOAuthException(message: String, cause: Throwable? = null) : Exception(m
 
 @Singleton
 class McpOAuthClient internal constructor(
-    private val httpClient: HttpClient,
+    private val httpClientProvider: () -> HttpClient,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val randomBytes: (Int) -> ByteArray = { size -> ByteArray(size).also(SecureRandom()::nextBytes) },
     private val discoveryTimeoutMillis: Long = DEFAULT_DISCOVERY_TIMEOUT_MILLIS
 ) {
+    internal constructor(
+        httpClient: HttpClient,
+        nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
+        randomBytes: (Int) -> ByteArray = { size -> ByteArray(size).also(SecureRandom()::nextBytes) },
+        discoveryTimeoutMillis: Long = DEFAULT_DISCOVERY_TIMEOUT_MILLIS
+    ) : this({ httpClient }, nowEpochSeconds, randomBytes, discoveryTimeoutMillis)
+
     @Inject
-    constructor(networkClient: NetworkClient) : this(networkClient())
+    constructor(networkClient: NetworkClient) : this(networkClient::invoke)
+
+    private val httpClient: HttpClient
+        get() = httpClientProvider()
 
     suspend fun discover(resourceUrl: String, allowCleartext: Boolean): McpOAuthDiscovery {
         val resourceUri = resourceUrl.validatedUrl(allowCleartext, "MCP resource")

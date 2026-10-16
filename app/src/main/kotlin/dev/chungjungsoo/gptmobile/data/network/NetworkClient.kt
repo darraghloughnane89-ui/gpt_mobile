@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.util.OffMainLazy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.DefaultRequest
@@ -24,7 +25,7 @@ class NetworkClient @Inject constructor(
     private val httpEngine: HttpClientEngineFactory<*>
 ) {
 
-    private val client by lazy {
+    private val client = OffMainLazy("ktor-client") {
         HttpClient(httpEngine) {
             expectSuccess = false
 
@@ -49,7 +50,7 @@ class NetworkClient @Inject constructor(
         }
     }
 
-    operator fun invoke(): HttpClient = client
+    operator fun invoke(): HttpClient = client.get()
 
     companion object {
         // Default JSON config (used for most APIs)

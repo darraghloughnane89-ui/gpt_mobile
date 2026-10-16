@@ -26,6 +26,8 @@ import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -102,7 +104,7 @@ class ReadUrlTool(
         }
     }
 
-    private suspend fun request(uri: URI): ReadUrlRequest {
+    private suspend fun request(uri: URI): ReadUrlRequest = withContext(Dispatchers.IO) {
         val pinnedAddresses = resolveSafe(uri.host)
         val pinnedDns = Dns { hostname ->
             if (!hostname.equals(uri.host, ignoreCase = true)) throw UnknownHostException(hostname)
@@ -121,7 +123,7 @@ class ReadUrlTool(
                 }
             }
         }
-        return try {
+        try {
             ReadUrlRequest(client, client.get(uri.toASCIIString()))
         } catch (exception: Exception) {
             client.close()
