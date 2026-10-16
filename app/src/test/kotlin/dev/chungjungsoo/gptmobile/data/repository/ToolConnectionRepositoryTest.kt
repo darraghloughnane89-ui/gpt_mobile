@@ -193,6 +193,22 @@ class ToolConnectionRepositoryTest {
     }
 
     @Test
+    fun `javascript toggle uses builtin null connection and preserves read url`() = runBlocking {
+        val dao = FakeToolConnectionDao()
+        val repository = ToolConnectionRepository(dao, ConnectionFakeSecretVault())
+        repository.setReadUrlBinding("profile-1", enabled = true)
+
+        repository.setRunJavascriptBinding("profile-1", enabled = true)
+        assertEquals(
+            listOf("read_url:null", "run_javascript:null"),
+            repository.listBindingsByProfile("profile-1").map { "${it.toolName}:${it.connectionUid}" }
+        )
+
+        repository.setRunJavascriptBinding("profile-1", enabled = false)
+        assertEquals(listOf("read_url:null"), repository.listBindingsByProfile("profile-1").map { "${it.toolName}:${it.connectionUid}" })
+    }
+
+    @Test
     fun `read url toggle uses builtin null connection and preserves web search`() = runBlocking {
         val dao = FakeToolConnectionDao()
         val repository = ToolConnectionRepository(dao, ConnectionFakeSecretVault())

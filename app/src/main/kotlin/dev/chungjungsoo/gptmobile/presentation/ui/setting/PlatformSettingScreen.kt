@@ -500,6 +500,15 @@ fun PlatformSettingScreen(
                             isChecked = toolBindingState.readUrlEnabled,
                             onCheckedChange = settingViewModel::toggleReadUrl
                         )
+                        PreferenceListSwitch(
+                            modifier = Modifier.heightIn(min = 64.dp),
+                            title = stringResource(R.string.run_javascript),
+                            description = stringResource(R.string.run_javascript_description),
+                            icon = ImageVector.vectorResource(id = R.drawable.ic_chart),
+                            enabled = platformData.enabled,
+                            isChecked = toolBindingState.runJavascriptEnabled,
+                            onCheckedChange = settingViewModel::toggleRunJavascript
+                        )
                         SettingItem(
                             modifier = Modifier.heightIn(min = 64.dp),
                             title = stringResource(R.string.mcp_tools),

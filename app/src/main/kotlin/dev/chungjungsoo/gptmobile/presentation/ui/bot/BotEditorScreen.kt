@@ -285,6 +285,11 @@ fun BotEditorForm(
             checked = draft.readUrl,
             onCheckedChange = { checked -> onDraftChange { it.copy(readUrl = checked) } }
         )
+        ToolSwitch(
+            title = stringResource(R.string.run_javascript),
+            checked = draft.runJavascript,
+            onCheckedChange = { checked -> onDraftChange { it.copy(runJavascript = checked) } }
+        )
         if (searchConnections.isNotEmpty()) {
             Text(stringResource(R.string.web_search), style = MaterialTheme.typography.titleSmall)
             PlatformChoice(

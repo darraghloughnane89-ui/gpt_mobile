@@ -142,6 +142,12 @@ dependencies {
     implementation(libs.auto.license.core)
     implementation(libs.auto.license.ui)
 
+    // On-device JavaScript sandbox. Rhino is pure Java (MPL-2.0), so the APK
+    // does not gain a per-ABI native library. AndroidSVG draws returned SVG
+    // without a WebView or script execution.
+    implementation(libs.rhino)
+    implementation(libs.androidsvg)
+
     // Markdown
     implementation(libs.markdown.renderer)
     implementation(libs.markdown.renderer.m3)

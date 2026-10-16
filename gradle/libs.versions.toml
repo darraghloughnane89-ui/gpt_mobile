@@ -27,6 +27,8 @@ work = "2.11.2"
 appauth = "0.11.1"
 litertlm = "0.11.0"
 glance = "1.1.1"
+rhino = "1.7.15"
+androidsvg = "1.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -78,6 +80,8 @@ openid-appauth = { group = "net.openid", name = "appauth", version.ref = "appaut
 litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+rhino = { group = "org.mozilla", name = "rhino", version.ref = "rhino" }
+androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

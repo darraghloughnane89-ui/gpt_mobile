@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.agent.tool
 
 import dev.chungjungsoo.gptmobile.data.agent.AgentTool
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.agent.tool.code.RunJavascriptTool
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentToolBindingWithConnection
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentToolBinding
@@ -147,6 +148,19 @@ class AgentToolResolverTest {
         val error = runCatching { resolver.resolve("profile-1") }.exceptionOrNull()
 
         assertEquals("vault unavailable", error?.message)
+    }
+
+    @Test
+    fun `javascript binding exposes the sandboxed tool`() = runBlocking {
+        val dao = ResolverFakeToolConnectionDao()
+        val resolver = resolver(dao)
+        dao.bind(null, binding("profile-1", null, BuiltInAgentTool.RUN_JAVASCRIPT))
+
+        val resolved = resolver.resolve("profile-1").single { it.modelToolName == "run_javascript" }
+
+        assertEquals(RunJavascriptTool::class.java, resolved.tool.javaClass)
+        assertEquals(null, resolved.connectionUid)
+        assertEquals("run_javascript", resolved.realToolName)
     }
 
     @Test

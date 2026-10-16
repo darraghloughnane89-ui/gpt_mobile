@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.agent.tool.code.isJavascriptTool
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
@@ -478,6 +479,13 @@ private fun AssistantProcessContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
+                    } else if (event.isJavascriptTool()) {
+                        CodeExecutionBlock(
+                            event = event,
+                            modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp),
+                            contentIdentity = "$contentIdentity:code:${event.sequence}",
+                            onViewFull = onViewFull
+                        )
                     } else {
                         ToolTraceBlock(
                             events = listOf(event),
@@ -540,8 +548,18 @@ private fun LegacyAssistantProcessContent(
             isLoading = isThinking
         )
     }
+    val codeEvents = toolEvents.filter { it.isJavascriptTool() }
+    val otherEvents = toolEvents.filterNot { it.isJavascriptTool() }
+    codeEvents.sortedBy { it.sequence }.forEach { event ->
+        CodeExecutionBlock(
+            event = event,
+            modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp),
+            contentIdentity = "$contentIdentity:code:${event.sequence}",
+            onViewFull = onViewFull
+        )
+    }
     ToolTraceBlock(
-        events = toolEvents,
+        events = otherEvents,
         modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp),
         contentIdentity = contentIdentity,
         onViewFull = onViewFull
