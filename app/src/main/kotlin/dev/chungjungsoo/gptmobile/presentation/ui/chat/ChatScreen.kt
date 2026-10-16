@@ -88,10 +88,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -122,6 +125,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+internal const val CHAT_MESSAGE_LIST_TAG = "chat_message_list"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -281,6 +286,7 @@ fun ChatScreen(
                 .padding(innerPadding)
                 .navigationBarsPadding()
                 .imePadding()
+                .semantics { testTagsAsResourceId = true }
         ) {
             Box(
                 modifier = Modifier
@@ -288,7 +294,9 @@ fun ChatScreen(
                     .fillMaxWidth()
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(CHAT_MESSAGE_LIST_TAG),
                     state = listState
                 ) {
                     itemsIndexed(

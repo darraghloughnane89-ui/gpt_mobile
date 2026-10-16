@@ -45,6 +45,12 @@ class GPTMobileAppTest {
     }
 
     @Test
+    fun `strict mode is installed for debug only`() {
+        assertEquals(true, shouldInstallStrictMode(isDebug = true))
+        assertEquals(false, shouldInstallStrictMode(isDebug = false))
+    }
+
+    @Test
     fun `trim memory ignores levels below running low`() = runTest {
         val runtime = FakeLocalRuntime()
 

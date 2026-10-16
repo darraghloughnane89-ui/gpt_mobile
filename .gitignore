@@ -1,9 +1,13 @@
 # Gradle
 *.iml
 .gradle
+.kotlin
 
 # Android
 /local.properties
+*.jks
+*.keystore
+keystore.properties
 
 # Android Studio
 /.idea/caches
@@ -22,6 +26,7 @@
 
 # Build
 /build
+**/build/
 /captures
 /.worktrees/
 .externalNativeBuild

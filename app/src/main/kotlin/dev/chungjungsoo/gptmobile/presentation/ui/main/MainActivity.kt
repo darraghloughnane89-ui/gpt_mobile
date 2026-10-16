@@ -22,6 +22,9 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
+import dev.chungjungsoo.gptmobile.presentation.benchmark.BenchmarkBuild
+import dev.chungjungsoo.gptmobile.presentation.benchmark.BenchmarkChatSeeder
+import dev.chungjungsoo.gptmobile.presentation.benchmark.parseBenchmarkScenario
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -32,10 +35,16 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var benchmarkChatSeeder: BenchmarkChatSeeder
 
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
@@ -66,6 +75,18 @@ class MainActivity : ComponentActivity() {
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
+        // Seed before the splash ViewModel reads platforms, and only for the benchmark action.
+        val benchmarkScenario = parseBenchmarkScenario(
+            enabled = BenchmarkBuild.IS_ENABLED,
+            action = intent?.action,
+            scenario = intent?.getStringExtra(BenchmarkChatSeeder.EXTRA_SCENARIO)
+        )
+        val benchmarkLaunch = if (benchmarkScenario == null) {
+            null
+        } else {
+            runBlocking(Dispatchers.IO) { benchmarkChatSeeder.prepare(benchmarkScenario) }
+        }
+
         setContent {
             val navController = rememberNavController()
             val isReady by mainViewModel.isReady.collectAsStateWithLifecycle()
@@ -95,6 +116,17 @@ class MainActivity : ComponentActivity() {
                         )
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
+                            val launch = benchmarkLaunch ?: return@LaunchedEffect
+                            navController.navigate(
+                                Route.CHAT_ROOM
+                                    .replace(oldValue = "{chatRoomId}", newValue = launch.chatId.toString())
+                                    .replace(oldValue = "{enabledPlatforms}", newValue = launch.platformUid)
+                            ) {
+                                launchSingleTop = true
+                            }
+                            if (launch.scenario == BenchmarkChatSeeder.SCENARIO_STREAM) {
+                                benchmarkChatSeeder.startStreaming(launch.chatId)
+                            }
                         }
                     }
                 }

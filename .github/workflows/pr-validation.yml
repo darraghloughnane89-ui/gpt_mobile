@@ -27,10 +27,20 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      - name: Install compile SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-37.0" "build-tools;36.0.0"
+          if [ ! -e "$ANDROID_SDK_ROOT/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_SDK_ROOT/platforms/android-37"
+          fi
+
       - name: Validate
-        run: ./gradlew :app:testDebugUnitTest :app:lintDebug
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --parallel

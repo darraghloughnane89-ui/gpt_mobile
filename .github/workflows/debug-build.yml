@@ -1,9 +1,7 @@
 name: Debug build APK
 
 on:
-  pull_request_target:
-    branches:
-      - "main"
+  pull_request:
     paths-ignore:
       - ".gitignore"
       - "**.md"
@@ -14,43 +12,78 @@ on:
       - "images/**"
       - "metadata/**"
 
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: apk-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   run:
-    name: Build debug APK
-    runs-on: macos-14
-
-    permissions:
-      pull-requests: write
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          allow-unsafe-pr-checkout: true
           persist-credentials: false
+          fetch-depth: 0
 
-      - name: Setup JDK
+      - name: Set up JDK
         uses: actions/setup-java@v5
         with:
-          distribution: "oracle"
+          distribution: temurin
           java-version: "17"
-          cache: "gradle"
 
-      - name: Build debug APK
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install compile SDK
         run: |
-          ./gradlew assembleDebug
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-37.0" "build-tools;36.0.0"
+          if [ ! -e "$ANDROID_SDK_ROOT/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_SDK_ROOT/platforms/android-37"
+          fi
 
-      - name: Upload debug APK
+      - name: Build signed release or debug APK
+        id: build
+        env:
+          APP_KEYSTORE: ${{ secrets.APP_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./scripts/ci-assemble-apk.sh
+
+      - name: Upload APK
         uses: actions/upload-artifact@v7
         id: artifact-upload-step
         with:
-          name: debug-${{ github.sha }}
-          path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ steps.build.outputs.mode }}-${{ github.sha }}
+          path: ${{ steps.build.outputs.apk_path }}
+          if-no-files-found: error
 
-      - name: Comment APK Link
+      - name: Upload App Bundle
+        if: steps.build.outputs.mode == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-aab-${{ github.sha }}
+          path: ${{ steps.build.outputs.aab_path }}
+          if-no-files-found: error
+
+      - name: Comment APK link
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: thollander/actions-comment-pull-request@v3
         with:
           comment_tag: apk
           message: |
-            Build complete! Here's the debug APK: ${{ steps.artifact-upload-step.outputs.artifact-url }}
+            Build complete (${{ steps.build.outputs.mode }}). APK: ${{ steps.artifact-upload-step.outputs.artifact-url }}

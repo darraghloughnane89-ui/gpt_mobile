@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.Context
+import android.os.StrictMode
 import android.util.Log
 import android.widget.Toast
 import androidx.hilt.work.HiltWorkerFactory
@@ -13,6 +14,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.BuildConfig
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.backup.SanitizedChatBackup
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 @HiltAndroidApp
@@ -49,8 +52,24 @@ class GPTMobileApp :
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
-        SanitizedChatBackup.restoreIfPresent(this)
-        super.onCreate()
+        if (shouldInstallStrictMode(BuildConfig.DEBUG)) {
+            installDebugStrictMode()
+        }
+        // The staged backup has to land before Hilt opens Room. The copy runs on
+        // Dispatchers.IO so the main thread does not trip StrictMode.
+        runBlocking(Dispatchers.IO) {
+            SanitizedChatBackup.restoreIfPresent(this@GPTMobileApp)
+        }
+        if (shouldInstallStrictMode(BuildConfig.DEBUG)) {
+            val previousPolicy = StrictMode.allowThreadDiskWrites()
+            try {
+                super.onCreate()
+            } finally {
+                StrictMode.setThreadPolicy(previousPolicy)
+            }
+        } else {
+            super.onCreate()
+        }
         registerActivityLifecycleCallbacks(AppForegroundTracker)
         StartupRecoveryGate.start(applicationScope) {
             val startup = startupDependencies()
@@ -132,6 +151,30 @@ internal suspend fun trimLocalRuntimeForMemory(level: Int, runtime: LocalRuntime
     if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
         runtime.trimIdleEngine()
     }
+}
+
+internal fun shouldInstallStrictMode(isDebug: Boolean): Boolean = isDebug
+
+private fun installDebugStrictMode() {
+    StrictMode.setThreadPolicy(
+        StrictMode.ThreadPolicy.Builder()
+            .detectDiskReads()
+            .detectDiskWrites()
+            .detectNetwork()
+            .detectCustomSlowCalls()
+            .penaltyLog()
+            .build()
+    )
+    StrictMode.setVmPolicy(
+        StrictMode.VmPolicy.Builder()
+            .detectActivityLeaks()
+            .detectLeakedClosableObjects()
+            .detectLeakedRegistrationObjects()
+            .detectLeakedSqlLiteObjects()
+            .detectFileUriExposure()
+            .penaltyLog()
+            .build()
+    )
 }
 
 internal suspend fun runStartupMaintenance(

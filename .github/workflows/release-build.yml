@@ -3,85 +3,72 @@ name: Generate Release Version
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "main"
     tags:
       - "*"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    name: Build Release APK
-    runs-on: macos-14
+    name: Build signed release or debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - name: Setup JDK
+      - name: Set up JDK
         uses: actions/setup-java@v5
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
-          cache: "gradle"
 
-      - name: Setup Android SDK
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Install Latest Build Tools
+      - name: Install compile SDK
         run: |
-          build_tools_list=$(sdkmanager --list | sed -n 's/.*\(build-tools;[0-9.][0-9.a-zA-Z-]*\).*/\1/p')
-          stable_build_tools_list=$(echo "$build_tools_list" | grep -v "\-rc")
-          latest_stable_version=$(echo "$stable_build_tools_list" | sort -V | tail -n 1)
-          latest_version_number=$(echo $latest_stable_version | sed 's/.*;//')
-          sdkmanager "$latest_stable_version"
-          echo "$ANDROID_SDK_ROOT/build-tools/$latest_version_number" >> $GITHUB_PATH
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-37.0" "build-tools;36.0.0"
+          if [ ! -e "$ANDROID_SDK_ROOT/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_SDK_ROOT/platforms/android-37"
+          fi
 
-      - name: Build Unsigned Release APK
-        run: ./gradlew assembleRelease
-
-      - name: Build Unsigned Release App Bundle
-        run: ./gradlew bundleRelease
-
-      - name: Generate Signing Key
+      - name: Build signed release or debug APK
+        id: build
         env:
-          KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
-        run: |
-          echo $KEYSTORE_B64 | base64 -d > keystore.jks
-          cp keystore.jks ${{ github.workspace }}/app/build/outputs/bundle/release/keystore.jks
-        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
+          APP_KEYSTORE: ${{ secrets.APP_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./scripts/ci-assemble-apk.sh
 
-      - name: Sign Release APK
-        env:
-          SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          apksigner sign --ks keystore.jks --alignment-preserved true --ks-pass env:SIGNING_PASSWORD --out app-release.apk app-release-unsigned.apk
-        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
-
-      - name: Sign Release App Bundle
-        env:
-          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore keystore.jks -keypass $SIGNING_PASSWORD -storepass $SIGNING_PASSWORD app-release.aab $SIGNING_KEY_ALIAS
-        working-directory: ${{ github.workspace }}/app/build/outputs/bundle/release
-
-      - name: Create Job Summary
-        run: |
-          unsigned_hash=$(md5 -q ./apk/release/app-release-unsigned.apk)
-          signed_hash=$(md5 -q ./apk/release/app-release.apk)
-          signed_aab_hash=$(md5 -q ./bundle/release/app-release.aab)
-          certificate_hash=$(apksigner verify --print-certs ./apk/release/app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
-          echo "### Release Build Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Unsigned APK md5**: \`$unsigned_hash\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Signed APK md5**: \`$signed_hash\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Signed AAB md5**: \`$signed_aab_hash\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Certificate SHA-256**: \`$certificate_hash\`" >> $GITHUB_STEP_SUMMARY
-        working-directory: ${{ github.workspace }}/app/build/outputs
-
-      - name: Upload Signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v7
-        id: artifact-upload-step
         with:
-          name: release-${{ github.sha }}
-          path: |
-            ${{ github.workspace }}/app/build/outputs/apk/release/app-release.apk
-            ${{ github.workspace }}/app/build/outputs/bundle/release/app-release.aab
+          name: ${{ steps.build.outputs.mode }}-${{ github.sha }}
+          path: ${{ steps.build.outputs.apk_path }}
+          if-no-files-found: error
+
+      - name: Upload App Bundle
+        if: steps.build.outputs.mode == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-aab-${{ github.sha }}
+          path: ${{ steps.build.outputs.aab_path }}
+          if-no-files-found: error

@@ -8,12 +8,50 @@ import org.gradle.kotlin.dsl.configure
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.android.hilt)
+    alias(libs.plugins.baselineprofile)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.auto.license)
     kotlin(libs.plugins.kotlin.serialization.get().pluginId).version(libs.versions.kotlin)
 }
+
+// Last Play release is 0.9.1 (versionCode 25). Git history advances the code and a
+// shallow checkout cannot move it backwards. APP_VERSION_CODE / app.versionCode win.
+val publishedVersionCode = 25
+val publishedVersionName = "0.9.1"
+
+val sideloadAbis = providers.gradleProperty("abi.filters")
+    .orElse(providers.environmentVariable("ABI_FILTERS"))
+    .orElse("arm64-v8a")
+
+val releaseStoreFile = providers.environmentVariable("RELEASE_STORE_FILE")
+    .orElse(providers.gradleProperty("RELEASE_STORE_FILE"))
+val releaseStorePassword = providers.environmentVariable("RELEASE_STORE_PASSWORD")
+    .orElse(providers.gradleProperty("RELEASE_STORE_PASSWORD"))
+val releaseKeyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS")
+    .orElse(providers.gradleProperty("RELEASE_KEY_ALIAS"))
+val releaseKeyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD")
+    .orElse(providers.gradleProperty("RELEASE_KEY_PASSWORD"))
+    .orElse(releaseStorePassword)
+
+val gitVersionCode = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+    workingDir(rootProject.rootDir)
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { raw ->
+    val count = raw.trim().toIntOrNull() ?: 0
+    if (count >= publishedVersionCode) count else publishedVersionCode
+}
+
+val resolvedVersionCode = providers.gradleProperty("app.versionCode")
+    .orElse(providers.environmentVariable("APP_VERSION_CODE"))
+    .map { it.trim().toInt() }
+    .orElse(gitVersionCode)
+
+val resolvedVersionName = providers.gradleProperty("app.versionName")
+    .orElse(providers.environmentVariable("APP_VERSION_NAME"))
+    .orElse(publishedVersionName)
 
 extensions.configure<ApplicationExtension> {
     namespace = "dev.chungjungsoo.gptmobile"
@@ -23,8 +61,20 @@ extensions.configure<ApplicationExtension> {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
         targetSdk = 37
-        versionCode = 25
-        versionName = "0.9.1"
+        versionCode = resolvedVersionCode.get()
+        versionName = resolvedVersionName.get()
+
+        // Pixel 9 Pro is arm64-v8a. One ABI keeps the sideload APK from packing
+        // x86, x86_64, and armeabi-v7a copies of the LiteRT native runtime.
+        ndk {
+            abiFilters.addAll(
+                sideloadAbis.get()
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .ifEmpty { listOf("arm64-v8a") }
+            )
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -55,14 +105,51 @@ extensions.configure<ApplicationExtension> {
         disable += "MissingTranslation"
     }
 
+    val storePath = releaseStoreFile.orNull
+    val storePasswordValue = releaseStorePassword.orNull
+    val keyAliasValue = releaseKeyAlias.orNull
+    val keyPasswordValue = releaseKeyPassword.orNull
+    val releaseKeystore = storePath?.takeIf { it.isNotBlank() }?.let { project.file(it) }
+    val releaseKeystoreReady = releaseKeystore != null &&
+        releaseKeystore.isFile &&
+        !storePasswordValue.isNullOrBlank() &&
+        !keyAliasValue.isNullOrBlank() &&
+        !keyPasswordValue.isNullOrBlank()
+
+    signingConfigs {
+        if (releaseKeystoreReady && releaseKeystore != null && storePasswordValue != null && keyAliasValue != null && keyPasswordValue != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            isProfileable = true
+            if (releaseKeystoreReady) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            ndk {
+                debugSymbolLevel = "NONE"
+            }
             vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks.add("release")
+            isDebuggable = false
+            isProfileable = true
         }
     }
     compileOptions {
@@ -74,6 +161,9 @@ extensions.configure<ApplicationExtension> {
         buildConfig = true
     }
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/INDEX.LIST"
@@ -93,6 +183,9 @@ ksp {
 }
 
 dependencies {
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":benchmark"))
+
     // Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
