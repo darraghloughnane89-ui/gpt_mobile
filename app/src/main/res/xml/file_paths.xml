@@ -3,4 +3,10 @@
     <external-files-path
         name="external_files"
         path="." />
+    <cache-path
+        name="camera"
+        path="camera/" />
+    <files-path
+        name="attachments"
+        path="attachments/" />
 </paths>

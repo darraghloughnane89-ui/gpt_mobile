@@ -48,6 +48,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -90,6 +92,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -112,6 +116,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
+import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceChatHost
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
@@ -137,6 +145,7 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val projectName by chatViewModel.projectName.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val listState = rememberChatListState(groupedMessages.userMessages.size)
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
@@ -155,10 +164,19 @@ fun ChatScreen(
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
+    val launchCamera by chatViewModel.launchCamera.collectAsStateWithLifecycle()
+    ChatCameraCapture(
+        launchRequested = launchCamera,
+        onLaunchConsumed = chatViewModel::consumeCameraLaunch,
+        onPhotoReady = chatViewModel::addSelectedFile
+    )
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
     val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
+    val bots by chatViewModel.bots.collectAsStateWithLifecycle()
+    val selectedBot by chatViewModel.selectedBot.collectAsStateWithLifecycle()
+    var botPickerOpen by rememberSaveable { mutableStateOf(false) }
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
@@ -203,6 +221,7 @@ fun ChatScreen(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
+        chatViewModel.refreshBots()
     }
 
     LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
@@ -245,6 +264,7 @@ fun ChatScreen(
         topBar = {
             ChatTopBar(
                 chatRoom.title,
+                projectName,
                 chatRoom.id > 0,
                 chatViewModel.enabledPlatformsInChat.isNotEmpty(),
                 onBackAction,
@@ -259,7 +279,11 @@ fun ChatScreen(
                     } else {
                         isContextPlatformPickerOpen = true
                     }
-                }
+                },
+                botLabel = selectedBot?.avatarEmoji?.takeIf { it.isNotBlank() },
+                botContentDescription = selectedBot?.let { stringResource(R.string.current_bot, it.name) }
+                    ?: stringResource(R.string.choose_bot),
+                onBotClick = { botPickerOpen = true }
             )
         }
     ) { innerPadding ->
@@ -338,6 +362,12 @@ fun ChatScreen(
                     }
                 }
 
+                if (groupedMessages.userMessages.isEmpty()) {
+                    BotStarterPromptRow(
+                        prompts = selectedBot?.starterPromptList().orEmpty(),
+                        onPromptClick = chatViewModel::applyStarterPrompt
+                    )
+                }
                 ChatInputBox(
                     inputState = chatViewModel.question,
                     chatEnabled = canUseChat,
@@ -377,6 +407,15 @@ fun ChatScreen(
                     onDismiss = { showVoice = false }
                 )
             }
+        }
+
+        if (botPickerOpen) {
+            BotSwitcherSheet(
+                bots = bots,
+                selectedBotUid = selectedBot?.botUid,
+                onSelect = chatViewModel::selectBot,
+                onDismiss = { botPickerOpen = false }
+            )
         }
 
         if (isChatTitleDialogOpen) {
@@ -698,6 +737,7 @@ internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
     title: String,
+    projectName: String?,
     isMenuItemEnabled: Boolean,
     isModelItemEnabled: Boolean,
     onBackAction: () -> Unit,
@@ -705,12 +745,28 @@ private fun ChatTopBar(
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit,
-    onChatContextItemClick: () -> Unit
+    onChatContextItemClick: () -> Unit,
+    botLabel: String?,
+    botContentDescription: String,
+    onBotClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
     TopAppBar(
-        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!projectName.isNullOrBlank()) {
+                    Text(
+                        text = projectName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(
                 onClick = onBackAction
@@ -719,6 +775,23 @@ private fun ChatTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onBotClick) {
+                Box(
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = botContentDescription
+                    },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (botLabel != null) {
+                        Text(text = botLabel)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.SmartToy,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
             IconButton(
                 enabled = isModelItemEnabled,
                 onClick = onChatModelItemClick
@@ -874,6 +947,7 @@ fun ChatInputBox(
             }
         }
     }
+    val openCamera = rememberCameraPhotoLauncher(onFileSelected)
 
     Surface(
         modifier = Modifier
@@ -911,6 +985,15 @@ fun ChatInputBox(
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
                                 contentDescription = stringResource(R.string.attach_file)
+                            )
+                        }
+                        IconButton(
+                            enabled = chatEnabled,
+                            onClick = openCamera
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PhotoCamera,
+                                contentDescription = stringResource(R.string.take_photo)
                             )
                         }
                         Box(

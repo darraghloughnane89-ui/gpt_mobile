@@ -13,13 +13,35 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.presentation.common.Route
-import dev.chungjungsoo.gptmobile.presentation.common.chatRoomRoute
+import dev.chungjungsoo.gptmobile.presentation.common.voiceSessionChatRoute
 import dev.chungjungsoo.gptmobile.presentation.voice.VoiceLaunchSignals
 import javax.inject.Inject
 
 fun NavGraphBuilder.voiceNavigation(navController: NavHostController) {
     composable(Route.VOICE_SETTINGS) {
         VoiceAssistantSettingsScreen(onNavigationClick = { navController.navigateUp() })
+    }
+    composable(Route.VOICE_SESSION) {
+        VoiceSessionEntry(navController)
+    }
+}
+
+@Composable
+fun VoiceSessionEntry(
+    navController: NavHostController,
+    viewModel: VoiceLaunchViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        val platforms = viewModel.enabledPlatformUids()
+        if (platforms.isEmpty()) {
+            Toast.makeText(context, R.string.voice_no_platform, Toast.LENGTH_LONG).show()
+            navController.popBackStack()
+            return@LaunchedEffect
+        }
+        navController.navigate(voiceSessionChatRoute(platforms)) {
+            popUpTo(Route.VOICE_SESSION) { inclusive = true }
+        }
     }
 }
 
@@ -40,7 +62,7 @@ fun VoiceLaunchEffect(
                 Toast.makeText(context, R.string.voice_no_platform, Toast.LENGTH_LONG).show()
                 return@collect
             }
-            navController.navigate(chatRoomRoute(chatRoomId = 0, enabledPlatforms = platforms, openVoice = true))
+            navController.navigate(voiceSessionChatRoute(platforms))
         }
     }
 }

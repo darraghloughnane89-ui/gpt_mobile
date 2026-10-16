@@ -72,7 +72,7 @@ object FileUtils {
         val mimeType = getMimeType(context, filePath)
         val fileSize = getFileSize(context, filePath)
         if (!validateFileSize(context, filePath, MAX_UPLOAD_SIZE_BYTES)) return null
-        if (!isSupportedUploadMimeType(mimeType) || mimeType == "image/gif" || mimeType == "image/svg+xml") {
+        if (!isImage(mimeType) || mimeType == "image/gif" || mimeType == "image/svg+xml") {
             return AttachmentPreparationResult(
                 preparedFilePath = filePath,
                 mimeType = mimeType,
@@ -307,7 +307,10 @@ object FileUtils {
         maxSizeBytes: Long = MAX_UPLOAD_SIZE_BYTES
     ): Boolean = currentTotalBytes + newFileBytes > maxSizeBytes
 
-    internal fun isSupportedUploadMimeType(mimeType: String): Boolean = isImage(mimeType)
+    internal fun isInlineVisionMimeType(mimeType: String): Boolean = isImage(mimeType)
+
+    internal fun isSupportedUploadMimeType(mimeType: String): Boolean =
+        isInlineVisionMimeType(mimeType) || mimeType.equals("application/pdf", ignoreCase = true)
 
     internal fun shouldResizeImage(
         originalWidth: Int,

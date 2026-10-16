@@ -3,12 +3,19 @@ package dev.chungjungsoo.gptmobile.data.database.entity
 import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
-@Entity(tableName = "chats_v2")
+@Entity(
+    tableName = "chats_v2",
+    indices = [
+        Index(value = ["bot_uid"]),
+        Index(value = ["project_id"])
+    ]
+)
 data class ChatRoomV2(
     /**
      Now, enabled platforms are stored as list of strings.
@@ -28,7 +35,13 @@ data class ChatRoomV2(
     val createdAt: Long = System.currentTimeMillis() / 1000,
 
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long = System.currentTimeMillis() / 1000
+    val updatedAt: Long = System.currentTimeMillis() / 1000,
+
+    @ColumnInfo(name = "bot_uid")
+    val botUid: String? = null,
+
+    @ColumnInfo(name = "project_id")
+    val projectId: Int? = null
 ) : Parcelable
 
 class StringListConverter {

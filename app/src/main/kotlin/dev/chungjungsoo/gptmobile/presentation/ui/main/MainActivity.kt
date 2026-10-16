@@ -32,6 +32,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.SetupNavGraph
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeLoadState
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneEntryBus
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
@@ -110,12 +111,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         dispatchOAuthIntent(intent)
+        PhoneEntryBus.publish(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        PhoneEntryBus.publish(intent)
         publishVoiceLaunch(intent)
     }
 
