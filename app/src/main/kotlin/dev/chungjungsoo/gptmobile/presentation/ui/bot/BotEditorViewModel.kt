@@ -90,6 +90,15 @@ class BotEditorViewModel @Inject constructor(
         }
     }
 
+    fun resetBuiltIn() {
+        val uid = _uiState.value.draft.botUid ?: return
+        viewModelScope.launch {
+            if (botRepository.resetBuiltIn(uid) != null) {
+                load()
+            }
+        }
+    }
+
     private suspend fun load() {
         val platforms = settingRepository.fetchPlatformV2s()
         val connections = toolConnectionRepository.listConnections()

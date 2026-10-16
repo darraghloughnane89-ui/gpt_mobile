@@ -100,7 +100,8 @@ class BotDraftTest {
     fun builtInBots_includeAssistantAndCoderWithReadTools() {
         val definitions = BuiltInBots.definitions()
 
-        assertEquals(listOf(BuiltInBots.ASSISTANT_UID, BuiltInBots.CODER_UID), definitions.map { it.bot.botUid })
+        assertTrue(definitions.map { it.bot.botUid }.contains(BuiltInBots.ASSISTANT_UID))
+        assertTrue(definitions.map { it.bot.botUid }.contains(BuiltInBots.CODER_UID))
         definitions.forEach { definition ->
             assertTrue(definition.bot.builtin)
             assertEquals(
@@ -108,7 +109,56 @@ class BotDraftTest {
                 definition.bindings.map { it.toolName }
             )
             assertTrue(definition.bot.starterPromptList().isNotEmpty())
+            assertTrue(definition.bot.instructions.length <= BotDraft.MAX_INSTRUCTIONS_LENGTH)
         }
+    }
+
+    @Test
+    fun starterBots_matchTheSeededPrompts_andCanBeRemovedFromTheMissingSet() {
+        val byName = BuiltInBots.definitions().associateBy { it.bot.name }
+        assertEquals(
+            "You are the CBRE Field Agent for Darragh Loughnane, electrician with 20 years experience, " +
+                "performing PPM and reactive maintenance across Bank of Ireland sites in Wexford and surrounding areas. " +
+                "Supervisor: Gary Lynch.\n\n" +
+                "Core rules (never break): Dates in DD-MM-YYYY. Asset tags exactly as ASSET/BOI/ROI/#####. " +
+                "Work orders: P=planned/PPM, C=reactive or PPM code, R=remedial. " +
+                "Capture isolation/spur label per asset (e.g. SDB2 RCBO 1T). " +
+                "If none visible, record \"none visible — to be confirmed\". Never leave blank. No invented data. " +
+                "If uncertain from photos/voice notes: \"appears / to be confirmed\". " +
+                "Escalate real safety issues (leaks, corrosion, water on electrics, legionella risk) immediately. " +
+                "One record per PPM/WO. Honour scope. Photos are additive. Exact strings copied, never retyped. " +
+                "SI is master system — you cannot access it. Uncertain = \"the answer is in SI\". " +
+                "Never submit to Smartsheet. Draft only. " +
+                "Keep classes distinct (boiling-water dispenser ≠ stored water heater; solar thermal ≠ PV). " +
+                "Input is photos + short voice-to-text. Read fragments charitably. No AI trace in output.\n\n" +
+                "Output: structured, professional but practical site visit report ready for upload. " +
+                "Include asset ID, location, findings, actions, isolation status, photos referenced, next steps. " +
+                "Flag any compliance or safety items clearly at top.",
+            byName.getValue("CBRE Field Reports").bot.instructions
+        )
+        assertTrue(byName.getValue("Gridwell Quoting").bot.instructions.contains("SEAI grants"))
+        assertTrue(byName.getValue("Gridwell Quoting").bot.instructions.contains("to be confirmed from survey"))
+        assertTrue(byName.getValue("Coding Helper").bot.instructions.contains("Android/Kotlin"))
+        assertTrue(byName.getValue("Loughnane Lifts Coach").bot.instructions.contains("progressive overload"))
+        assertTrue(byName.getValue("Email Drafter").bot.instructions.contains("ready-to-send drafts"))
+        assertTrue(byName.getValue("Research Bot").bot.instructions.contains("Summarise key points first"))
+        assertTrue(byName.getValue("Daily Planner").bot.instructions.contains("Wexford sites"))
+        assertTrue(byName.getValue("Voice Companion").bot.instructions.contains("Avoid long monologues"))
+
+        val starterUids = listOf(
+            BuiltInBots.CBRE_FIELD_REPORTS_UID,
+            BuiltInBots.GRIDWELL_QUOTING_UID,
+            BuiltInBots.CODING_HELPER_UID,
+            BuiltInBots.LOUGHNANE_LIFTS_UID,
+            BuiltInBots.EMAIL_DRAFTER_UID,
+            BuiltInBots.RESEARCH_UID,
+            BuiltInBots.DAILY_PLANNER_UID,
+            BuiltInBots.VOICE_COMPANION_UID
+        )
+        assertEquals(starterUids, BuiltInBots.missing(setOf(BuiltInBots.ASSISTANT_UID, BuiltInBots.CODER_UID)).map { it.bot.botUid })
+        assertEquals(BuiltInBots.cbreFieldReports().bot, BuiltInBots.definition(BuiltInBots.CBRE_FIELD_REPORTS_UID)?.bot)
+        assertNull(BuiltInBots.definition("custom-bot"))
+        assertTrue(BuiltInBots.missing(BuiltInBots.definitions().map { it.bot.botUid }.toSet()).isEmpty())
     }
 
     private fun binding(botUid: String, connectionUid: String?, toolName: String) = BotToolBinding(

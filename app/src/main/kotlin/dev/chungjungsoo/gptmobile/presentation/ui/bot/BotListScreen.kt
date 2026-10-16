@@ -53,8 +53,10 @@ fun BotListScreen(
     viewModel: BotListViewModel = hiltViewModel()
 ) {
     val bots by viewModel.bots.collectAsStateWithLifecycle()
+    val canRestoreBuiltIns by viewModel.canRestoreBuiltIns.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var pendingDelete by remember { mutableStateOf<Bot?>(null) }
+    var pendingReset by remember { mutableStateOf<Bot?>(null) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refresh()
@@ -84,15 +86,24 @@ fun BotListScreen(
         }
     ) { innerPadding ->
         if (bots.isEmpty()) {
-            Text(
-                text = stringResource(R.string.no_bots),
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(24.dp),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.no_bots),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (canRestoreBuiltIns) {
+                    TextButton(onClick = viewModel::restoreDeletedBuiltIns) {
+                        Text(stringResource(R.string.restore_built_in_bots))
+                    }
+                }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -101,11 +112,26 @@ fun BotListScreen(
                     bottom = innerPadding.calculateBottomPadding() + 88.dp
                 )
             ) {
+                if (canRestoreBuiltIns) {
+                    item(key = "restore-built-ins") {
+                        TextButton(
+                            onClick = viewModel::restoreDeletedBuiltIns,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
+                            Text(stringResource(R.string.restore_built_in_bots))
+                        }
+                    }
+                }
                 items(bots, key = { it.botUid }) { bot ->
                     BotListRow(
                         bot = bot,
                         onClick = { onEditClick(bot.botUid) },
                         onDuplicate = { viewModel.duplicate(bot.botUid) },
+                        onReset = if (bot.builtin) {
+                            { pendingReset = bot }
+                        } else {
+                            null
+                        },
                         onDelete = { pendingDelete = bot }
                     )
                 }
@@ -135,6 +161,29 @@ fun BotListScreen(
             }
         )
     }
+
+    pendingReset?.let { bot ->
+        AlertDialog(
+            onDismissRequest = { pendingReset = null },
+            title = { Text(stringResource(R.string.reset_bot_title, bot.name)) },
+            text = { Text(stringResource(R.string.reset_bot_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.reset(bot.botUid)
+                        pendingReset = null
+                    }
+                ) {
+                    Text(stringResource(R.string.reset))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingReset = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -142,6 +191,7 @@ private fun BotListRow(
     bot: Bot,
     onClick: () -> Unit,
     onDuplicate: () -> Unit,
+    onReset: (() -> Unit)?,
     onDelete: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -189,6 +239,15 @@ private fun BotListRow(
                             onDuplicate()
                         }
                     )
+                    if (onReset != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.reset)) },
+                            onClick = {
+                                menuExpanded = false
+                                onReset()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete_bot)) },
                         onClick = {

@@ -17,9 +17,13 @@ class BotListViewModel @Inject constructor(
     private val _bots = MutableStateFlow<List<Bot>>(emptyList())
     val bots = _bots.asStateFlow()
 
+    private val _canRestoreBuiltIns = MutableStateFlow(false)
+    val canRestoreBuiltIns = _canRestoreBuiltIns.asStateFlow()
+
     fun refresh() {
         viewModelScope.launch {
             _bots.value = botRepository.listBots()
+            _canRestoreBuiltIns.value = botRepository.missingBuiltIns().isNotEmpty()
         }
     }
 
@@ -33,6 +37,20 @@ class BotListViewModel @Inject constructor(
     fun delete(botUid: String) {
         viewModelScope.launch {
             botRepository.delete(botUid)
+            refresh()
+        }
+    }
+
+    fun reset(botUid: String) {
+        viewModelScope.launch {
+            botRepository.resetBuiltIn(botUid)
+            refresh()
+        }
+    }
+
+    fun restoreDeletedBuiltIns() {
+        viewModelScope.launch {
+            botRepository.restoreMissingBuiltIns()
             refresh()
         }
     }

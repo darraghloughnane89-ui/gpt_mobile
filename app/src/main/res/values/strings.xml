@@ -602,6 +602,9 @@
     <string name="delete_bot">Delete</string>
     <string name="delete_bot_title">Delete %1$s?</string>
     <string name="delete_bot_message">Chats that used this bot keep their messages and return to the platform instructions.</string>
+    <string name="reset_bot_title">Reset %1$s?</string>
+    <string name="reset_bot_message">This restores the original instructions, avatar, starter prompts, and tools. Edits to this bot are replaced. A deleted built-in stays deleted until you restore it.</string>
+    <string name="restore_built_in_bots">Restore deleted built-ins</string>
     <string name="save_bot">Save bot</string>
     <string name="no_bots">No bots yet. Create one to give a chat its own persona.</string>
     <string name="built_in_bot">Built-in</string>

@@ -91,6 +91,23 @@ class BotRepository @Inject constructor(
         }
     }
 
+    suspend fun resetBuiltIn(botUid: String): Bot? {
+        val definition = BuiltInBots.definition(botUid) ?: return null
+        botDao.save(definition.bot, definition.bindings)
+        return definition.bot
+    }
+
+    suspend fun missingBuiltIns(): List<BuiltInBots.Definition> {
+        val existing = botDao.listBots().map { it.botUid }.toSet()
+        return BuiltInBots.missing(existing)
+    }
+
+    suspend fun restoreMissingBuiltIns() {
+        missingBuiltIns().forEach { definition ->
+            botDao.save(definition.bot, definition.bindings)
+        }
+    }
+
     suspend fun assignChatBot(chatId: Int, botUid: String?) {
         if (chatId <= 0) return
         botDao.updateChatBot(chatId, botUid)

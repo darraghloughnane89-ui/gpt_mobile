@@ -466,14 +466,33 @@ class ChatDatabaseV2MigrationInstrumentedTest {
             assertTrue(cursor.moveToFirst())
             assertTrue(cursor.isNull(0))
         }
+        val names = mutableListOf<String>()
         database.query("SELECT name FROM bots ORDER BY name").use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("Assistant", cursor.getString(0))
-            assertTrue(cursor.moveToNext())
-            assertEquals("Coder", cursor.getString(0))
-            assertFalse(cursor.moveToNext())
+            while (cursor.moveToNext()) {
+                names += cursor.getString(0)
+            }
         }
-        assertCount(database, "bot_tool_bindings", 4)
+        assertEquals(
+            listOf(
+                "Assistant",
+                "CBRE Field Reports",
+                "Coder",
+                "Coding Helper",
+                "Daily Planner",
+                "Email Drafter",
+                "Gridwell Quoting",
+                "Loughnane Lifts Coach",
+                "Research Bot",
+                "Voice Companion"
+            ),
+            names
+        )
+        database.query("SELECT instructions FROM bots WHERE name = 'CBRE Field Reports'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.getString(0).contains("ASSET/BOI/ROI/#####"))
+            assertTrue(cursor.getString(0).contains("Never submit to Smartsheet"))
+        }
+        assertCount(database, "bot_tool_bindings", 20)
         database.close()
     }
 

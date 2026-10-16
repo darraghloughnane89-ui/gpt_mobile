@@ -58,6 +58,7 @@ fun BotEditorScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmReset by remember { mutableStateOf(false) }
     val draft = uiState.draft
 
     Scaffold(
@@ -96,6 +97,15 @@ fun BotEditorScreen(
                                     viewModel.duplicate(onSaved)
                                 }
                             )
+                            if (draft.builtin) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.reset)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        confirmReset = true
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.delete_bot)) },
                                 onClick = {
@@ -153,6 +163,29 @@ fun BotEditorScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text(stringResource(R.string.reset_bot_title, draft.name.ifBlank { stringResource(R.string.bot) })) },
+            text = { Text(stringResource(R.string.reset_bot_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmReset = false
+                        viewModel.resetBuiltIn()
+                    }
+                ) {
+                    Text(stringResource(R.string.reset))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
