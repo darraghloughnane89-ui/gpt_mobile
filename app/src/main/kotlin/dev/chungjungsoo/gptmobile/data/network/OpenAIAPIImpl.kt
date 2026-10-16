@@ -1,5 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.attachment.GeneratedImagePayload
+import dev.chungjungsoo.gptmobile.data.attachment.ImageGenerationResponse
+import dev.chungjungsoo.gptmobile.data.attachment.decodeGeneratedImage
+import dev.chungjungsoo.gptmobile.data.attachment.imageGenerationRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
@@ -27,6 +31,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readLine
 import java.io.File
+import java.util.Base64
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -262,6 +267,53 @@ class OpenAIAPIImpl @Inject constructor(
             config.token?.let { bearerAuth(it) }
         }.body<String>()
         return NetworkClient.openAIJson.decodeFromString(responseBody)
+    }
+
+    override suspend fun generateImages(
+        model: String,
+        prompt: String,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): List<GeneratedImagePayload> {
+        val apiUrl = config.apiUrl
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}images/generations" else "$apiUrl/images/generations"
+        val parsed = networkClient().preparePost(endpoint) {
+            retryGenerationRequest()
+            applyPlatformStreamingTimeout(timeoutSeconds)
+            contentType(ContentType.Application.Json)
+            setBody(NetworkClient.openAIJson.encodeToString(imageGenerationRequest(model, prompt)))
+            config.token?.let { bearerAuth(it) }
+        }.execute { response ->
+            val body = response.body<String>()
+            if (!response.status.isSuccess()) {
+                val message = try {
+                    NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(body).error.message
+                } catch (_: Exception) {
+                    "HTTP ${response.status.value}: $body"
+                }
+                throw IllegalStateException(message)
+            }
+            NetworkClient.openAIJson.decodeFromString<ImageGenerationResponse>(body)
+        }
+        return parsed.data.mapNotNull { datum ->
+            decodeGeneratedImage(datum.b64Json) ?: datum.url?.let { downloadGeneratedImage(it) }
+        }
+    }
+
+    private suspend fun downloadGeneratedImage(url: String): GeneratedImagePayload? = networkClient().prepareGet(url).execute { response ->
+        if (!response.status.isSuccess()) return@execute null
+        val bytes = response.body<ByteArray>()
+        if (bytes.isEmpty() || bytes.size > MAX_GENERATED_IMAGE_BYTES) return@execute null
+        val mimeType = response.headers[HttpHeaders.ContentType]
+            ?.substringBefore(';')
+            ?.trim()
+            ?.takeIf { it.startsWith("image/") }
+            ?: "image/png"
+        GeneratedImagePayload(mimeType, Base64.getEncoder().encodeToString(bytes))
+    }
+
+    private companion object {
+        const val MAX_GENERATED_IMAGE_BYTES = 15L * 1024 * 1024
     }
 }
 

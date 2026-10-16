@@ -6,6 +6,7 @@ sealed class ApiState {
     data object Loading : ApiState()
     data class Thinking(val thinkingChunk: String) : ApiState()
     data class Success(val textChunk: String) : ApiState()
+    data class GeneratedImage(val mimeType: String, val base64Data: String) : ApiState()
     data class ToolCall(val toolSequence: Int) : ApiState()
     data class Notice(val message: String, val persistent: Boolean = false) : ApiState()
     data class Compaction(val active: Boolean) : ApiState()

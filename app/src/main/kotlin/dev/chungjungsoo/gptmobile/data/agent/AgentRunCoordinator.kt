@@ -3,6 +3,8 @@ package dev.chungjungsoo.gptmobile.data.agent
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.attachment.GeneratedImageFiles
+import dev.chungjungsoo.gptmobile.data.attachment.GeneratedImagePayload
 import dev.chungjungsoo.gptmobile.data.context.CompactionResult
 import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
@@ -18,6 +20,7 @@ import dev.chungjungsoo.gptmobile.util.ApiStateFlowOutcome
 import dev.chungjungsoo.gptmobile.util.assistantErrorAppendedText
 import dev.chungjungsoo.gptmobile.util.buildAssistantErrorContent
 import dev.chungjungsoo.gptmobile.util.collectApiStateUpdates
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -261,6 +264,7 @@ class AgentRunCoordinator @Inject constructor(
     private suspend fun execute(request: AgentRunRequest) {
         val startedAt = currentEpochSeconds()
         var assistantMessage = request.assistantMessage
+        val seenGeneratedImages = mutableSetOf<Int>()
         try {
             if (!withContext(NonCancellable) { chatRepository.markAgentRunRunning(request.runId, startedAt) }) return
             val outcome = collectGenerationOutcome(
@@ -280,6 +284,20 @@ class AgentRunCoordinator @Inject constructor(
                             timeline = timeline
                         )
                         streamPublisher.publish(request.runId, assistantMessage)
+                    },
+                    onGeneratedImage = { mimeType, base64Data ->
+                        if (seenGeneratedImages.add(base64Data.hashCode())) {
+                            val saved = GeneratedImageFiles.write(
+                                directory = File(context.filesDir, "attachments"),
+                                payload = GeneratedImagePayload(mimeType, base64Data)
+                            )
+                            if (saved != null) {
+                                assistantMessage = assistantMessage.copy(
+                                    attachments = assistantMessage.attachments + saved
+                                )
+                                streamPublisher.publish(request.runId, assistantMessage)
+                            }
+                        }
                     },
                     onNotice = { notice, persistent ->
                         _notices.tryEmit(AgentRunNotice(request.chatId, request.runId, notice, persistent))

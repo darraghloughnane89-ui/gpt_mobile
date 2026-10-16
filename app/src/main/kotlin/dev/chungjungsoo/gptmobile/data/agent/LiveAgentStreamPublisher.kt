@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.agent
 
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -22,13 +23,15 @@ data class LiveAgentResponseSnapshot(
     val messageId: Int,
     val content: String,
     val thoughts: String,
-    val timeline: List<AssistantTimelineItem>
+    val timeline: List<AssistantTimelineItem>,
+    val attachments: List<ChatAttachment> = emptyList()
 )
 
 private data class PersistableStream(
     val content: String,
     val thoughts: String,
-    val timeline: List<AssistantTimelineItem>
+    val timeline: List<AssistantTimelineItem>,
+    val attachments: List<ChatAttachment>
 )
 
 internal class LiveAgentStreamPublisher(
@@ -147,11 +150,13 @@ internal fun MessageV2.toLiveSnapshot(runId: String) = LiveAgentResponseSnapshot
     messageId = id,
     content = content,
     thoughts = thoughts,
-    timeline = timeline
+    timeline = timeline,
+    attachments = attachments
 )
 
 private fun persistable(message: MessageV2) = PersistableStream(
     content = message.content,
     thoughts = message.thoughts,
-    timeline = message.timeline
+    timeline = message.timeline,
+    attachments = message.attachments
 )

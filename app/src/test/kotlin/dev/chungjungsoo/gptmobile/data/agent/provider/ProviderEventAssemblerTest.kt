@@ -367,6 +367,53 @@ class ProviderEventAssemblerTest {
         assertEquals(null, GroqUsage(promptTokens = 8).toProviderUsage())
     }
 
+    @Test
+    fun `gemini mapper surfaces inline generated images`() {
+        val response = NetworkClient.json.decodeFromString<GenerateContentResponse>(
+            """{"candidates":[{"content":{"role":"model","parts":[{"text":"done"},{"inline_data":{"mime_type":"image/png","data":"aGVsbG8="}}]}}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.TextDelta("done"),
+                ProviderEvent.GeneratedImage("image/png", "aGVsbG8=")
+            ),
+            GeminiEventMapper.accept(response)
+        )
+    }
+
+    @Test
+    fun `responses assembler keeps image generation results`() {
+        val assembler = OpenAIResponsesEventAssembler()
+        val image = "aGVsbG8=aGVsbG8=aGVsbG8=aGVsbG8="
+        val fixture = """{"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","id":"ig_1","result":"$image"}}"""
+
+        assertEquals(
+            listOf(ProviderEvent.GeneratedImage("image/png", image)),
+            assembler.accept(NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(fixture))
+        )
+    }
+
+    @Test
+    fun `chat completion assembler keeps provider image parts`() {
+        val assembler = ChatCompletionsEventAssembler()
+        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(
+            """{"choices":[{"index":0,"delta":{"images":[{"type":"image_url","image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}"""
+        )
+        val choice = chunk.choices!!.first()
+
+        assertEquals(
+            listOf(ProviderEvent.GeneratedImage("image/png", "aGVsbG8=")),
+            assembler.accept(
+                content = choice.delta.content,
+                reasoning = choice.delta.reasoning,
+                toolCalls = choice.delta.toolCalls,
+                finishReason = choice.finishReason,
+                images = choice.delta.images
+            )
+        )
+    }
+
     private fun assembleChatChunks(vararg fixtures: String): List<ProviderEvent> {
         val assembler = ChatCompletionsEventAssembler()
         return fixtures.flatMap { fixture ->

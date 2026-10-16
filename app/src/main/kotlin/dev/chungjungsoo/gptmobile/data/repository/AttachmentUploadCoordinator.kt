@@ -1,6 +1,11 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentExtraction
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentExtractionException
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentTextExtractor
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentTextLimits
+import dev.chungjungsoo.gptmobile.data.attachment.VisionHosts
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -24,6 +29,10 @@ class AttachmentUploadCoordinator @Inject constructor(
     private val googleAPI: GoogleAPI
 ) {
     suspend fun prepareLocalAttachment(context: Context, filePath: String): ChatAttachment? = withContext(Dispatchers.IO) {
+        val mimeType = FileUtils.getMimeType(context, filePath)
+        if (FileUtils.isDocument(mimeType)) {
+            return@withContext prepareDocumentAttachment(context, filePath, mimeType)
+        }
         val preparationResult = FileUtils.prepareAttachmentForUpload(context, filePath) ?: return@withContext null
         val preparedFilePath = preparationResult.preparedFilePath
         val dimensions = FileUtils.getImageDimensionsForDisplay(context, preparedFilePath)
@@ -39,11 +48,39 @@ class AttachmentUploadCoordinator @Inject constructor(
         )
     }
 
+    private fun prepareDocumentAttachment(context: Context, filePath: String, mimeType: String): ChatAttachment {
+        val sizeBytes = FileUtils.getFileSize(context, filePath)
+        if (sizeBytes <= 0L || sizeBytes > DocumentTextLimits.DEFAULT_MAX_BYTES) {
+            throw DocumentExtractionException(
+                "Documents larger than ${DocumentTextLimits.DEFAULT_MAX_BYTES / (1024 * 1024)} MB cannot be attached."
+            )
+        }
+        val bytes = File(filePath).takeIf { it.isFile }?.readBytes()
+            ?: throw DocumentExtractionException("The file could not be read.")
+        val displayName = File(filePath).name
+        when (val extraction = DocumentTextExtractor.extract(bytes, mimeType, displayName)) {
+            is DocumentExtraction.Rejected -> throw DocumentExtractionException(extraction.reason)
+            is DocumentExtraction.Ready -> return ChatAttachment(
+                localFilePath = filePath,
+                preparedFilePath = filePath,
+                displayName = displayName,
+                mimeType = mimeType,
+                sizeBytes = sizeBytes,
+                extractedText = extraction.contextText,
+                extractedTruncated = extraction.truncated
+            )
+        }
+    }
+
     suspend fun ensureMessageAttachmentsForPlatform(message: MessageV2, platform: PlatformV2): MessageV2 {
         if (message.attachments.isEmpty()) return message
         val config = ProviderRequestConfig(platform.apiUrl, platform.token)
         val updatedAttachments = when (platform.compatibleType) {
-            ClientType.OPENAI -> message.attachments.map { ensureOpenAIRef(it, platform.uid, config) }
+            ClientType.OPENAI -> if (VisionHosts.prefersChatCompletions(platform.apiUrl)) {
+                message.attachments
+            } else {
+                message.attachments.map { ensureOpenAIRef(it, platform.uid, config) }
+            }
             ClientType.ANTHROPIC -> message.attachments.map { ensureAnthropicRef(it, platform.uid, config) }
             ClientType.GOOGLE -> message.attachments.map { ensureGoogleRef(it, platform.uid, config) }
             else -> message.attachments
@@ -62,6 +99,7 @@ class AttachmentUploadCoordinator @Inject constructor(
                     turn.assistantMessage?.let { addAll(it.attachments) }
                 }
             }
+            .filter { attachment -> attachment.mimeType.startsWith("image/") && attachment.extractedText.isNullOrBlank() }
             .sumOf { attachment ->
                 val file = File(resolveUploadFilePath(attachment))
                 when {
@@ -83,6 +121,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!attachment.canUploadAsRemoteFile()) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.OPENAI_FILE &&
@@ -113,6 +152,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!attachment.canUploadAsRemoteFile()) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE &&
@@ -143,6 +183,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!attachment.canUploadAsRemoteFile()) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.GOOGLE_FILE &&
@@ -175,6 +216,9 @@ class AttachmentUploadCoordinator @Inject constructor(
     private fun resolveMimeType(attachment: ChatAttachment): String = attachment.mimeType.ifBlank {
         FileUtils.getMimeTypeFromPath(resolveUploadFilePath(attachment))
     }
+
+    private fun ChatAttachment.canUploadAsRemoteFile(): Boolean =
+        mimeType.startsWith("image/") && extractedText.isNullOrBlank()
 
     companion object {
         const val MAX_SAFE_INLINE_BYTES = 12L * 1024 * 1024

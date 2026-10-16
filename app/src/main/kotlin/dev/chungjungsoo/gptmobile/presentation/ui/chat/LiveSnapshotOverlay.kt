@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.agent.LiveAgentResponseSnapshot
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.hasHistoricalRevisionSelected
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 
 internal fun nextLiveHighWater(
     previous: Map<String, LiveAgentResponseSnapshot>,
@@ -50,7 +51,8 @@ private fun overlayLiveMessage(
     return message.copy(
         content = longerText(message.content, live.content),
         thoughts = longerText(message.thoughts, live.thoughts),
-        timeline = longerTimeline(message.timeline, live.timeline)
+        timeline = longerTimeline(message.timeline, live.timeline),
+        attachments = longerAttachments(message.attachments, live.attachments)
     )
 }
 
@@ -61,9 +63,18 @@ internal fun longerSnapshot(
 
 internal fun snapshotAheadOf(snapshot: LiveAgentResponseSnapshot, row: MessageV2): Boolean = snapshot.content.length > row.content.length ||
     snapshot.thoughts.length > row.thoughts.length ||
-    timelineLength(snapshot.timeline) > timelineLength(row.timeline)
+    timelineLength(snapshot.timeline) > timelineLength(row.timeline) ||
+    snapshot.attachments.size > row.attachments.size
 
-private fun snapshotLength(snapshot: LiveAgentResponseSnapshot): Int = snapshot.content.length + snapshot.thoughts.length + timelineLength(snapshot.timeline)
+private fun snapshotLength(snapshot: LiveAgentResponseSnapshot): Int = snapshot.content.length +
+    snapshot.thoughts.length +
+    timelineLength(snapshot.timeline) +
+    snapshot.attachments.size * 10_000
+
+private fun longerAttachments(
+    current: List<ChatAttachment>,
+    live: List<ChatAttachment>
+): List<ChatAttachment> = if (live.size >= current.size) live else current
 
 private fun longerText(current: String, live: String): String = if (live.length >= current.length) live else current
 

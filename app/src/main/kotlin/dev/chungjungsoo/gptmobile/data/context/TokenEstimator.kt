@@ -17,6 +17,13 @@ object TokenEstimator {
     }
 
     private fun estimateAttachment(attachment: ChatAttachment): Int {
+        val extracted = attachment.extractedText
+        if (!extracted.isNullOrBlank()) {
+            return estimateText(extracted) + estimateText(attachment.displayName)
+        }
+        if (!attachment.mimeType.startsWith("image/")) {
+            return estimateText(attachment.displayName)
+        }
         // ponytail: image costs vary by model; use a conservative patch estimate until
         // provider usage calibrates the request. This is never presented as a token count.
         val width = attachment.width?.takeIf { it > 0 } ?: 1024

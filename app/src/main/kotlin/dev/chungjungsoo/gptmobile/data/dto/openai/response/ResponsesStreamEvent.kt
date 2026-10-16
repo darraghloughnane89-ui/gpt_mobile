@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.dto.openai.response
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Streaming events from OpenAI Responses API.
@@ -330,7 +331,13 @@ data class ContentPart(
     val type: String,
 
     @SerialName("text")
-    val text: String? = null
+    val text: String? = null,
+
+    @SerialName("image_url")
+    val imageUrl: JsonElement? = null,
+
+    @SerialName("result")
+    val result: String? = null
 )
 
 @Serializable
@@ -348,7 +355,10 @@ data class OutputItem(
     val name: String? = null,
 
     @SerialName("arguments")
-    val arguments: String? = null
+    val arguments: String? = null,
+
+    @SerialName("result")
+    val result: String? = null
 )
 
 @Serializable

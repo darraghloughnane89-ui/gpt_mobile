@@ -19,6 +19,8 @@ import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAIResponsesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.ProviderAttachmentEncoder
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
+import dev.chungjungsoo.gptmobile.data.attachment.ProviderTransport
+import dev.chungjungsoo.gptmobile.data.attachment.providerTransport
 import dev.chungjungsoo.gptmobile.data.bot.BotCompletionTools
 import dev.chungjungsoo.gptmobile.data.context.AnthropicNativeCompactor
 import dev.chungjungsoo.gptmobile.data.context.ApiErrorKind
@@ -68,7 +70,6 @@ import dev.chungjungsoo.gptmobile.data.instruction.NullProjectInstructionSource
 import dev.chungjungsoo.gptmobile.data.instruction.withInstructionStack
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -350,6 +351,10 @@ class ChatRepositoryImpl @Inject constructor(
                             assistantProgress.append(providerEvent.text)
                             emit(ApiState.Success(providerEvent.text))
                         }
+
+                        is ProviderEvent.GeneratedImage -> emit(
+                            ApiState.GeneratedImage(providerEvent.mimeType, providerEvent.base64Data)
+                        )
 
                         is ProviderEvent.Usage -> {
                             latestUsage = providerEvent
@@ -777,17 +782,22 @@ class ChatRepositoryImpl @Inject constructor(
     ): AgentProviderSession {
         val preparedTurns = ensureProviderReferencesForTurns(turns, platform)
         validateInlineBudgetIfNeeded(preparedTurns, platform)
-        return when (platform.compatibleType) {
-            ClientType.OPENAI -> openAIResponsesAdapter.openSession(preparedTurns, platform, prepared, onUnconfirmedRemoteCancellation)
+        return when (providerTransport(platform.compatibleType, platform.apiUrl, platform.model)) {
+            ProviderTransport.OPENAI_RESPONSES -> openAIResponsesAdapter.openSession(
+                preparedTurns,
+                platform,
+                prepared,
+                onUnconfirmedRemoteCancellation
+            )
 
-            ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
+            ProviderTransport.OPENAI_CHAT, ProviderTransport.OPENAI_IMAGES ->
                 openAICompatibleAdapter.openSession(preparedTurns, platform)
 
-            ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(preparedTurns, platform, prepared)
+            ProviderTransport.ANTHROPIC -> anthropicMessagesAdapter.openSession(preparedTurns, platform, prepared)
 
-            ClientType.GOOGLE -> geminiAdapter.openSession(preparedTurns, platform)
+            ProviderTransport.GOOGLE -> geminiAdapter.openSession(preparedTurns, platform)
 
-            ClientType.LITERT_LM -> liteRtLmAdapter.openSession(preparedTurns, platform, tools)
+            ProviderTransport.LITERT -> liteRtLmAdapter.openSession(preparedTurns, platform, tools)
         }
     }
 

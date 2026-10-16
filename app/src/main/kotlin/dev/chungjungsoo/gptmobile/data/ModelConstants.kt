@@ -26,6 +26,7 @@ object ModelConstants {
     const val GROQ_API_URL = "https://api.groq.com/openai/v1/"
     const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/"
     const val OLLAMA_API_URL = "http://localhost:11434/v1/"
+    const val MIMO_API_URL = "https://token-plan-ams.xiaomimimo.com/v1"
 
     fun getDefaultAPIUrl(apiType: ApiType) = when (apiType) {
         ApiType.OPENAI -> OPENAI_API_URL

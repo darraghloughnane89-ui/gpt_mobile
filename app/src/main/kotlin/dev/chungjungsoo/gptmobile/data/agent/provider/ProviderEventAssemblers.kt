@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.agent.provider
 
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
+import dev.chungjungsoo.gptmobile.data.attachment.GeneratedImagePayload
+import dev.chungjungsoo.gptmobile.data.attachment.decodeGeneratedImage
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.CompactionContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.RedactedThinkingContent
@@ -21,10 +23,15 @@ import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentRespon
 import dev.chungjungsoo.gptmobile.data.dto.google.response.UsageMetadata
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionUsage
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatOutputImage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ContentPart
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ContentPartDoneEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.FunctionCallArgumentsDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.FunctionCallArgumentsDoneEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItemAddedEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItemDoneEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
@@ -48,6 +55,10 @@ class OpenAIResponsesEventAssembler {
         is ReasoningSummaryTextDeltaEvent -> listOf(ProviderEvent.ThinkingDelta(event.delta))
 
         is OutputTextDeltaEvent -> listOf(ProviderEvent.TextDelta(event.delta))
+
+        is ContentPartDoneEvent -> generatedImageEvents(imagesFromContentPart(event.part))
+
+        is OutputItemDoneEvent -> generatedImageEvents(imagesFromOutputItem(event.item))
 
         is OutputItemAddedEvent -> {
             if (event.item.type != "function_call") {
@@ -105,11 +116,13 @@ class ChatCompletionsEventAssembler {
         content: String?,
         reasoning: String?,
         toolCalls: List<ChatToolCallDelta>?,
-        finishReason: String?
+        finishReason: String?,
+        images: List<ChatOutputImage>? = null
     ): List<ProviderEvent> {
         val events = mutableListOf<ProviderEvent>()
         reasoning?.takeIf { it.isNotEmpty() }?.let { events += ProviderEvent.ThinkingDelta(it) }
         content?.takeIf { it.isNotEmpty() }?.let { events += ProviderEvent.TextDelta(it) }
+        events += generatedImageEvents(imagesFromChatImages(images))
         toolCalls.orEmpty().forEach { delta ->
             val call = resolvePending(delta)
             delta.id?.takeIf { it.isNotBlank() }?.let { incomingId ->
@@ -349,6 +362,9 @@ object GeminiEventMapper {
             part.text?.let { text ->
                 events += if (part.thought == true) ProviderEvent.ThinkingDelta(text) else ProviderEvent.TextDelta(text)
             }
+            part.inlineData
+                ?.takeIf { it.mimeType.startsWith("image/") && it.data.isNotBlank() }
+                ?.let { inline -> events += ProviderEvent.GeneratedImage(inline.mimeType, inline.data) }
             part.functionCall?.let { call ->
                 events += ProviderEvent.ToolCall(call.id ?: java.util.UUID.randomUUID().toString(), call.name, call.args)
             }
@@ -386,6 +402,34 @@ internal fun GroqUsage?.toProviderUsage(): ProviderEvent.Usage? {
         input + (usage.cacheCreationInputTokens ?: 0) + (usage.cacheReadInputTokens ?: 0),
         usage.completionTokens
     )
+}
+
+private fun generatedImageEvents(images: List<GeneratedImagePayload>): List<ProviderEvent> =
+    images.map { ProviderEvent.GeneratedImage(it.mimeType, it.base64Data) }
+
+private fun imagesFromContentPart(part: ContentPart): List<GeneratedImagePayload> {
+    if (part.type != "output_image" && part.type != "image" && part.type != "image_generation_call") {
+        return emptyList()
+    }
+    return listOfNotNull(decodeGeneratedImage(part.result) ?: decodeImageElement(part.imageUrl))
+}
+
+private fun imagesFromOutputItem(item: OutputItem): List<GeneratedImagePayload> {
+    if (item.type != "image_generation_call" && item.type != "output_image") return emptyList()
+    return listOfNotNull(decodeGeneratedImage(item.result))
+}
+
+private fun imagesFromChatImages(images: List<ChatOutputImage>?): List<GeneratedImagePayload> = images.orEmpty().mapNotNull { image ->
+    decodeGeneratedImage(image.b64Json) ?: decodeGeneratedImage(image.imageUrl?.url)
+}
+
+private fun decodeImageElement(element: kotlinx.serialization.json.JsonElement?): GeneratedImagePayload? {
+    val value = element ?: return null
+    val primitive = value as? kotlinx.serialization.json.JsonPrimitive
+    if (primitive != null && primitive.isString) return decodeGeneratedImage(primitive.content)
+    val url = (value as? kotlinx.serialization.json.JsonObject)?.get("url")
+    val urlText = (url as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+    return decodeGeneratedImage(urlText)
 }
 
 internal fun UsageMetadata?.toProviderUsage(): ProviderEvent.Usage? {

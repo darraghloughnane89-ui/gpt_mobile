@@ -13,6 +13,8 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunRequest
 import dev.chungjungsoo.gptmobile.data.agent.LiveAgentResponseSnapshot
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentExtractionException
+import dev.chungjungsoo.gptmobile.data.attachment.DocumentTextLimits
 import dev.chungjungsoo.gptmobile.data.bot.ChatBotSession
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
@@ -915,12 +917,12 @@ class ChatViewModel @Inject constructor(
                 FileUtils.getMimeType(context, filePath)
             }
 
-            if (!FileUtils.isSupportedUploadMimeType(mimeType)) {
+            if (!FileUtils.isAttachableMimeType(mimeType)) {
                 rejectDraftAttachment(
                     currentAttachments = currentAttachments,
                     updateAttachments = updateAttachments,
                     filePath = filePath,
-                    notice = "Only image attachments are currently supported."
+                    notice = context.getString(R.string.attachment_type_unsupported)
                 )
                 trySendPendingQuestionIfReady()
                 return@launch
@@ -928,6 +930,17 @@ class ChatViewModel @Inject constructor(
 
             val fileSize = withContext(Dispatchers.IO) {
                 FileUtils.getFileSize(context, filePath)
+            }
+
+            if (FileUtils.isDocument(mimeType) && fileSize > DocumentTextLimits.DEFAULT_MAX_BYTES) {
+                rejectDraftAttachment(
+                    currentAttachments = currentAttachments,
+                    updateAttachments = updateAttachments,
+                    filePath = filePath,
+                    notice = context.getString(R.string.attachment_document_too_large)
+                )
+                trySendPendingQuestionIfReady()
+                return@launch
             }
 
             if (fileSize > FileUtils.MAX_UPLOAD_SIZE_BYTES) {
@@ -958,8 +971,20 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
 
-            val preparationResult = withContext(Dispatchers.IO) {
-                attachmentUploadCoordinator.prepareLocalAttachment(context, filePath)
+            val preparationResult = try {
+                withContext(Dispatchers.IO) {
+                    attachmentUploadCoordinator.prepareLocalAttachment(context, filePath)
+                }
+            } catch (error: DocumentExtractionException) {
+                if (currentAttachments().none { it.sourceFilePath == filePath }) return@launch
+                rejectDraftAttachment(
+                    currentAttachments = currentAttachments,
+                    updateAttachments = updateAttachments,
+                    filePath = filePath,
+                    notice = error.message ?: context.getString(R.string.attachment_prepare_failed)
+                )
+                trySendPendingQuestionIfReady()
+                return@launch
             }
 
             if (currentAttachments().none { it.sourceFilePath == filePath }) {
@@ -985,10 +1010,11 @@ class ChatViewModel @Inject constructor(
                             mimeType = preparationResult.mimeType,
                             status = ChatAttachmentDraft.Status.Ready,
                             cleanupOnDiscard = true,
-                            notice = if (preparationResult.wasResized) {
-                                "Large images are resized before upload."
-                            } else {
-                                null
+                            notice = when {
+                                preparationResult.wasResized -> context.getString(R.string.attachment_image_resized)
+                                preparationResult.extractedTruncated -> context.getString(R.string.attachment_document_truncated)
+                                !preparationResult.extractedText.isNullOrBlank() -> context.getString(R.string.attachment_document_included)
+                                else -> null
                             },
                             errorMessage = null
                         )

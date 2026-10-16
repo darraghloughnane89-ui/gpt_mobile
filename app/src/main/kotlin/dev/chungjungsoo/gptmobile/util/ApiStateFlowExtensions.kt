@@ -64,6 +64,7 @@ suspend fun Flow<ApiState>.handleStates(
 internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit,
     onNotice: (String, Boolean) -> Unit = { _, _ -> },
+    onGeneratedImage: suspend (mimeType: String, base64Data: String) -> Unit = { _, _ -> },
     nanoTimeProvider: () -> Long = System::nanoTime,
     publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS,
     onCompactionState: (Boolean) -> Unit = {}
@@ -86,6 +87,8 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                     buffer.appendContent(chunk.textChunk)
                     buffer.publishIfDue(onUpdate)
                 }
+
+                is ApiState.GeneratedImage -> onGeneratedImage(chunk.mimeType, chunk.base64Data)
 
                 is ApiState.ToolCall -> {
                     buffer.appendTool(chunk.toolSequence)

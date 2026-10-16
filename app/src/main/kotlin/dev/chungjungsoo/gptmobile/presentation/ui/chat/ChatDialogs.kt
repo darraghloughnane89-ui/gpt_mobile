@@ -51,6 +51,7 @@ import kotlinx.coroutines.withContext
 internal fun MessageActionsSheet(
     canEdit: Boolean,
     onCopy: () -> Unit,
+    onShare: () -> Unit = {},
     onEdit: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
@@ -75,6 +76,12 @@ internal fun MessageActionsSheet(
             SettingItem(
                 title = stringResource(R.string.copy_text),
                 onItemClick = { runAction(onCopy) },
+                showTrailingIcon = false,
+                showLeadingIcon = false
+            )
+            SettingItem(
+                title = stringResource(R.string.share_answer),
+                onItemClick = { runAction(onShare) },
                 showTrailingIcon = false,
                 showLeadingIcon = false
             )
@@ -260,12 +267,12 @@ fun UserMessageEditDialog(
     var question by remember { mutableStateOf(initialQuestion.content) }
     val questionFieldMaxLines = 8
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            scope.launch {
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        scope.launch {
+            uris.forEach { uri ->
                 val filePath = withContext(Dispatchers.IO) {
-                    copyFileToAppDirectory(context, it)
+                    copyFileToAppDirectory(context, uri)
                 }
                 if (filePath != null) {
                     onFileSelected(filePath)
@@ -297,7 +304,9 @@ fun UserMessageEditDialog(
                 )
                 AttachmentEditorSection(
                     attachments = attachments,
-                    onAttachFileClick = { filePickerLauncher.launch("image/*") },
+                    onAttachFileClick = {
+                        filePickerLauncher.launch(dev.chungjungsoo.gptmobile.util.FileUtils.ATTACHABLE_MIME_TYPES)
+                    },
                     onFileRemoved = onFileRemoved
                 )
             }
@@ -342,12 +351,12 @@ fun AssistantMessageEditDialog(
     var responseText by remember { mutableStateOf(initialMessage.effectiveContent()) }
     var thoughtsText by remember { mutableStateOf(initialMessage.effectiveThoughts()) }
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            scope.launch {
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        scope.launch {
+            uris.forEach { uri ->
                 val filePath = withContext(Dispatchers.IO) {
-                    copyFileToAppDirectory(context, it)
+                    copyFileToAppDirectory(context, uri)
                 }
                 if (filePath != null) {
                     onFileSelected(filePath)
@@ -390,7 +399,9 @@ fun AssistantMessageEditDialog(
                 )
                 AttachmentEditorSection(
                     attachments = attachments,
-                    onAttachFileClick = { filePickerLauncher.launch("image/*") },
+                    onAttachFileClick = {
+                        filePickerLauncher.launch(dev.chungjungsoo.gptmobile.util.FileUtils.ATTACHABLE_MIME_TYPES)
+                    },
                     onFileRemoved = onFileRemoved
                 )
             }

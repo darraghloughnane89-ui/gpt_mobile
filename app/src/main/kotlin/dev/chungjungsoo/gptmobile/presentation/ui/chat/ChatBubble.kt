@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
@@ -28,7 +29,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ButtonDefaults
@@ -44,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,8 +55,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -74,6 +82,8 @@ import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun UserChatBubble(
@@ -94,6 +104,7 @@ fun UserChatBubble(
 
     var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     val messageActionsLabel = stringResource(R.string.message_actions)
+    val context = LocalContext.current
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
@@ -125,6 +136,9 @@ fun UserChatBubble(
         MessageActionsSheet(
             canEdit = canEdit,
             onCopy = onCopyClick,
+            onShare = {
+                shareMessage(context, text, files)
+            },
             onEdit = onEditClick,
             onDismissRequest = { isActionsSheetOpen = false }
         )
@@ -157,6 +171,7 @@ fun OpponentChatBubble(
     onShowPreviousRevision: () -> Unit = {},
     onShowNextRevision: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
@@ -268,6 +283,10 @@ fun OpponentChatBubble(
             ) {
                 if (!isError) {
                     CopyTextIcon(onCopyClick)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    ShareTextIcon {
+                        shareMessage(context, text, attachments)
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     SelectTextIcon(onSelectClick)
                     if (canEdit) {
@@ -398,6 +417,16 @@ private fun DetailsButton(
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.rotate(rotationAngle)
+        )
+    }
+}
+
+@Composable
+private fun ShareTextIcon(onShareClick: () -> Unit) {
+    IconButton(onClick = onShareClick) {
+        Icon(
+            imageVector = Icons.Filled.Share,
+            contentDescription = stringResource(R.string.share_answer)
         )
     }
 }
@@ -681,6 +710,7 @@ private fun MessageFileThumbnail(
 ) {
     val file = File(filePath)
     val isImage = isImageFile(file.extension)
+    val context = LocalContext.current
     val containerColor = if (usePrimaryColors) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
     } else {
@@ -691,29 +721,37 @@ private fun MessageFileThumbnail(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, filePath, isImage) {
+        value = if (!isImage) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                android.graphics.BitmapFactory.decodeFile(filePath)?.asImageBitmap()
+            }
+        }
+    }
 
     Column(
-        modifier = Modifier.width(56.dp),
+        modifier = Modifier.width(if (isImage) 160.dp else 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .then(if (isImage) Modifier.width(160.dp).heightIn(min = 96.dp, max = 220.dp) else Modifier.size(48.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(containerColor)
         ) {
-            if (isImage) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_image),
+            val preview = imageBitmap
+            if (preview != null) {
+                Image(
+                    bitmap = preview,
                     contentDescription = file.name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    tint = contentColor
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
                 Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_file),
+                    imageVector = ImageVector.vectorResource(if (isImage) R.drawable.ic_image else R.drawable.ic_file),
                     contentDescription = file.name,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -732,8 +770,41 @@ private fun MessageFileThumbnail(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier
                 .padding(top = 4.dp)
-                .width(56.dp)
+                .width(if (isImage) 160.dp else 56.dp)
         )
+        if (isImage) {
+            Row {
+                IconButton(onClick = {
+                    val saved = saveImageToGallery(context, filePath)
+                    Toast.makeText(
+                        context,
+                        if (saved) R.string.image_saved else R.string.image_save_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }) {
+                    Icon(
+                        imageVector = Icons.Outlined.SaveAlt,
+                        contentDescription = stringResource(R.string.save_image)
+                    )
+                }
+                IconButton(onClick = {
+                    shareMessage(context, "", listOf(filePath))
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = stringResource(R.string.share_image)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun shareMessage(context: android.content.Context, text: String, files: List<String>) {
+    try {
+        shareAnswer(context, text, files)
+    } catch (_: Exception) {
+        Toast.makeText(context, R.string.share_failed, Toast.LENGTH_SHORT).show()
     }
 }
 

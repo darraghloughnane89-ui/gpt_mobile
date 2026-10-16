@@ -56,6 +56,8 @@ class FileUtilsTest {
     fun `non image mime types are not supported by image upload pipeline`() {
         assertTrue(FileUtils.isSupportedUploadMimeType("image/jpeg"))
         assertFalse(FileUtils.isSupportedUploadMimeType("application/pdf"))
+        assertTrue(FileUtils.isAttachableMimeType("application/pdf"))
+        assertTrue(FileUtils.isAttachableMimeType("text/plain"))
     }
 
     @Test

@@ -5,6 +5,8 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolExchange
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.attachment.ImageGeneration
+import dev.chungjungsoo.gptmobile.data.attachment.modelContextText
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.context.ModelCapacityResolver
 import dev.chungjungsoo.gptmobile.data.context.OutputTokenBudget
@@ -153,13 +155,44 @@ class OpenAICompatibleAdapter @Inject constructor(
     private val attachmentEncoder: ProviderAttachmentEncoder
 ) {
     suspend fun openSession(turns: List<ConversationTurn>, platform: PlatformV2): AgentProviderSession {
-        val initialMessages = attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt)
+        val imageGeneration = ImageGeneration.usesOpenAiImagesEndpoint(platform.compatibleType, platform.model, platform.apiUrl)
+        val imagePrompt = if (imageGeneration) {
+            val message = turns.lastOrNull()?.userMessage
+            modelContextText(message?.content.orEmpty(), message?.attachments.orEmpty())
+        } else {
+            ""
+        }
+        val initialMessages = if (imageGeneration) {
+            emptyList()
+        } else {
+            attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt)
+        }
         val config = ProviderRequestConfig(platform.apiUrl, platform.token)
         return object : AgentProviderSession {
             override fun streamRound(
                 tools: List<AgentToolDefinition>,
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = flow {
+                if (imageGeneration) {
+                    if (imagePrompt.isBlank()) {
+                        emit(ProviderEvent.Failed("Describe the image to generate."))
+                        return@flow
+                    }
+                    val images = openAIAPI.generateImages(
+                        model = platform.model,
+                        prompt = imagePrompt,
+                        timeoutSeconds = platform.timeout,
+                        config = config
+                    )
+                    if (images.isEmpty()) {
+                        emit(ProviderEvent.Failed("The image model returned no image."))
+                        return@flow
+                    }
+                    emit(ProviderEvent.TextDelta("Generated ${images.size} image(s)."))
+                    images.forEach { image -> emit(ProviderEvent.GeneratedImage(image.mimeType, image.base64Data)) }
+                    emit(ProviderEvent.Completed)
+                    return@flow
+                }
                 val messages = initialMessages + exchanges.flatMap { it.toChatMessages() }
                 val requestTools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
                     ChatFunctionTool(definition.name, definition.description, definition.inputSchema)
@@ -230,7 +263,8 @@ class OpenAICompatibleAdapter @Inject constructor(
                                 content = choice.delta.content,
                                 reasoning = choice.delta.reasoning,
                                 toolCalls = choice.delta.toolCalls,
-                                finishReason = choice.finishReason
+                                finishReason = choice.finishReason,
+                                images = choice.delta.images
                             ).forEach { emit(it) }
                         }
                     }
@@ -476,6 +510,7 @@ private fun AgentToolExchange.toChatMessages(): List<ChatMessage> = listOf(
 
 private fun dev.chungjungsoo.gptmobile.data.dto.ApiState.toProviderEvent(): ProviderEvent? = when (this) {
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Success -> ProviderEvent.TextDelta(textChunk)
+    is dev.chungjungsoo.gptmobile.data.dto.ApiState.GeneratedImage -> ProviderEvent.GeneratedImage(mimeType, base64Data)
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Thinking -> ProviderEvent.ThinkingDelta(thinkingChunk)
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Notice -> null
     is dev.chungjungsoo.gptmobile.data.dto.ApiState.Compaction -> null

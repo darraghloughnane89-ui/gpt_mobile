@@ -10,7 +10,6 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -79,7 +78,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
@@ -892,14 +890,16 @@ fun ChatInputBox(
     val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
     val hasQuestionText = inputState.text.isNotEmpty()
+    val hasReadyAttachment = selectedAttachments.any { it.status == ChatAttachmentDraft.Status.Ready }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            scope.launch {
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            uris.forEach { uri ->
                 val filePath = withContext(Dispatchers.IO) {
-                    copyFileToAppDirectory(context, it)
+                    copyFileToAppDirectory(context, uri)
                 }
                 filePath?.let { path -> onFileSelected(path) }
             }
@@ -937,7 +937,7 @@ fun ChatInputBox(
                     ) {
                         IconButton(
                             enabled = chatEnabled,
-                            onClick = { filePickerLauncher.launch("image/*") }
+                            onClick = { filePickerLauncher.launch(dev.chungjungsoo.gptmobile.util.FileUtils.ATTACHABLE_MIME_TYPES) }
                         ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
@@ -960,7 +960,7 @@ fun ChatInputBox(
                             }
                         }
                         IconButton(
-                            enabled = isRunning || (chatEnabled && sendButtonEnabled && hasQuestionText),
+                            enabled = isRunning || (chatEnabled && sendButtonEnabled && (hasQuestionText || hasReadyAttachment)),
                             onClick = if (isRunning) onCancelButtonClick else onSendButtonClick
                         ) {
                             if (isRunning) {
@@ -990,12 +990,12 @@ internal fun FileThumbnailRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
         selectedAttachments.forEach { attachment ->
-            FileThumbnail(
+            AttachmentChip(
                 attachment = attachment,
                 onRemove = { onFileRemoved(attachment.sourceFilePath) }
             )
@@ -1004,109 +1004,81 @@ internal fun FileThumbnailRow(
 }
 
 @Composable
-internal fun FileThumbnail(
+internal fun AttachmentChip(
     attachment: ChatAttachmentDraft,
     onRemove: () -> Unit
 ) {
     val file = File(attachment.preparedFilePath ?: attachment.sourceFilePath)
-    val isImage = isImageFile(file.extension)
-
-    Column(
-        modifier = Modifier.width(72.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+    val isImage = isImageFile(attachment.mimeType.substringAfter('/').ifBlank { file.extension })
+    val containerColor = if (attachment.status == ChatAttachmentDraft.Status.Failed) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (attachment.status == ChatAttachmentDraft.Status.Failed) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Column(modifier = Modifier.widthIn(max = 220.dp)) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = containerColor
         ) {
-            if (isImage) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_image),
-                    contentDescription = file.name,
-                    modifier = Modifier.fillMaxSize(),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_file),
-                    contentDescription = file.name,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            IconButton(
-                onClick = onRemove,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(48.dp)
+            Row(
+                modifier = Modifier.padding(start = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                Icon(
+                    imageVector = ImageVector.vectorResource(if (isImage) R.drawable.ic_image else R.drawable.ic_file),
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = attachment.displayName,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .size(16.dp)
-                        .background(
-                            MaterialTheme.colorScheme.error,
-                            RoundedCornerShape(8.dp)
-                        ),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = 8.dp)
+                        .widthIn(max = 140.dp)
+                )
+                if (attachment.status == ChatAttachmentDraft.Status.Preparing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.remove),
-                        tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.size(10.dp)
+                        contentDescription = stringResource(R.string.remove_attachment, attachment.displayName),
+                        tint = contentColor,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-
-            if (attachment.status == ChatAttachmentDraft.Status.Preparing) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp)
-                        .size(18.dp),
-                    strokeWidth = 2.dp
-                )
-            }
         }
-
-        Text(
-            text = file.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier
-                .padding(top = 4.dp)
-                .width(72.dp)
-        )
-
-        attachment.notice?.let { notice ->
+        val detail = attachment.errorMessage ?: attachment.notice
+        detail?.let { message ->
             Text(
-                text = notice,
+                text = message,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (attachment.errorMessage != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.width(72.dp)
-            )
-        }
-
-        attachment.errorMessage?.let { errorMessage ->
-            Text(
-                text = errorMessage,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.width(72.dp)
+                modifier = Modifier.padding(start = 8.dp, top = 2.dp)
             )
         }
     }

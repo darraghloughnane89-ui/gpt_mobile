@@ -51,7 +51,28 @@ data class Delta(
     val reasoning: String? = null,
 
     @SerialName("tool_calls")
-    val toolCalls: List<ChatToolCallDelta>? = null
+    val toolCalls: List<ChatToolCallDelta>? = null,
+
+    @SerialName("images")
+    val images: List<ChatOutputImage>? = null
+)
+
+@Serializable
+data class ChatOutputImage(
+    @SerialName("type")
+    val type: String? = null,
+
+    @SerialName("image_url")
+    val imageUrl: ChatOutputImageUrl? = null,
+
+    @SerialName("b64_json")
+    val b64Json: String? = null
+)
+
+@Serializable
+data class ChatOutputImageUrl(
+    @SerialName("url")
+    val url: String? = null
 )
 
 @Serializable

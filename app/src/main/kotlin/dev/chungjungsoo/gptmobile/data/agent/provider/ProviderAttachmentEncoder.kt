@@ -2,6 +2,8 @@ package dev.chungjungsoo.gptmobile.data.agent.provider
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.chungjungsoo.gptmobile.data.attachment.modelContextText
+import dev.chungjungsoo.gptmobile.data.attachment.openAiImageDataUrl
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageContent as AnthropicImageContent
@@ -24,6 +26,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.model.AttachmentRemoteType
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.data.repository.sendableAssistantContent
 import dev.chungjungsoo.gptmobile.data.repository.validateResponseInputPartsOrThrow
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -98,11 +101,11 @@ class ProviderAttachmentEncoder @Inject constructor(
         val content = mutableListOf<OpenAIMessageContent>()
         val text = message.modelVisibleText(isUser)
         if (text.isNotBlank()) content += OpenAITextContent(text)
-        message.attachments.forEach { attachment ->
+        message.attachments.filter { it.isVisionImage() }.forEach { attachment ->
             val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
             val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
             encodedAttachment(filePath, mimeType)?.let { encoded ->
-                content += OpenAIImageContent(ImageUrl("data:${encoded.mimeType};base64,${encoded.base64Data}"))
+                content += OpenAIImageContent(ImageUrl(openAiImageDataUrl(encoded.mimeType, encoded.base64Data)))
             }
         }
         return ChatMessage(
@@ -117,10 +120,7 @@ class ProviderAttachmentEncoder @Inject constructor(
         platformUid: String
     ): ResponseInputMessage {
         val text = message.modelVisibleText(isUser)
-        val images = message.attachments.filter { attachment ->
-            val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
-            FileUtils.isImage(attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) })
-        }
+        val images = message.attachments.filter { it.isVisionImage() }
         if (images.isEmpty()) {
             return ResponseInputMessage(
                 role = if (isUser) "user" else "assistant",
@@ -138,7 +138,7 @@ class ProviderAttachmentEncoder @Inject constructor(
                     val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
                     val mimeType = attachment.mimeType.ifBlank { FileUtils.getMimeType(context, filePath) }
                     encodedAttachment(filePath, mimeType)?.let { encoded ->
-                        add(ResponseContentPart.image("data:${encoded.mimeType};base64,${encoded.base64Data}"))
+                        add(ResponseContentPart.image(openAiImageDataUrl(encoded.mimeType, encoded.base64Data)))
                     }
                 }
             }
@@ -158,7 +158,7 @@ class ProviderAttachmentEncoder @Inject constructor(
         val content = mutableListOf<AnthropicMessageContent>()
         val text = message.modelVisibleText(role == MessageRole.USER)
         if (text.isNotBlank()) content += AnthropicTextContent(text)
-        message.attachments.forEach { attachment ->
+        message.attachments.filter { it.isVisionImage() }.forEach { attachment ->
             val providerRef = attachment.providerRefFor(platformUid)
             if (providerRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE) {
                 content += AnthropicImageContent(ImageSource.file(providerRef.remoteId))
@@ -183,7 +183,7 @@ class ProviderAttachmentEncoder @Inject constructor(
         val parts = mutableListOf<Part>()
         val text = message.modelVisibleText(role == GoogleRole.USER)
         if (text.isNotBlank()) parts += Part.text(text)
-        message.attachments.forEach { attachment ->
+        message.attachments.filter { it.isVisionImage() }.forEach { attachment ->
             val providerRef = attachment.providerRefFor(platformUid)
             if (providerRef?.remoteType == AttachmentRemoteType.GOOGLE_FILE) {
                 parts += Part.fileData(providerRef.mimeType, providerRef.remoteId)
@@ -210,7 +210,12 @@ class ProviderAttachmentEncoder @Inject constructor(
 
     private fun MessageV2.hasRenderableContent(isUser: Boolean): Boolean = modelVisibleText(isUser).isNotBlank() || attachments.isNotEmpty()
 
-    private fun MessageV2.modelVisibleText(isUser: Boolean): String = if (isUser) content else sendableAssistantContent()
+    private fun MessageV2.modelVisibleText(isUser: Boolean): String = modelContextText(
+        if (isUser) content else sendableAssistantContent(),
+        attachments
+    )
+
+    private fun ChatAttachment.isVisionImage(): Boolean = mimeType.startsWith("image/") && extractedText.isNullOrBlank()
 
     private fun String.toAnthropicMediaType(): MediaType = when {
         contains("png") -> MediaType.PNG

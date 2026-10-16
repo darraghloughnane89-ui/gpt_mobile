@@ -5,6 +5,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -147,5 +148,41 @@ class LiveSnapshotOverlayTest {
         val overlaid = overlayLiveSnapshots(persisted, live).assistantMessages[0][0]
         assertEquals("Latest", overlaid.content)
         assertEquals(0, overlaid.activeRevisionIndex)
+    }
+
+    @Test
+    fun overlayKeepsGeneratedImagesWhenTextLengthMatches() {
+        val image = ChatAttachment(
+            localFilePath = "/tmp/generated.png",
+            preparedFilePath = "/tmp/generated.png",
+            displayName = "generated.png",
+            mimeType = "image/png",
+            sizeBytes = 4
+        )
+        val persisted = ChatViewModel.GroupedMessages(
+            assistantMessages = listOf(
+                listOf(
+                    MessageV2(
+                        id = 5,
+                        content = "Generated 1 image(s).",
+                        currentRunId = "run-1",
+                        platformType = "profile"
+                    )
+                )
+            )
+        )
+        val live = mapOf(
+            "run-1" to LiveAgentResponseSnapshot(
+                runId = "run-1",
+                messageId = 5,
+                content = "Generated 1 image(s).",
+                thoughts = "",
+                timeline = emptyList(),
+                attachments = listOf(image)
+            )
+        )
+
+        val kept = nextLiveHighWater(emptyMap(), live, persisted)
+        assertEquals(listOf(image), overlayLiveSnapshots(persisted, kept).assistantMessages[0][0].attachments)
     }
 }

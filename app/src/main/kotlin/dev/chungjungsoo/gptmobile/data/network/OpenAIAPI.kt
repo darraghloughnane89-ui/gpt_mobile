@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.attachment.GeneratedImagePayload
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
@@ -35,4 +36,11 @@ interface OpenAIAPI {
         timeoutSeconds: Int,
         config: ProviderRequestConfig
     ): CompactResponsesResult
+
+    suspend fun generateImages(
+        model: String,
+        prompt: String,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): List<GeneratedImagePayload> = emptyList()
 }

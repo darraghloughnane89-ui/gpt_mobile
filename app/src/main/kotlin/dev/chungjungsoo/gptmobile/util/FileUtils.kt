@@ -309,6 +309,16 @@ object FileUtils {
 
     internal fun isSupportedUploadMimeType(mimeType: String): Boolean = isImage(mimeType)
 
+    fun isAttachableMimeType(mimeType: String): Boolean = isImage(mimeType) || isDocument(mimeType)
+
+    val ATTACHABLE_MIME_TYPES = arrayOf(
+        "image/*",
+        "application/pdf",
+        "text/plain",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     internal fun shouldResizeImage(
         originalWidth: Int,
         originalHeight: Int,

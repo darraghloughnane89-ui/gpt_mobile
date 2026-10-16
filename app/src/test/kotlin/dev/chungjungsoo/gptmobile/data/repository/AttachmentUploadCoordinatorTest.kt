@@ -71,6 +71,62 @@ class AttachmentUploadCoordinatorTest {
     }
 
     @Test
+    fun `documents and mimo images stay inline`() = runBlocking {
+        val openAIAPI = FakeOpenAIAPI()
+        val coordinator = AttachmentUploadCoordinator(openAIAPI, FakeAnthropicAPI(), FakeGoogleAPI())
+        val document = MessageV2(
+            content = "summarize",
+            platformType = null,
+            attachments = listOf(
+                ChatAttachment(
+                    localFilePath = "/tmp/notes.pdf",
+                    preparedFilePath = "/tmp/notes.pdf",
+                    displayName = "notes.pdf",
+                    mimeType = "application/pdf",
+                    sizeBytes = 20,
+                    extractedText = "[Attached file: notes.pdf]\nhello"
+                )
+            )
+        )
+        val image = MessageV2(
+            content = "look",
+            platformType = null,
+            attachments = listOf(
+                ChatAttachment(
+                    localFilePath = "/tmp/photo.jpg",
+                    preparedFilePath = "/tmp/photo.jpg",
+                    displayName = "photo.jpg",
+                    mimeType = "image/jpeg",
+                    sizeBytes = 20
+                )
+            )
+        )
+
+        coordinator.ensureMessageAttachmentsForPlatform(
+            document,
+            PlatformV2(
+                uid = "openai",
+                name = "OpenAI",
+                compatibleType = ClientType.OPENAI,
+                apiUrl = "https://api.openai.com/v1/",
+                model = "gpt-5.6"
+            )
+        )
+        coordinator.ensureMessageAttachmentsForPlatform(
+            image,
+            PlatformV2(
+                uid = "mimo",
+                name = "MiMo",
+                compatibleType = ClientType.OPENAI,
+                apiUrl = "https://token-plan-ams.xiaomimimo.com/v1",
+                model = "mimo-v2-omni"
+            )
+        )
+
+        assertEquals(0, openAIAPI.uploadCount)
+    }
+
+    @Test
     fun `missing google ref uploads and stores remote uri`() = runBlocking {
         val googleAPI = FakeGoogleAPI()
         val coordinator = AttachmentUploadCoordinator(FakeOpenAIAPI(), FakeAnthropicAPI(), googleAPI)
