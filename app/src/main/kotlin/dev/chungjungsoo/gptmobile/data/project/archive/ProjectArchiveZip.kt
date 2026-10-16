@@ -21,22 +21,30 @@ object ProjectArchiveZip {
     fun read(input: InputStream): List<ArchiveEntry> {
         val entries = mutableListOf<ArchiveEntry>()
         var total = 0L
+        var seen = 0
+        var unsafe = false
         ZipInputStream(input.buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
+                seen += 1
+                if (seen > MAX_ENTRIES) throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
                 if (!entry.isDirectory) {
-                    if (entries.size >= MAX_ENTRIES) throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
+                    val bytes = readCapped(zip, MAX_ENTRY_BYTES)
+                        ?: throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
+                    total += bytes.size
+                    if (total > MAX_TOTAL_BYTES) throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
                     if (isSafePath(entry.name)) {
-                        val bytes = readCapped(zip, MAX_ENTRY_BYTES)
-                            ?: throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
-                        total += bytes.size
-                        if (total > MAX_TOTAL_BYTES) throw ProjectArchiveException(ProjectArchiveFailure.TOO_LARGE)
                         entries += ArchiveEntry(entry.name, bytes)
+                    } else {
+                        unsafe = true
                     }
+                } else if (!isSafePath(entry.name)) {
+                    unsafe = true
                 }
                 zip.closeEntry()
             }
         }
+        if (unsafe) throw ProjectArchiveException(ProjectArchiveFailure.UNREADABLE)
         return entries
     }
 
@@ -46,7 +54,12 @@ object ProjectArchiveZip {
             put(zip, "manifest.json", manifest(project).toByteArray(Charsets.UTF_8))
             put(zip, "instructions.md", project.instructions.toByteArray(Charsets.UTF_8))
             project.files.forEach { file ->
-                val path = if (file.relativePath.startsWith("files/")) file.relativePath else "files/${file.displayName}"
+                val candidate = file.relativePath.replace('\\', '/')
+                val path = if (isSafePath(candidate) && candidate.startsWith("files/") && !candidate.endsWith("/")) {
+                    candidate
+                } else {
+                    "files/${safeFileName(file.displayName)}"
+                }
                 put(zip, path, file.bytes)
             }
             project.chats.forEach { chat ->

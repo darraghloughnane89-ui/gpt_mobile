@@ -34,7 +34,19 @@ class ProjectFileStore @Inject constructor(
     private fun file(projectId: Int, storageName: String): File {
         val directory = File(context.filesDir, "projects/$projectId")
         directory.mkdirs()
-        val safeName = storageName.substringAfterLast('/').substringAfterLast('\\')
-        return File(directory, safeName)
+        return projectStorageFile(directory, storageName)
     }
+}
+
+internal fun projectStorageFile(directory: File, storageName: String): File {
+    val name = storageName.replace('\\', '/')
+    if (name.isBlank() || name == "." || name == ".." || name.contains('/')) {
+        throw IllegalArgumentException("Unsafe project file name.")
+    }
+    val parent = directory.canonicalFile
+    val child = File(parent, name).canonicalFile
+    if (child.parentFile?.canonicalPath != parent.canonicalPath) {
+        throw IllegalArgumentException("Unsafe project file name.")
+    }
+    return File(parent, name)
 }
