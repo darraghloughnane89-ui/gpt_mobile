@@ -17,6 +17,8 @@ class NetworkClientTest {
     fun `sensitive provider credential headers are sanitized case insensitively`() {
         assertTrue(NetworkClient.isSensitiveHeader("Authorization"))
         assertTrue(NetworkClient.isSensitiveHeader("authorization"))
+        assertTrue(NetworkClient.isSensitiveHeader("api-key"))
+        assertTrue(NetworkClient.isSensitiveHeader("API-Key"))
         assertTrue(NetworkClient.isSensitiveHeader("x-goog-api-key"))
         assertTrue(NetworkClient.isSensitiveHeader("X-Goog-Api-Key"))
         assertTrue(NetworkClient.isSensitiveHeader("x-api-key"))
