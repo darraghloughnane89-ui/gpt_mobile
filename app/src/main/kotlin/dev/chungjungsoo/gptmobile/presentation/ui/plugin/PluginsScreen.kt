@@ -144,16 +144,33 @@ fun PluginPresetRow(
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(preset.name, style = MaterialTheme.typography.titleSmall)
         Text(preset.authNote, style = MaterialTheme.typography.bodySmall)
+        if (preset.needsServer) {
+            Text(stringResource(R.string.plugin_needs_server), style = MaterialTheme.typography.labelMedium)
+        }
+        if (!preset.verified) {
+            Text(stringResource(R.string.plugin_unverified), style = MaterialTheme.typography.labelMedium)
+        }
         if (preset.requiresUserToken) {
             Text(stringResource(R.string.plugin_needs_user_token), style = MaterialTheme.typography.labelMedium)
         }
         if (preset.configurableUrl || preset.group == PluginGroup.PERSONAL) {
-            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text(stringResource(R.string.plugin_url)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text(stringResource(R.string.plugin_url)) },
+                placeholder = {
+                    if (preset.urlPlaceholder.isNotEmpty()) Text(preset.urlPlaceholder)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
         if (preset.authType == PluginAuth.BEARER || preset.allowsBearerFallback) {
             OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text(stringResource(R.string.plugin_bearer_token)) }, modifier = Modifier.fillMaxWidth())
         }
-        Button(onClick = { onEnable(url, token.ifBlank { null }) }, enabled = !installed) {
+        Button(
+            onClick = { onEnable(url, token.ifBlank { null }) },
+            enabled = !installed && (!preset.needsServer || url.isNotBlank())
+        ) {
             Text(if (installed) stringResource(R.string.plugin_enabled) else stringResource(R.string.plugin_enable))
         }
     }

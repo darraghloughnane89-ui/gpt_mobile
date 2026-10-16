@@ -16,30 +16,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 @Singleton
-class PluginHermesBridge @Inject constructor(
-    private val dao: PluginRoutineDao,
-    private val repository: PluginRepository,
-    private val client: McpClientManager
-) : HermesBridge {
-    override suspend fun delegate(task: String): String {
-        val plugin = dao.enabledPlugins().firstOrNull { it.catalogId == PluginCatalog.HERMES_ID }
-            ?: return "Hermes is not enabled. Open Plugins, set the bridge URL, and enable Hermes."
-        val result = client.callTool(
-            repository.endpoint(plugin),
-            PluginCatalog.HERMES_DELEGATE_TOOL,
-            buildJsonObject {
-                put("task", task)
-                put("profile", PluginCatalog.HERMES_PROFILE)
-            }
-        )
-        val text = result.content.filterIsInstance<io.modelcontextprotocol.kotlin.sdk.types.TextContent>()
-            .joinToString("\n") { it.text }
-        if (result.isError == true) return "Hermes returned an error: $text"
-        return text.ifBlank { "Hermes returned an empty reply." }
-    }
-}
-
-@Singleton
 class PluginToolRegistry @Inject constructor(
     private val dao: PluginRoutineDao,
     private val repository: PluginRepository,

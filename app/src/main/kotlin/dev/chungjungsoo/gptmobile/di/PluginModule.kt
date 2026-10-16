@@ -6,14 +6,20 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthClient
+import dev.chungjungsoo.gptmobile.data.hermes.DataStoreHermesSettingsStore
+import dev.chungjungsoo.gptmobile.data.hermes.HermesCredentialStore
+import dev.chungjungsoo.gptmobile.data.hermes.HermesSettingsStore
+import dev.chungjungsoo.gptmobile.data.hermes.HermesTransport
+import dev.chungjungsoo.gptmobile.data.hermes.OkHttpHermesTransport
+import dev.chungjungsoo.gptmobile.data.hermes.VaultHermesCredentialStore
 import dev.chungjungsoo.gptmobile.data.plugin.AgentHandoffExecutor
 import dev.chungjungsoo.gptmobile.data.plugin.AgentReplySource
 import dev.chungjungsoo.gptmobile.data.plugin.AgentTargetSource
 import dev.chungjungsoo.gptmobile.data.plugin.BotDirectory
 import dev.chungjungsoo.gptmobile.data.plugin.ChatAgentReplySource
+import dev.chungjungsoo.gptmobile.data.plugin.HermesAgentBridge
 import dev.chungjungsoo.gptmobile.data.plugin.HermesBridge
 import dev.chungjungsoo.gptmobile.data.plugin.InstalledAgentTargetSource
-import dev.chungjungsoo.gptmobile.data.plugin.PluginHermesBridge
 import dev.chungjungsoo.gptmobile.data.plugin.PluginOAuthFlow
 import dev.chungjungsoo.gptmobile.data.plugin.PluginToolRegistry
 import dev.chungjungsoo.gptmobile.data.plugin.ProjectDirectory
@@ -46,7 +52,7 @@ abstract class PluginBindModule {
     abstract fun replies(impl: ChatAgentReplySource): AgentReplySource
 
     @Binds
-    abstract fun hermes(impl: PluginHermesBridge): HermesBridge
+    abstract fun hermes(impl: HermesAgentBridge): HermesBridge
 
     @Binds
     abstract fun routineClock(impl: SystemRoutineClock): RoutineClock
@@ -69,4 +75,17 @@ object PluginModule {
         replies: AgentReplySource,
         hermes: HermesBridge
     ): AgentHandoffExecutor = AgentHandoffExecutor(targets, replies, hermes)
+
+    // Same three bindings as the Hermes send module. Delete these when that module is on main.
+    @Provides
+    @Singleton
+    fun hermesTransport(transport: OkHttpHermesTransport): HermesTransport = transport
+
+    @Provides
+    @Singleton
+    fun hermesSettings(store: DataStoreHermesSettingsStore): HermesSettingsStore = store
+
+    @Provides
+    @Singleton
+    fun hermesCredentials(store: VaultHermesCredentialStore): HermesCredentialStore = store
 }

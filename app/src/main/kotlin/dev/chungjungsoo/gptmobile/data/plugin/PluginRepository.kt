@@ -122,6 +122,11 @@ class PluginRepository @Inject constructor(
         endpointUrl: String = preset.endpointUrl,
         bearerToken: String? = null
     ): PluginEntity {
+        val url = endpointUrl.trim()
+        if (preset.needsServer && url.isEmpty()) {
+            throw IllegalArgumentException("Enter the MCP server URL. This app does not include a server for ${preset.name}.")
+        }
+        require(url.isNotEmpty()) { "Plugin URL is required." }
         val now = now()
         val uid = "plugin-${preset.id}"
         val authType = when {
@@ -137,7 +142,7 @@ class PluginRepository @Inject constructor(
             authType = authType,
             secretRef = if (authType == PluginAuth.NONE) null else PluginCredentialStore.secretRef(uid),
             oauthClientId = null,
-            allowCleartext = preset.allowCleartext || endpointUrl.trim().startsWith("http://"),
+            allowCleartext = preset.allowCleartext || url.startsWith("http://"),
             enabled = true,
             status = if (authType == PluginAuth.NONE) PluginStatus.DISCONNECTED else PluginStatus.NEEDS_AUTH,
             statusDetail = null,

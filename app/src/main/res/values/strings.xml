@@ -599,6 +599,8 @@
     <string name="plugins_official">Official connectors</string>
     <string name="plugins_personal">Your apps</string>
     <string name="plugin_needs_user_token">Needs your account. Sign in or paste a token before tools can run.</string>
+    <string name="plugin_needs_server">Needs server</string>
+    <string name="plugin_unverified">Unverified</string>
     <string name="plugin_url">Server URL</string>
     <string name="plugin_bearer_token">Bearer token</string>
     <string name="plugin_enabled">Enabled</string>

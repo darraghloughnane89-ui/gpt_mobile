@@ -40,14 +40,14 @@ data class PluginPreset(
     val allowCleartext: Boolean,
     val configurableUrl: Boolean,
     val authNote: String,
-    val group: PluginGroup
+    val group: PluginGroup,
+    val needsServer: Boolean = false,
+    val urlPlaceholder: String = "",
+    val verified: Boolean = true
 )
 
 object PluginCatalog {
-    const val HERMES_ID = "hermes"
     const val HERMES_TARGET = "hermes"
-    const val HERMES_PROFILE = "cbre-admin"
-    const val HERMES_DELEGATE_TOOL = "delegate"
 
     val gmail = official(
         id = "gmail",
@@ -83,7 +83,8 @@ object PluginCatalog {
         name = "Notion",
         endpointUrl = "https://mcp.notion.com/mcp",
         authType = PluginAuth.OAUTH,
-        authNote = "Official Notion remote MCP. OAuth connects a Notion workspace. A user grant is required."
+        authNote = "Official Notion remote MCP. OAuth, or a Notion MCP token sent as a bearer token on Business and Enterprise plans.",
+        allowsBearerFallback = true
     )
     val smartsheet = official(
         id = "smartsheet",
@@ -98,14 +99,16 @@ object PluginCatalog {
         name = "Slack",
         endpointUrl = "https://mcp.slack.com/mcp",
         authType = PluginAuth.OAUTH,
-        authNote = "Official Slack remote MCP. OAuth consent for the workspace. A user token is required."
+        authNote = "Official Slack remote MCP. Slack documents confidential OAuth with a Slack app client id and client secret. This app's public sign-in is unverified against that requirement.",
+        verified = false
     )
     val box = official(
         id = "box",
         name = "Box",
         endpointUrl = "https://mcp.box.com",
         authType = PluginAuth.OAUTH,
-        authNote = "Official Box remote MCP. OAuth consent. A user token is required."
+        authNote = "Official Box remote MCP. Box documents an admin-created client id, client secret, and bearer token. This app's public sign-in is unverified against that requirement.",
+        verified = false
     )
     val vercel = official(
         id = "vercel",
@@ -123,39 +126,29 @@ object PluginCatalog {
         authNote = "Official Cloudflare remote MCP. OAuth, or an API token sent as a bearer token. A user token is required."
     )
 
-    val hermes = personal(
-        id = HERMES_ID,
-        name = "Hermes",
-        endpointUrl = "http://127.0.0.1:8765/mcp",
-        authNote = "Hermes Agent on this Mac (~/.hermes, profile cbre-admin). Point the URL at the stream (i) HTTP bridge. Cleartext is allowed for a local address."
-    )
     val checkit = personal(
         id = "checkit",
         name = "checkit",
-        endpointUrl = "http://127.0.0.1:8781/mcp",
-        authNote = "checkit MCP bridge. Set the URL and optional bearer token. This app does not run the checkit server."
+        authNote = "Needs server. checkit is not running inside this app. Leave the URL blank until that app exposes an MCP endpoint, then paste it here."
     )
     val fmflow = personal(
         id = "fmflow",
         name = "FMFlow",
-        endpointUrl = "http://127.0.0.1:8782/mcp",
-        authNote = "FMFlow MCP bridge. Set the URL and optional bearer token. This app does not run the FMFlow server."
+        authNote = "Needs server. FMFlow is not running inside this app. Leave the URL blank until that app exposes an MCP endpoint, then paste it here."
     )
     val gridwell = personal(
         id = "gridwell",
         name = "Gridwell",
-        endpointUrl = "http://127.0.0.1:8783/mcp",
-        authNote = "Gridwell MCP bridge. Set the URL and optional bearer token. This app does not run the Gridwell server."
+        authNote = "Needs server. Gridwell is not running inside this app. Leave the URL blank until that app exposes an MCP endpoint, then paste it here."
     )
     val loughnaneLifts = personal(
         id = "loughnane-lifts",
         name = "Loughnane Lifts",
-        endpointUrl = "http://127.0.0.1:8784/mcp",
-        authNote = "Loughnane Lifts MCP bridge. Set the URL and optional bearer token. This app does not run that server."
+        authNote = "Needs server. Loughnane Lifts is not running inside this app. Leave the URL blank until that app exposes an MCP endpoint, then paste it here."
     )
 
     val officialPresets = listOf(gmail, calendar, drive, github, notion, smartsheet, slack, box, vercel, cloudflare)
-    val personalPresets = listOf(hermes, checkit, fmflow, gridwell, loughnaneLifts)
+    val personalPresets = listOf(checkit, fmflow, gridwell, loughnaneLifts)
     val all = officialPresets + personalPresets
 
     fun find(id: String): PluginPreset? = all.firstOrNull { it.id == id }
@@ -166,7 +159,8 @@ object PluginCatalog {
         endpointUrl: String,
         authType: String,
         authNote: String,
-        allowsBearerFallback: Boolean = false
+        allowsBearerFallback: Boolean = false,
+        verified: Boolean = true
     ) = PluginPreset(
         id = id,
         name = name,
@@ -178,18 +172,18 @@ object PluginCatalog {
         allowCleartext = false,
         configurableUrl = false,
         authNote = authNote,
-        group = PluginGroup.OFFICIAL
+        group = PluginGroup.OFFICIAL,
+        verified = verified
     )
 
     private fun personal(
         id: String,
         name: String,
-        endpointUrl: String,
         authNote: String
     ) = PluginPreset(
         id = id,
         name = name,
-        endpointUrl = endpointUrl,
+        endpointUrl = "",
         transport = PluginTransport.STREAMABLE_HTTP,
         authType = PluginAuth.BEARER,
         allowsBearerFallback = true,
@@ -197,6 +191,8 @@ object PluginCatalog {
         allowCleartext = true,
         configurableUrl = true,
         authNote = authNote,
-        group = PluginGroup.PERSONAL
+        group = PluginGroup.PERSONAL,
+        needsServer = true,
+        urlPlaceholder = "https://your-server.example/mcp"
     )
 }

@@ -9,6 +9,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.hermes.HermesDefaults
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import java.util.UUID
 import javax.inject.Inject
@@ -121,7 +122,8 @@ class DelegateTaskTool(
 suspend fun delegateTool(executor: AgentHandoffExecutor, targets: AgentTargetSource): DelegateTaskTool {
     val listed = targets.list().joinToString { "${it.label} (${it.id})" }
     val description = "Hand a task to another bot or platform and wait for the reply. " +
-        "Use target_id ${PluginCatalog.HERMES_TARGET} for Hermes (profile ${PluginCatalog.HERMES_PROFILE}). " +
+        "Use target_id ${PluginCatalog.HERMES_TARGET} for Hermes. Hermes uses the API server saved in Settings → Hermes " +
+        "(http://<tailscale-ip>:8642, Bearer API key, profile ${HermesDefaults.PROFILE}), not an MCP plugin. " +
         "Other targets: ${listed.ifBlank { "none saved yet" }}."
     return DelegateTaskTool(
         executor = executor,
