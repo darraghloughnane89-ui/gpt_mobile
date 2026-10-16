@@ -30,8 +30,7 @@ class MemoryRepository @Inject constructor(
         projectId: Long? = null,
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000
     ): Memory? {
-        val fact = text.trim()
-        if (fact.isEmpty()) return null
+        val fact = MemoryFactPolicy.sanitize(text) ?: return null
         return upsert(fact, source, nowEpochSeconds, projectId = projectId)
     }
 
@@ -43,8 +42,7 @@ class MemoryRepository @Inject constructor(
         createdAt: Long,
         updatedAt: Long
     ): Memory? {
-        val fact = text.trim()
-        if (fact.isEmpty()) return null
+        val fact = MemoryFactPolicy.sanitize(text) ?: return null
         return upsert(
             text = fact,
             source = source,

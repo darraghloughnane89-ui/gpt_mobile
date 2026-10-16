@@ -5,6 +5,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.memory.Memory
+import dev.chungjungsoo.gptmobile.data.security.SecretRedactor
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import kotlinx.serialization.Serializable
@@ -89,7 +90,30 @@ object ChatArchiveCodec {
         explicitNulls = false
     }
 
-    fun encode(archive: ChatArchive): String = json.encodeToString(archive)
+    fun encode(archive: ChatArchive): String = json.encodeToString(redact(archive))
+
+    fun redact(archive: ChatArchive): ChatArchive = archive.copy(
+        platforms = archive.platforms.map { platform ->
+            platform.copy(systemPrompt = platform.systemPrompt?.let(SecretRedactor::redact))
+        },
+        chats = archive.chats.map { chat ->
+            chat.copy(messages = chat.messages.map(::redactMessage))
+        },
+        memories = archive.memories.map { memory -> memory.copy(text = SecretRedactor.redact(memory.text)) }
+    )
+
+    private fun redactMessage(message: ArchiveMessage): ArchiveMessage = message.copy(
+        content = SecretRedactor.redact(message.content),
+        thoughts = SecretRedactor.redact(message.thoughts),
+        revisions = message.revisions.map { revision ->
+            revision.copy(
+                content = SecretRedactor.redact(revision.content),
+                thoughts = SecretRedactor.redact(revision.thoughts),
+                timeline = revision.timeline.map { item -> item.copy(content = SecretRedactor.redact(item.content)) }
+            )
+        },
+        timeline = message.timeline.map { item -> item.copy(content = SecretRedactor.redact(item.content)) }
+    )
 
     fun decode(text: String): ChatArchive = json.decodeFromString(text)
 

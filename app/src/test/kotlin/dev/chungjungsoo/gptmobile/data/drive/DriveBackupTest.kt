@@ -64,6 +64,26 @@ class DriveBackupTest {
     }
 
     @Test
+    fun archive_redactsSecretsInMessagesAndMemories() {
+        val secret = "sk-live-secret-value"
+        val json = ChatArchiveCodec.encode(
+            ChatArchive(
+                exportedAtEpochSeconds = 1,
+                chats = listOf(
+                    ArchiveChat(
+                        title = "Chat",
+                        createdAt = 1,
+                        updatedAt = 1,
+                        messages = listOf(ArchiveMessage(id = 1, content = "key $secret", createdAt = 1))
+                    )
+                ),
+                memories = listOf(ArchiveMemory("remember $secret", "explicit", createdAt = 1, updatedAt = 1))
+            )
+        )
+        assertFalse(json.contains(secret))
+    }
+
+    @Test
     fun platformsToInsert_skipsExistingUidsAndDropsSecrets() {
         val incoming = listOf(
             ArchivePlatform(uid = "keep", name = "A", compatibleType = "OPENAI", apiUrl = "https://a", model = "m"),
