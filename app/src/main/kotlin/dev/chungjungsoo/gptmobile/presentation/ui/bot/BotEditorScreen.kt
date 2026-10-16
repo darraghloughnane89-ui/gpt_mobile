@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.bot
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
@@ -20,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -46,6 +45,12 @@ import dev.chungjungsoo.gptmobile.data.bot.BotDraft
 import dev.chungjungsoo.gptmobile.data.bot.StarterPrompts
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.BlurTopBar
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LoadingMoment
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.SectionLabel
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Space
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,32 +60,30 @@ fun BotEditorScreen(
     viewModel: BotEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
     val draft = uiState.draft
+    val haptic = rememberHaptic()
 
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Text(
-                        if (viewModel.isEditing) {
-                            stringResource(R.string.edit_bot)
-                        } else {
-                            stringResource(R.string.create_bot)
-                        }
-                    )
+            BlurTopBar(
+                title = if (viewModel.isEditing) {
+                    stringResource(R.string.edit_bot)
+                } else {
+                    stringResource(R.string.create_bot)
                 },
-                navigationIcon = {
-                    IconButton(onClick = onNavigationClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
-                    }
-                },
+                onNavigation = onNavigationClick,
+                navigationDescription = stringResource(R.string.go_back),
+                scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(
-                        onClick = { viewModel.save(onSaved) },
+                        onClick = {
+                            haptic(HapticEvent.Confirm)
+                            viewModel.save(onSaved)
+                        },
                         enabled = !uiState.isSaving && !uiState.isLoading
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.save_bot))
@@ -115,27 +118,30 @@ fun BotEditorScreen(
                             )
                         }
                     }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+                }
             )
         }
     ) { innerPadding ->
         if (uiState.isLoading) {
-            Text(
-                text = stringResource(R.string.bots_loading),
-                modifier = Modifier.padding(innerPadding).padding(24.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingMoment(
+                    seed = draft.name.hashCode(),
+                    caption = stringResource(R.string.bots_loading),
+                    animated = true
+                )
+            }
         } else {
             BotEditorForm(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = Space.lg, vertical = Space.sm),
                 draft = draft,
                 platforms = uiState.platforms,
                 searchConnections = uiState.searchConnections,
@@ -154,6 +160,7 @@ fun BotEditorScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        haptic(HapticEvent.Reject)
                         confirmDelete = false
                         viewModel.delete(onSaved)
                     }
@@ -177,6 +184,7 @@ fun BotEditorScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        haptic(HapticEvent.Confirm)
                         confirmReset = false
                         viewModel.resetBuiltIn()
                     }
@@ -205,10 +213,10 @@ fun BotEditorForm(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(Space.lg)
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BotAvatar(emoji = draft.avatarEmoji, colorHex = draft.avatarColor, size = 56.dp)
@@ -228,8 +236,8 @@ fun BotEditorForm(
             supportingText = { Text(stringResource(R.string.bot_avatar_emoji_hint)) },
             singleLine = true
         )
-        Text(stringResource(R.string.bot_avatar_color), style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionLabel(stringResource(R.string.bot_avatar_color))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
             BotAvatarPalette.colors.forEach { color ->
                 BotColorSwatch(
                     colorHex = color,
@@ -246,7 +254,7 @@ fun BotEditorForm(
             supportingText = { Text(stringResource(R.string.bot_instructions_hint)) },
             minLines = 5
         )
-        Text(stringResource(R.string.bot_default_platform), style = MaterialTheme.typography.titleSmall)
+        SectionLabel(stringResource(R.string.bot_default_platform))
         PlatformChoice(
             label = stringResource(R.string.bot_no_default_platform),
             selected = draft.defaultPlatformUid == null,
@@ -269,7 +277,7 @@ fun BotEditorForm(
             enabled = draft.defaultPlatformUid != null
         )
         HorizontalDivider()
-        Text(stringResource(R.string.bot_tools), style = MaterialTheme.typography.titleMedium)
+        SectionLabel(stringResource(R.string.bot_tools))
         Text(
             text = stringResource(R.string.bot_tools_hint),
             style = MaterialTheme.typography.bodyMedium,
@@ -315,7 +323,7 @@ fun BotEditorForm(
             )
         }
         HorizontalDivider()
-        Text(stringResource(R.string.starter_prompts), style = MaterialTheme.typography.titleMedium)
+        SectionLabel(stringResource(R.string.starter_prompts))
         draft.starterPrompts.forEachIndexed { index, prompt ->
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
@@ -362,12 +370,19 @@ private fun PlatformChoice(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val haptic = rememberHaptic()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(text = label, modifier = Modifier.padding(start = 8.dp))
+        RadioButton(
+            selected = selected,
+            onClick = {
+                haptic(HapticEvent.Tick)
+                onClick()
+            }
+        )
+        Text(text = label, modifier = Modifier.padding(start = Space.sm))
     }
 }
 
@@ -377,12 +392,19 @@ private fun ToolSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val haptic = rememberHaptic()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(title, modifier = Modifier.weight(1f).padding(end = 12.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(title, modifier = Modifier.weight(1f).padding(end = Space.md))
+        Switch(
+            checked = checked,
+            onCheckedChange = { value ->
+                haptic(HapticEvent.Tick)
+                onCheckedChange(value)
+            }
+        )
     }
 }

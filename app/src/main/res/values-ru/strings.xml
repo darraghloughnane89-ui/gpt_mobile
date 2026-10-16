@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobile</string>
-    <string name="gpt_mobile_introduction_logo">GPT Mobile логотип приветствия</string>
-    <string name="welcome_title">Лучший ИИ-ассистент\nпрямо в вашем\nсмартфоне.</string>
-    <string name="welcome_description">Используйте наиболее подходящую\nвам модель. Спрашивайте о чём угодно!</string>
+    <string name="gpt_mobile_introduction_logo">%1$s логотип приветствия</string>
     <string name="get_started">Начать работу</string>
     <string name="platform_select_description">Выберите платформу, которую хотите использовать. Вы можете изменить это позже в настройках. Поддержка других платформ будет добавлена позже.</string>
     <string name="sample_item_title">Элемент 1</string>
@@ -36,8 +33,6 @@
     <string name="gemini_1_5_pro_description">Оптимизирован для задач, требующих логических рассуждений, включая генерацию кода и текста.</string>
     <string name="gemini_1_5_flash_description">Высокая производительность и универсальность при решении широкого спектра задач.</string>
     <string name="gemini_1_0_pro_description">Задачи обработки естественного языка, многооборотный текстовый и программный чат, а также генерация кода.</string>
-    <string name="setup_complete">Всё готово!</string>
-    <string name="setup_complete_description">Начнём использовать GPT Mobile!</string>
     <string name="done">Готово</string>
     <string name="setup_complete_logo">Логотип завершённой настройки</string>
     <string name="chats">Чаты</string>
@@ -169,7 +164,6 @@
     <string name="select_text">Выбрать текст</string>
     <string name="unknown">Неизвестно</string>
     <string name="search_chats">Поиск чатов</string>
-    <string name="no_search_results">Чаты не найдены</string>
     <string name="clear">Очистить</string>
     <string name="attach_file">Прикрепить файл</string>
     <string name="add_platform">Добавить платформу</string>
@@ -329,8 +323,8 @@
     <string name="preregistered_client_id_optional">Предварительно зарегистрированный ID клиента (необязательно)</string>
     <string name="dynamic_client_registration_hint">Оставьте пустым, чтобы использовать динамическую регистрацию клиентов (Dynamic Client Registration), если она поддерживается.</string>
     <string name="agent_notification_channel">Запуски агентов</string>
-    <string name="agent_notification_title">Агент GPT Mobile работает</string>
-    <string name="agent_completion_notification_title">Агент GPT Mobile завершил работу</string>
+    <string name="agent_notification_title">Агент %1$s работает</string>
+    <string name="agent_completion_notification_title">Агент %1$s завершил работу</string>
     <string name="agent_completion_notification_text">Нажмите, чтобы просмотреть ответ.</string>
     <string name="cancel_agent_runs">Отмена</string>
     <plurals name="agent_runs_active">
@@ -361,11 +355,6 @@
     <string name="pending_providers">Ожидание загрузки: %1$s</string>
     <string name="start_chatting">Начать общение</string>
     <string name="start_a_chat">Начать чат</string>
-    <string name="no_chats_title">Чатов пока нет</string>
-    <string name="no_chats_description">Начните чат, когда будете готовы.</string>
-    <string name="chats_load_error">Не удалось загрузить чаты</string>
-    <string name="chats_load_error_description">Проверьте подключение и попробуйте ещё раз.</string>
-    <string name="no_search_results_description">Попробуйте другой поисковый запрос.</string>
     <string name="message_actions">Действия с сообщением</string>
     <string name="details">Подробности</string>
     <string name="details_unavailable">Подробности недоступны</string>

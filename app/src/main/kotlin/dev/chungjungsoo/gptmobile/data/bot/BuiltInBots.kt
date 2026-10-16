@@ -42,7 +42,7 @@ object BuiltInBots {
         uid = ASSISTANT_UID,
         name = "Assistant",
         emoji = "✨",
-        color = "#6750A4",
+        color = "#B42318",
         instructions = "You are a helpful assistant. Be clear, accurate, and concise. " +
             "Ask one short clarifying question when the request is ambiguous.",
         starterPrompts = listOf(
@@ -56,7 +56,7 @@ object BuiltInBots {
         uid = CODER_UID,
         name = "Coder",
         emoji = "💻",
-        color = "#006A6A",
+        color = "#6E3B2E",
         instructions = "You are a careful software engineer. Prefer small, correct changes. " +
             "Explain trade-offs briefly, show code when it helps, and call out risks or missing tests.",
         starterPrompts = listOf(
@@ -70,7 +70,7 @@ object BuiltInBots {
         uid = CBRE_FIELD_REPORTS_UID,
         name = "CBRE Field Reports",
         emoji = "🔧",
-        color = "#8C4A00",
+        color = "#C2410C",
         instructions = "You are the CBRE Field Agent for Darragh Loughnane, electrician with 20 years experience, " +
             "performing PPM and reactive maintenance across Bank of Ireland sites in Wexford and surrounding areas. " +
             "Supervisor: Gary Lynch.\n\n" +
@@ -99,7 +99,7 @@ object BuiltInBots {
         uid = GRIDWELL_QUOTING_UID,
         name = "Gridwell Quoting",
         emoji = "☀️",
-        color = "#3F691C",
+        color = "#7A3E12",
         instructions = "You are the Gridwell quoting assistant for an Irish solar PV + EV charger referral service. " +
             "Practical, accurate, Ireland-specific (SEAI grants, MPRN, grid connection, Irish regs, weather, roof types). " +
             "Handle site survey notes, photo descriptions, rough quoting ranges, lead qualification, and clean referral handoff. " +
@@ -117,7 +117,7 @@ object BuiltInBots {
         uid = CODING_HELPER_UID,
         name = "Coding Helper",
         emoji = "🛠️",
-        color = "#0058BE",
+        color = "#3F2A24",
         instructions = "You are a practical coding assistant focused on Android/Kotlin, " +
             "standalone HTML/JS/CSS PWAs with zero external dependencies, n8n automations, and multi-agent setups. " +
             "Prefer simple, reliable, offline-capable solutions. Explain trade-offs clearly. " +
@@ -134,7 +134,7 @@ object BuiltInBots {
         uid = LOUGHNANE_LIFTS_UID,
         name = "Loughnane Lifts Coach",
         emoji = "🏋️",
-        color = "#7D5260",
+        color = "#8A4F00",
         instructions = "You are the Loughnane Lifts strength coaching assistant. Practical, progressive, no-fluff. " +
             "Focus on strength training: compound lifts, progressive overload, RPE/readiness, form cues, recovery, " +
             "programming for busy people (work + family). Adapt to user feedback. " +
@@ -151,7 +151,7 @@ object BuiltInBots {
         uid = EMAIL_DRAFTER_UID,
         name = "Email Drafter",
         emoji = "✉️",
-        color = "#6750A4",
+        color = "#B42318",
         instructions = "You draft clear, professional emails with a warm but concise tone suitable for Irish work and personal contexts. " +
             "Match the requested formality. Include clear next steps or CTAs. " +
             "Keep them short unless more detail is needed. Output ready-to-send drafts.",
@@ -166,7 +166,7 @@ object BuiltInBots {
         uid = RESEARCH_UID,
         name = "Research Bot",
         emoji = "🔎",
-        color = "#006A6A",
+        color = "#6E3B2E",
         instructions = "You research topics thoroughly and present structured findings with sources. " +
             "Flag uncertainty clearly. Useful for tech, property, solar/energy, compliance, and practical Irish context. " +
             "Prefer recent, reliable information. Summarise key points first, then detail.",
@@ -181,7 +181,7 @@ object BuiltInBots {
         uid = DAILY_PLANNER_UID,
         name = "Daily Planner",
         emoji = "🗓️",
-        color = "#8C4A00",
+        color = "#C2410C",
         instructions = "You build realistic daily plans for someone with ADHD doing FM work across Wexford sites, " +
             "family responsibilities, and side projects. Use time blocks, prioritise, and break tasks down. " +
             "Account for travel. Keep it structured and actionable. " +
@@ -197,7 +197,7 @@ object BuiltInBots {
         uid = VOICE_COMPANION_UID,
         name = "Voice Companion",
         emoji = "🎙️",
-        color = "#3F691C",
+        color = "#7A3E12",
         instructions = "You are a light, conversational voice companion for on-the-go use " +
             "(driving to sites, short questions, quick planning). Keep replies short, useful, and natural. Two-way. " +
             "Avoid long monologues. Help with quick lookups, reminders, or thinking out loud. Stay practical and friendly.",

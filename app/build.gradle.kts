@@ -73,6 +73,9 @@ extensions.configure<ApplicationExtension> {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -162,6 +165,11 @@ dependencies {
     // Test
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.ui.test.junit4)
+    testImplementation(libs.androidx.ui.test.manifest)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -169,6 +177,12 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("roborazzi.test.record", System.getProperty("roborazzi.test.record", "false"))
+    systemProperty("roborazzi.test.compare", System.getProperty("roborazzi.test.compare", "true"))
+    systemProperty("roborazzi.output.dir", layout.projectDirectory.dir("src/test/snapshots").asFile.absolutePath)
 }
 
 aboutLibraries {

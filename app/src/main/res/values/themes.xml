@@ -3,10 +3,9 @@
 
     <style name="Theme.GPTMobile" parent="android:Theme.Material.NoActionBar" />
 
-    <style name="Theme.GPTMobile.Starting" parent="Theme.SplashScreen.IconBackground">
+    <style name="Theme.GPTMobile.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_window_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_inset</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/ic_gpt_mobile_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_brand_splash</item>
         <item name="postSplashScreenTheme">@style/Theme.GPTMobile</item>
     </style>
 

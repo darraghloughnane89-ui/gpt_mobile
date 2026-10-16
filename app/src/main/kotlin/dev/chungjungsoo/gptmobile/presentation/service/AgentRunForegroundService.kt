@@ -176,7 +176,7 @@ class AgentRunForegroundService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_gpt_mobile_monochrome_foreground)
-            .setContentTitle(getString(R.string.agent_notification_title))
+            .setContentTitle(getString(R.string.agent_notification_title, getString(R.string.app_name)))
             .setContentText(resources.getQuantityString(R.plurals.agent_runs_active, activeCount, activeCount))
             .setContentIntent(openApp)
             .setOngoing(true)
@@ -194,7 +194,7 @@ class AgentRunForegroundService : Service() {
 
     private fun buildCompletionNotification(): Notification = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_gpt_mobile_monochrome_foreground)
-        .setContentTitle(getString(R.string.agent_completion_notification_title))
+        .setContentTitle(getString(R.string.agent_completion_notification_title, getString(R.string.app_name)))
         .setContentText(getString(R.string.agent_completion_notification_text))
         .setContentIntent(buildOpenAppPendingIntent(2))
         .setAutoCancel(true)

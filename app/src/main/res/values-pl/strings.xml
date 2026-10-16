@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="welcome_title">Najlepszy \nasystent AI \nna Twój smartfon.</string>
-    <string name="welcome_description">Użyj modelu, który odpowiada Ci najbardziej. \nPytaj, o co zechcesz!</string>
     <string name="get_started">Rozpocznij</string>
     <string name="gpt_4o_description">Najszybszy i najbardziej przystępny cenowo model flagowy.</string>
     <string name="gpt_4o_mini_description">Przystępny cenowo, inteligentny, szybki model do lekkich, krótkich zadań</string>
@@ -14,8 +12,6 @@
     <string name="select_google_model_description">Gemini to rodzina modeli generatywnych stworzona przez Google. Obecnie obsługiwane są tylko prompty tekstowe.</string>
     <string name="gemini_1_5_flash_description">Szybki i uniwersalny model, wydajny w różnorodnych zadaniach.</string>
     <string name="gemini_1_0_pro_description">Przetwarzanie języka naturalnego, wieloetapowe dwukierunkowe rozmowy oraz pisanie kodu.</string>
-    <string name="setup_complete">Konfiguracja zakończona!</string>
-    <string name="setup_complete_description">Zacznij korzystać z GPT Mobile!</string>
     <string name="done">Gotowe</string>
     <string name="new_chat">Nowy czat</string>
     <string name="enable_at_leat_one_platform">Aby rozpocząć czat, wybierz przynajmniej jedną platformę.</string>
@@ -71,8 +67,7 @@
     <string name="token_set">Ustawiono token %s*****</string>
     <string name="close">Zamknij</string>
     <string name="delete">Usuń</string>
-    <string name="app_name">GPTMobile</string>
-    <string name="gpt_mobile_introduction_logo">Logo startowe GPTMobile</string>
+    <string name="gpt_mobile_introduction_logo">Logo startowe %1$s</string>
     <string name="sample_item_title">Pozycja 1</string>
     <string name="sample_item_description">Opis pozycji</string>
     <string name="anthropic_description">Tu narodził się Claude.</string>

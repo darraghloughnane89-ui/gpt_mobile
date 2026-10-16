@@ -6,14 +6,11 @@
     <string name="api_url">பநிஇ முகவரி</string>
     <string name="ollama_setting">ஓலாமா அமைப்புகள்</string>
     <string name="enter_api_address">பநிஇ முகவரியை உள்ளிடவும்</string>
-    <string name="app_name">Gptmobile</string>
-    <string name="gpt_mobile_introduction_logo">சிபிடி மொபைல் அறிமுகம் லோகோ</string>
-    <string name="welcome_title">சிறந்த AI உதவியாளர்\n நீங்கள் பெறலாம்\n ச்மார்ட்போன்.</string>
+    <string name="gpt_mobile_introduction_logo">%1$s அறிமுகம் லோகோ</string>
     <string name="get_started">தொடங்கவும்</string>
     <string name="platform_select_description">நீங்கள் பயன்படுத்த விரும்பும் தளத்தைத் தேர்வுசெய்க. இதை நீங்கள் பின்னர் அமைப்புகளில் மாற்றலாம். ஆதரிக்கப்பட வேண்டிய கூடுதல் தளங்கள்.</string>
     <string name="sample_item_title">பொருள் 1</string>
     <string name="sample_item_description">உருப்படி விளக்கம்</string>
-    <string name="welcome_description">உங்களுக்கு ஏற்ற மாதிரியைப் பயன்படுத்தவும்\n மிக அதிகம். நீங்கள் விரும்பும் எதையும் கேளுங்கள்!</string>
     <string name="openai_description">சாட்சிப்ட்டை உருவாக்கியவர்.</string>
     <string name="gpt_4o_description">வேகமான மற்றும் மிகவும் மலிவு முதன்மை மாதிரி.</string>
     <string name="anthropic_description">கிளாட் இங்கே பிறந்தார்.</string>
@@ -42,9 +39,7 @@
     <string name="gemini_1_5_pro_description">குறியீடு மற்றும் உரை உருவாக்கம் உள்ளிட்ட பகுத்தறிவு பணிகளுக்கு உகந்ததாகும்.</string>
     <string name="gemini_1_0_pro_description">இயற்கை மொழி பணிகள், மல்டி-டர்ன் உரை மற்றும் குறியீடு அரட்டை மற்றும் குறியீடு உருவாக்கம்.</string>
     <string name="gemini_1_5_flash_description">பல்வேறு வகையான பணிகளில் வேகமான மற்றும் பல்துறை செயல்திறன்.</string>
-    <string name="setup_complete">நீங்கள் அனைவரும் அமைக்கப்பட்டிருக்கிறீர்கள்!</string>
     <string name="done">முடிந்தது</string>
-    <string name="setup_complete_description">சிபிடி மொபைலைப் பயன்படுத்த ஆரம்பிக்கலாம்!</string>
     <string name="setup_complete_logo">முழுமையான லோகோவை அமைக்கவும்</string>
     <string name="settings">அமைப்புகள்</string>
     <string name="new_chat">புதிய அரட்டை</string>

@@ -21,6 +21,9 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Mascot
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Space
 
 @Composable
 fun EmptyErrorState(
@@ -31,7 +34,8 @@ fun EmptyErrorState(
     onPrimaryAction: (() -> Unit)? = null,
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null,
-    isError: Boolean = false
+    isError: Boolean = false,
+    animated: Boolean = true
 ) {
     val stateSemantics = if (isError) {
         Modifier.semantics {
@@ -45,16 +49,21 @@ fun EmptyErrorState(
         modifier = modifier
             .then(stateSemantics)
             .fillMaxWidth()
-            .padding(24.dp),
+            .padding(Space.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Mascot(
+            mood = if (isError) MascotMood.Peek else MascotMood.Wave,
+            animated = animated,
+            modifier = Modifier.padding(bottom = Space.md)
+        )
         Text(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Space.sm))
         Text(
             text = description,
             style = MaterialTheme.typography.bodyMedium,
@@ -62,7 +71,7 @@ fun EmptyErrorState(
             textAlign = TextAlign.Center
         )
         if (primaryActionLabel != null && onPrimaryAction != null) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Space.xl))
             Button(
                 onClick = onPrimaryAction,
                 modifier = Modifier
@@ -74,7 +83,7 @@ fun EmptyErrorState(
             }
         }
         if (secondaryActionLabel != null && onSecondaryAction != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Space.sm))
             TextButton(
                 onClick = onSecondaryAction,
                 modifier = Modifier.heightIn(min = 48.dp)

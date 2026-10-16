@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +45,8 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.EmptyState
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
 import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
@@ -61,7 +62,9 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToUsage: () -> Unit = {},
+    onNavigateToObsidian: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -126,11 +129,12 @@ fun SettingScreen(
                     showLeadingIcon = false
                 )
                 if (platformState.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.no_platforms_configured),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                    EmptyState(
+                        title = stringResource(R.string.no_platforms_configured),
+                        body = stringResource(R.string.add_platform_description),
+                        mood = MascotMood.Peek,
+                        actionLabel = stringResource(R.string.add_platform),
+                        onAction = onNavigateToAddPlatform
                     )
                 } else {
                     platformState.forEach { platform ->
@@ -159,7 +163,21 @@ fun SettingScreen(
                     showLeadingIcon = false
                 )
             }
-            SettingsSection(title = stringResource(R.string.settings_app)) {
+            SettingsSection(title = stringResource(R.string.nav_section_you)) {
+                SettingItem(
+                    title = stringResource(R.string.nav_usage),
+                    description = stringResource(R.string.shell_usage_body),
+                    onItemClick = onNavigateToUsage,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.nav_obsidian),
+                    description = stringResource(R.string.shell_obsidian_body),
+                    onItemClick = onNavigateToObsidian,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
 
@@ -177,10 +195,7 @@ private fun SettingTopBar(
     navigationOnClick: () -> Unit
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
+        colors = dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors(),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),
@@ -260,6 +275,12 @@ private fun ThemeSettingsSheet(
                 text = stringResource(R.string.dynamic_theme),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            )
+            Text(
+                text = stringResource(R.string.dynamic_theme_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             )
             DynamicTheme.entries.forEach { theme ->
                 RadioItem(

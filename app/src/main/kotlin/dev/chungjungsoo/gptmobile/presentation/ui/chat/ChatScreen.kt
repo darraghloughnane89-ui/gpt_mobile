@@ -46,7 +46,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,7 +60,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -116,6 +114,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.ComposerBar
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.sharedChatContainer
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -128,7 +131,8 @@ import kotlinx.coroutines.withContext
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit,
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onOpenVoice: () -> Unit = {}
 ) {
     val containerSize = LocalWindowInfo.current.containerSize
     val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
@@ -243,6 +247,7 @@ fun ChatScreen(
 
     Scaffold(
         modifier = Modifier
+            .sharedChatContainer(chatRoom.id)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
@@ -355,6 +360,7 @@ fun ChatScreen(
             }
             ChatInputBox(
                 inputState = chatViewModel.question,
+                onMic = onOpenVoice,
                 chatEnabled = canUseChat,
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
@@ -723,8 +729,10 @@ private fun ChatTopBar(
     onBotClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+    val haptic = rememberHaptic()
 
     TopAppBar(
+        colors = frostTopAppBarColors(),
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(
@@ -734,7 +742,10 @@ private fun ChatTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onBotClick) {
+            IconButton(onClick = {
+                haptic(HapticEvent.Tick)
+                onBotClick()
+            }) {
                 Box(
                     modifier = Modifier.clearAndSetSemantics {
                         contentDescription = botContentDescription
@@ -884,6 +895,7 @@ fun ChatInputBox(
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
+    onMic: (() -> Unit)? = null,
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
@@ -906,21 +918,25 @@ fun ChatInputBox(
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 2.dp
-    ) {
-        Column {
-            if (selectedAttachments.isNotEmpty()) {
+    ComposerBar(
+        canSend = chatEnabled && sendButtonEnabled && hasQuestionText,
+        isSending = isRunning,
+        onSend = onSendButtonClick,
+        onStop = onCancelButtonClick,
+        onAttach = { filePickerLauncher.launch("image/*") },
+        attachEnabled = chatEnabled,
+        onMic = onMic,
+        attachments = if (selectedAttachments.isNotEmpty()) {
+            {
                 FileThumbnailRow(
                     selectedAttachments = selectedAttachments,
                     onFileRemoved = onFileRemoved
                 )
             }
+        } else {
+            null
+        },
+        field = {
             BasicTextField(
                 state = inputState,
                 modifier = Modifier.fillMaxWidth(),
@@ -929,57 +945,23 @@ fun ChatInputBox(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 lineLimits = chatInputLineLimits,
                 decorator = { innerTextField ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            enabled = chatEnabled,
-                            onClick = { filePickerLauncher.launch("image/*") }
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
-                                contentDescription = stringResource(R.string.attach_file)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        if (inputState.text.isEmpty()) {
+                            Text(
+                                modifier = Modifier.alpha(0.38f),
+                                text = if (chatEnabled) {
+                                    stringResource(R.string.ask_a_question)
+                                } else {
+                                    stringResource(R.string.some_platforms_disabled)
+                                }
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 8.dp)
-                        ) {
-                            if (inputState.text.isEmpty()) {
-                                Text(
-                                    modifier = Modifier.alpha(0.38f),
-                                    text = if (chatEnabled) stringResource(R.string.ask_a_question) else stringResource(R.string.some_platforms_disabled)
-                                )
-                            }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                innerTextField()
-                            }
-                        }
-                        IconButton(
-                            enabled = isRunning || (chatEnabled && sendButtonEnabled && hasQuestionText),
-                            onClick = if (isRunning) onCancelButtonClick else onSendButtonClick
-                        ) {
-                            if (isRunning) {
-                                Icon(
-                                    imageVector = Icons.Filled.Stop,
-                                    contentDescription = stringResource(R.string.cancel_active_runs)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_send),
-                                    contentDescription = stringResource(R.string.send)
-                                )
-                            }
-                        }
+                        innerTextField()
                     }
                 }
             )
         }
-    }
+    )
 }
 
 @Composable

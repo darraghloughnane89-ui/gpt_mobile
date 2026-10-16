@@ -1,14 +1,14 @@
 package dev.chungjungsoo.gptmobile.data.bot
 
 object BotAvatarPalette {
-    const val DEFAULT = "#6750A4"
+    const val DEFAULT = "#B42318"
     val colors = listOf(
-        "#6750A4",
-        "#7D5260",
-        "#006A6A",
-        "#8C4A00",
-        "#3F691C",
-        "#0058BE"
+        "#B42318",
+        "#8A4F00",
+        "#6E3B2E",
+        "#C2410C",
+        "#7A3E12",
+        "#3F2A24"
     )
 
     private val colorPattern = Regex("#[0-9A-F]{6}")

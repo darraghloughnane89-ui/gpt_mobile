@@ -14,7 +14,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -31,15 +30,12 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -50,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -86,10 +81,10 @@ fun UserChatBubble(
     onEditClick: () -> Unit = {}
 ) {
     val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+        disabledContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
     )
 
     var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
@@ -107,7 +102,7 @@ fun UserChatBubble(
                 .pointerInput(contentIdentity) {
                     detectTapGestures(onLongPress = { isActionsSheetOpen = true })
                 },
-            shape = RoundedCornerShape(32.dp),
+            shape = dev.chungjungsoo.gptmobile.presentation.ui.designsystem.userBubbleShape(),
             colors = cardColor
         ) {
             ChatMarkdown(
@@ -344,9 +339,7 @@ private fun QuietAssistantContent(
                 modifier = Modifier.padding(16.dp)
             )
             if (showStreamingIndicator) {
-                Text(
-                    text = "●",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                dev.chungjungsoo.gptmobile.presentation.ui.designsystem.TypingIndicator(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -495,9 +488,7 @@ private fun AssistantProcessContent(
         lastProcessIndex >= 0 &&
         timeline[lastProcessIndex].type == AssistantTimelineItemType.TOOL
     ) {
-        Text(
-            text = "●",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        dev.chungjungsoo.gptmobile.presentation.ui.designsystem.TypingIndicator(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
@@ -547,9 +538,7 @@ private fun LegacyAssistantProcessContent(
         onViewFull = onViewFull
     )
     if (showStreamingIndicator && thoughts.isBlank()) {
-        Text(
-            text = "●",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        dev.chungjungsoo.gptmobile.presentation.ui.designsystem.TypingIndicator(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
@@ -560,21 +549,29 @@ fun GPTMobileIcon(loading: Boolean) {
     Box(
         modifier = Modifier
             .padding(start = 8.dp)
-            .size(40.dp)
-            .clip(RoundedCornerShape(40.dp))
-            .background(color = Color(0xFF00A67D)),
+            .size(40.dp),
         contentAlignment = Alignment.Center
     ) {
         if (loading) {
-            CircularProgressIndicator(
+            dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Mascot(
+                mood = dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood.Think,
                 modifier = Modifier.size(40.dp)
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(40.dp))
+                    .background(color = MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
-        Image(
-            painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
-            contentDescription = null,
-            modifier = Modifier.size(24.dp)
-        )
     }
 }
 
@@ -584,23 +581,11 @@ fun PlatformButton(
     selected: Boolean,
     onPlatformClick: () -> Unit
 ) {
-    val buttonContent: @Composable RowScope.() -> Unit = {
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Text(
-            text = name,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-    }
-
-    TextButton(
-        modifier = Modifier.widthIn(max = 160.dp),
+    dev.chungjungsoo.gptmobile.presentation.ui.designsystem.ModelChip(
+        name = name,
+        selected = selected,
         onClick = onPlatformClick,
-        colors = if (selected) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.textButtonColors(),
-        content = buttonContent
+        modifier = Modifier.widthIn(max = 180.dp)
     )
 }
 

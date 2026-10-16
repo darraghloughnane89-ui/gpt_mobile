@@ -50,7 +50,8 @@ class SettingsComponentsInstrumentedTest {
                 EmptyErrorState(
                     title = "Could not load",
                     description = "Try again",
-                    isError = true
+                    isError = true,
+                    animated = false
                 )
             }
         }

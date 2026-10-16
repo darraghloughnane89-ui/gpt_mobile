@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.bot
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,18 +14,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Bot
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.SectionLabel
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Space
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.SurfaceCard
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.snapSpring
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,19 +40,18 @@ fun BotSwitcherSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val haptic = rememberHaptic()
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text(
-            text = stringResource(R.string.choose_bot),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-        )
+        SectionLabel(text = stringResource(R.string.choose_bot))
         BotPickerList(
             bots = bots,
             selectedBotUid = selectedBotUid,
             onSelect = { botUid ->
+                haptic(HapticEvent.Tick)
                 onSelect(botUid)
                 onDismiss()
-            }
+            },
+            modifier = Modifier.padding(bottom = Space.xl)
         )
     }
 }
@@ -57,42 +63,76 @@ fun BotPickerList(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        ListItem(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onSelect(null) },
-            headlineContent = { Text(stringResource(R.string.no_bot)) },
-            supportingContent = { Text(stringResource(R.string.no_bot_description)) },
-            trailingContent = {
-                if (selectedBotUid == null) {
-                    Icon(Icons.Filled.Check, contentDescription = null)
-                }
-            }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.lg),
+        verticalArrangement = Arrangement.spacedBy(Space.sm)
+    ) {
+        BotPickerRow(
+            title = stringResource(R.string.no_bot),
+            body = stringResource(R.string.no_bot_description),
+            selected = selectedBotUid == null,
+            avatar = null,
+            onClick = { onSelect(null) }
         )
         bots.forEach { bot ->
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelect(bot.botUid) },
-                leadingContent = {
-                    BotAvatar(emoji = bot.avatarEmoji, colorHex = bot.avatarColor)
-                },
-                headlineContent = { Text(bot.name) },
-                supportingContent = {
+            BotPickerRow(
+                title = bot.name,
+                body = bot.instructions,
+                selected = bot.botUid == selectedBotUid,
+                avatar = { BotAvatar(emoji = bot.avatarEmoji, colorHex = bot.avatarColor) },
+                onClick = { onSelect(bot.botUid) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BotPickerRow(
+    title: String,
+    body: String,
+    selected: Boolean,
+    avatar: (@Composable () -> Unit)?,
+    onClick: () -> Unit
+) {
+    SurfaceCard(onClick = onClick) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Space.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Space.md)
+        ) {
+            avatar?.invoke()
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (body.isNotBlank()) {
                     Text(
-                        text = bot.instructions,
+                        text = body,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                },
-                trailingContent = {
-                    if (bot.botUid == selectedBotUid) {
-                        Icon(Icons.Filled.Check, contentDescription = null)
-                    }
                 }
-            )
+            }
+            AnimatedVisibility(
+                visible = selected,
+                enter = scaleIn(snapSpring()),
+                exit = scaleOut(snapSpring())
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -104,16 +144,20 @@ fun BotStarterPromptRow(
     modifier: Modifier = Modifier
 ) {
     if (prompts.isEmpty()) return
+    val haptic = rememberHaptic()
     Row(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = Space.md, vertical = Space.xs),
+        horizontalArrangement = Arrangement.spacedBy(Space.sm)
     ) {
         prompts.forEach { prompt ->
             SuggestionChip(
-                onClick = { onPromptClick(prompt) },
+                onClick = {
+                    haptic(HapticEvent.Tick)
+                    onPromptClick(prompt)
+                },
                 label = { Text(prompt, maxLines = 1) }
             )
         }

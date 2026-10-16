@@ -119,9 +119,7 @@ fun ThinkingBlock(
                         .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                 )
                 if (isLoading) {
-                    Text(
-                        text = "●",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    dev.chungjungsoo.gptmobile.presentation.ui.designsystem.TypingIndicator(
                         modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 }
@@ -132,7 +130,7 @@ fun ThinkingBlock(
             val preview = thoughts.take(100).replace("\n", " ") +
                 if (thoughts.length > 100) "..." else ""
             Text(
-                text = if (isLoading) preview + "●" else preview,
+                text = preview,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 maxLines = 2,
