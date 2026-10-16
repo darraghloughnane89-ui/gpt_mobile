@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.smoke.migration
 
-import androidx.room.Database
 import androidx.room.migration.Migration
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -33,7 +32,7 @@ class RoomMigration11ToLatestTest {
 
     @Test
     fun migrate11ToLatest_preservesChatAndMessage() {
-        val latest = checkNotNull(ChatDatabaseV2::class.java.getAnnotation(Database::class.java)).version
+        val latest = latestSchemaVersion()
         helper.createDatabase(DATABASE_NAME, START_VERSION).apply {
             execSQL(
                 "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -79,6 +78,13 @@ class RoomMigration11ToLatestTest {
             }
         }
         database.close()
+    }
+
+    private fun latestSchemaVersion(): Int {
+        val directory = "dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2"
+        val names = InstrumentationRegistry.getInstrumentation().context.assets.list(directory)
+        val versions = names?.mapNotNull { name -> name.removeSuffix(".json").toIntOrNull() }.orEmpty()
+        return versions.maxOrNull() ?: error("No packaged schema for $directory")
     }
 
     private fun SupportSQLiteDatabase.hasTable(name: String): Boolean {

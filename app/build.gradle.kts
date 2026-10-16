@@ -172,7 +172,6 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.hilt)
     androidTestImplementation(libs.hilt.testing)
-    androidTestImplementation(libs.mockwebserver)
     kspAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)

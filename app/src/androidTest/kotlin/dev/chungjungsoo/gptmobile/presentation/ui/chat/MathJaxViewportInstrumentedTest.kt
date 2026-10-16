@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.test.filters.SdkSuppress
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -27,6 +28,10 @@ class MathJaxViewportInstrumentedTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    // API 34's bundled WebView 113 crashes this process when the formula mounts a
+    // WebView under the emulator software renderer, which aborts the rest of the suite.
+    // API 35's WebView completes the same assertions.
+    @SdkSuppress(minSdkVersion = 35)
     @Test
     fun offscreenFormulaKeepsDescriptionWithoutAWebViewAndRemountsOnScroll() {
         val tex = "E=mc^2"

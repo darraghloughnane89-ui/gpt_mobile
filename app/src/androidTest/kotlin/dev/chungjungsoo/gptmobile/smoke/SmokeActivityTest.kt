@@ -31,13 +31,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.presentation.ui.main.MainActivity
 import java.io.File
-import java.net.InetAddress
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
-import okhttp3.mockwebserver.Dispatcher
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -75,11 +70,10 @@ abstract class SmokeActivityTest(private val feature: String) {
     protected val targetContext: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
 
-    protected val server = MockWebServer()
-    protected val requestedPaths = mutableListOf<String>()
+    private var llm: SmokeLlmServer? = null
+    protected val requestedPaths: List<String>
+        get() = llm?.requestedPaths.orEmpty()
     protected lateinit var scenario: ActivityScenario<out Activity>
-
-    private var serverStarted = false
 
     @Before
     fun injectHarness() {
@@ -92,31 +86,19 @@ abstract class SmokeActivityTest(private val feature: String) {
         if (::scenario.isInitialized) {
             scenario.close()
         }
-        if (serverStarted) {
-            server.shutdown()
-        }
+        llm?.close()
     }
 
     protected fun startFakeLlm() {
-        server.start(InetAddress.getByName("127.0.0.1"), 0)
-        serverStarted = true
-        server.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse {
-                requestedPaths += request.path.orEmpty()
-                return if (request.path?.contains("chat/completions") == true) {
-                    openAiChatStream("Smoke", "ReplyOk")
-                } else {
-                    MockResponse().setResponseCode(404).setBody("unexpected ${request.path}")
-                }
-            }
-        }
+        llm?.close()
+        llm = SmokeLlmServer()
     }
 
     protected fun seedFakeProvider() {
-        check(serverStarted) { "startFakeLlm() before seeding the provider" }
+        val port = checkNotNull(llm) { "startFakeLlm() before seeding the provider" }.port
         runBlocking {
             platformDao.getPlatforms().forEach { platform -> platformDao.deletePlatform(platform) }
-            val apiUrl = "http://127.0.0.1:${server.port}/v1/"
+            val apiUrl = "http://127.0.0.1:$port/v1/"
             val id = platformDao.addPlatform(
                 PlatformV2(
                     name = "Fake LLM",
@@ -296,26 +278,6 @@ abstract class SmokeActivityTest(private val feature: String) {
         runCatching { performScrollTo() }
         return this
     }
-}
-
-private fun openAiChatStream(vararg pieces: String): MockResponse {
-    val body = buildString {
-        pieces.forEach { piece ->
-            append("data: {")
-            append("\"id\":\"chatcmpl-smoke\",\"object\":\"chat.completion.chunk\",")
-            append("\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$piece\"}}]")
-            append("}\n\n")
-        }
-        append("data: {")
-        append("\"id\":\"chatcmpl-smoke\",\"object\":\"chat.completion.chunk\",")
-        append("\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]")
-        append("}\n\n")
-        append("data: [DONE]\n\n")
-    }
-    return MockResponse()
-        .setResponseCode(200)
-        .addHeader("Content-Type", "text/event-stream")
-        .setBody(body)
 }
 
 object SmokeCaptures {
