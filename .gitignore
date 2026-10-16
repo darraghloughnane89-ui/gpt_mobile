@@ -28,6 +28,7 @@
 .cxx
 app/release/**
 app/build/**
+docs/TEST_REPORT.md
 .idea/copilot.data.migration.ask.xml
 .idea/copilot.data.migration.agent.xml
 .idea/copilot.data.migration.edit.xml

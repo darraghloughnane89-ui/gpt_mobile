@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Debug-only recognizer so voice smoke tests do not need a network speech service. -->
+    <application>
+        <service
+            android:name=".qa.FakeRecognitionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_RECOGNITION_SERVICE">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/fake_recognition_service" />
+        </service>
+    </application>
+</manifest>
