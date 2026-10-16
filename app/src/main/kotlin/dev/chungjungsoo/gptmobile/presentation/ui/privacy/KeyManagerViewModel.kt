@@ -8,6 +8,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.ProviderAuthStyle
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.security.KeyProbeResult
+import dev.chungjungsoo.gptmobile.data.security.KeyStoragePolicy
 import dev.chungjungsoo.gptmobile.data.security.ProviderKeyProbe
 import dev.chungjungsoo.gptmobile.data.security.SecretEntry
 import dev.chungjungsoo.gptmobile.data.security.SecretType
@@ -137,7 +138,16 @@ class KeyManagerViewModel @Inject constructor(
         viewModelScope.launch {
             val platform = platforms.firstOrNull { it.id == editor.platformId }
             if (platform != null) {
-                settingRepository.updatePlatformV2(platform.copy(token = secret, name = editor.label.trim()))
+                val ref = KeyStoragePolicy.secretRefFor(platform.uid, platform.secretRef)
+                val bytes = secret.encodeToByteArray()
+                try {
+                    secretVault.put(ref, bytes)
+                } finally {
+                    bytes.fill(0)
+                }
+                settingRepository.updatePlatformV2(
+                    KeyStoragePolicy.vaultedPlatform(platform, ref, editor.label.trim())
+                )
             } else {
                 val id = editor.existingId ?: "custom_${UUID.randomUUID().toString().replace("-", "")}"
                 val bytes = secret.encodeToByteArray()
@@ -164,6 +174,7 @@ class KeyManagerViewModel @Inject constructor(
         viewModelScope.launch {
             val platform = platforms.firstOrNull { it.id == row.platformId }
             if (platform != null) {
+                platform.secretRef?.let { secretVault.delete(it) }
                 settingRepository.updatePlatformV2(platform.copy(token = null, secretRef = null))
             } else {
                 secretVault.delete(row.id)

@@ -32,8 +32,7 @@ object MemoryPromptComposer {
         val chosen = mutableListOf<String>()
         var used = 0
         ranked.forEach { fact ->
-            val clean = fact.replace('\n', ' ').trim()
-            if (clean.isEmpty()) return@forEach
+            val clean = MemoryFactPolicy.sanitize(fact) ?: return@forEach
             val cost = clean.length + 2
             if (used + cost > maxChars) return@forEach
             chosen += clean

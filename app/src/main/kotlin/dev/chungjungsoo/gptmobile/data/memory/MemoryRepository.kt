@@ -15,13 +15,12 @@ class MemoryRepository @Inject constructor(
     val globallyPaused: Flow<Boolean> = privacySettings.memoryGloballyPaused
 
     suspend fun saveExplicit(message: String, nowEpochSeconds: Long = System.currentTimeMillis() / 1000): Memory? {
-        val fact = ExplicitMemoryParser.extract(message) ?: return null
+        val fact = ExplicitMemoryParser.extract(message)?.let(MemoryFactPolicy::sanitize) ?: return null
         return upsert(fact, MemorySource.EXPLICIT, nowEpochSeconds)
     }
 
     suspend fun saveSuggestion(text: String, nowEpochSeconds: Long = System.currentTimeMillis() / 1000): Memory? {
-        val fact = text.trim()
-        if (fact.isEmpty()) return null
+        val fact = MemoryFactPolicy.sanitize(text) ?: return null
         return upsert(fact, MemorySource.SUGGESTION, nowEpochSeconds)
     }
 
@@ -58,8 +57,7 @@ class MemoryRepository @Inject constructor(
     }
 
     suspend fun updateText(id: Long, text: String, nowEpochSeconds: Long = System.currentTimeMillis() / 1000) {
-        val clean = text.trim()
-        if (clean.isEmpty()) return
+        val clean = MemoryFactPolicy.sanitize(text) ?: return
         val current = memoryDao.getById(id) ?: return
         memoryDao.update(current.copy(text = clean, updatedAt = nowEpochSeconds))
     }

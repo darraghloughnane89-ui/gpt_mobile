@@ -8,6 +8,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.os.ParcelFileDescriptor
 import android.util.AtomicFile
+import dev.chungjungsoo.gptmobile.data.security.SecretRedactor
 import dev.chungjungsoo.gptmobile.data.security.SecretSyncPolicy
 import java.io.File
 
@@ -73,6 +74,37 @@ object SanitizedChatBackup {
         }
         SQLiteDatabase.openDatabase(destination.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
             database.execSQL(SecretSyncPolicy.CLEAR_PROVIDER_TOKENS_SQL)
+            redactColumn(database, "messages_v2", "content")
+            redactColumn(database, "memories", "text")
+        }
+    }
+
+    private fun redactColumn(database: SQLiteDatabase, table: String, column: String) {
+        val exists = database.rawQuery(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arrayOf(table)
+        ).use { cursor -> cursor.moveToFirst() }
+        if (!exists) return
+        val hasColumn = database.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) found = true
+            }
+            found
+        }
+        if (!hasColumn) return
+        val updates = mutableListOf<Pair<Long, String>>()
+        database.rawQuery("SELECT rowid, $column FROM $table", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                val rowId = cursor.getLong(0)
+                val text = cursor.getString(1) ?: continue
+                val redacted = SecretRedactor.redact(text)
+                if (redacted != text) updates += rowId to redacted
+            }
+        }
+        updates.forEach { (rowId, redacted) ->
+            database.execSQL("UPDATE $table SET $column = ? WHERE rowid = ?", arrayOf<Any>(redacted, rowId))
         }
     }
 
