@@ -41,6 +41,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.project.ProjectInstructionBinder
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -86,6 +87,7 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
+    private val projectInstructionBinder: ProjectInstructionBinder,
     private val chatBotSession: ChatBotSession
 ) : ViewModel() {
     sealed class LoadingState {
@@ -113,13 +115,24 @@ class ChatViewModel @Inject constructor(
 
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
+    private val launchedProjectId: Int = savedStateHandle.get<Int>("projectId") ?: -1
     val enabledPlatformsInChat = enabledPlatformString.split(',')
 
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
 
-    private val _chatRoom = MutableStateFlow(ChatRoomV2(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
+    private val _chatRoom = MutableStateFlow(
+        ChatRoomV2(
+            id = if (chatRoomId == 0) 0 else -1,
+            title = if (chatRoomId == 0) "Untitled Chat" else "",
+            enabledPlatform = enabledPlatformsInChat,
+            projectId = launchedProjectId.takeIf { chatRoomId == 0 && it > 0 }
+        )
+    )
     val chatRoom = _chatRoom.asStateFlow()
+
+    private val _projectName = MutableStateFlow<String?>(null)
+    val projectName = _projectName.asStateFlow()
 
     private val _isChatTitleDialogOpen = MutableStateFlow(false)
     val isChatTitleDialogOpen = _isChatTitleDialogOpen.asStateFlow()
@@ -231,6 +244,22 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
         }
+        viewModelScope.launch {
+            chatRoom.map { it.projectId }.distinctUntilChanged().collect { projectId ->
+                _projectName.value = projectInstructionBinder.projectName(projectId)
+            }
+        }
+    }
+
+    /**
+     * Persisted chats receive project instructions from [dev.chungjungsoo.gptmobile.data.instruction.InstructionStack]
+     * through [dev.chungjungsoo.gptmobile.data.instruction.ProjectInstructionSource].
+     * A chat that has not been saved yet has no row to look up, so the draft capacity check
+     * still folds the in-memory project layer in here.
+     */
+    private suspend fun platformForDraftCheck(platform: PlatformV2): PlatformV2 {
+        if (_chatRoom.value.id > 0) return platform
+        return projectInstructionBinder.apply(platform, _chatRoom.value.projectId)
     }
 
     fun addMessage(userMessage: MessageV2) {
@@ -1049,7 +1078,11 @@ class ChatViewModel @Inject constructor(
                     _platformsInApp.value.firstOrNull { it.uid == uid }?.let(::resolvePlatformModel)
                 }
                 for (platform in platforms) {
-                    val issue = chatRepository.validateDraftCapacity(platform, message, completionContext()) ?: continue
+                    val issue = chatRepository.validateDraftCapacity(
+                        platformForDraftCheck(platform),
+                        message,
+                        completionContext()
+                    ) ?: continue
                     if (issue.status == CompactionStatus.NEEDS_CAPACITY) {
                         sendAfterContextSetup = true
                         _chatContextState.value = ChatContextState(platform, chatRepository.getModelContextSettings(platform))
@@ -1167,11 +1200,12 @@ class ChatViewModel @Inject constructor(
             if (chatRoomId == 0) {
                 val botUid = chatBotSession.prepareNewChat()
                 _chatRoom.update {
-                    ChatRoomV2(
+                    it.copy(
                         id = 0,
                         title = "Untitled Chat",
                         enabledPlatform = enabledPlatformsInChat,
-                        botUid = botUid
+                        botUid = botUid,
+                        projectId = launchedProjectId.takeIf { projectId -> projectId > 0 }
                     )
                 }
                 applyNewChatBotModel()

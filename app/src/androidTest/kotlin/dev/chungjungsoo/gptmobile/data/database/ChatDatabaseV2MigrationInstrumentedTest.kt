@@ -4,6 +4,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.chungjungsoo.gptmobile.data.database.migration.BotDatabaseV2Migration
+import dev.chungjungsoo.gptmobile.data.database.migration.ProjectMigrations
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -496,6 +497,72 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         database.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate12To13_addsProjectsAndLeavesExistingChatsUnassigned() {
+        helper.createDatabase(PROJECT_DATABASE, 12).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at, bot_uid) " +
+                    "VALUES (4, 'Loose chat', 'profile-1', 10, 11, NULL)"
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            PROJECT_DATABASE,
+            13,
+            true,
+            ProjectMigrations.MIGRATION_12_13
+        )
+
+        database.query("SELECT title, project_id, bot_uid FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Loose chat", cursor.getString(0))
+            assertTrue(cursor.isNull(1))
+            assertTrue(cursor.isNull(2))
+        }
+        assertCount(database, "projects", 0)
+        assertCount(database, "project_files", 0)
+        database.query("PRAGMA table_info(projects)").use { cursor ->
+            val names = mutableSetOf<String>()
+            while (cursor.moveToNext()) {
+                names += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+            assertTrue(names.contains("import_key"))
+        }
+        database.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate11To13_chainsBotsThenProjects() {
+        helper.createDatabase(CHAIN_DATABASE, 11).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) " +
+                    "VALUES (4, 'Loose chat', 'profile-1', 10, 11)"
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            CHAIN_DATABASE,
+            13,
+            true,
+            BotDatabaseV2Migration.MIGRATION_11_12,
+            ProjectMigrations.MIGRATION_12_13
+        )
+
+        database.query("SELECT title, bot_uid, project_id FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Loose chat", cursor.getString(0))
+            assertTrue(cursor.isNull(1))
+            assertTrue(cursor.isNull(2))
+        }
+        assertCount(database, "projects", 0)
+        assertCount(database, "bots", 10)
+        database.close()
+    }
+
     private fun assertCount(
         database: androidx.sqlite.db.SupportSQLiteDatabase,
         table: String,
@@ -515,5 +582,7 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
         const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
         const val BOT_DATABASE = "bot-migration-11-12-test"
+        const val PROJECT_DATABASE = "project-migration-12-13-test"
+        const val CHAIN_DATABASE = "project-migration-11-12-13-test"
     }
 }

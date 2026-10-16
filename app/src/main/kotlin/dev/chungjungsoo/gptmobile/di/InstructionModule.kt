@@ -9,17 +9,12 @@ import dev.chungjungsoo.gptmobile.data.bot.BotRepository
 import dev.chungjungsoo.gptmobile.data.bot.BotToolResolver
 import dev.chungjungsoo.gptmobile.data.bot.NewChatBotHint
 import dev.chungjungsoo.gptmobile.data.instruction.InstructionStackComposer
-import dev.chungjungsoo.gptmobile.data.instruction.NullProjectInstructionSource
 import dev.chungjungsoo.gptmobile.data.instruction.ProjectInstructionSource
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object InstructionModule {
-    @Provides
-    @Singleton
-    fun provideProjectInstructionSource(): ProjectInstructionSource = NullProjectInstructionSource
-
     @Provides
     @Singleton
     fun provideInstructionStackComposer(

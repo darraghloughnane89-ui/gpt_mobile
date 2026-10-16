@@ -140,6 +140,7 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val projectName by chatViewModel.projectName.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val listState = rememberChatListState(groupedMessages.userMessages.size)
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
@@ -251,6 +252,7 @@ fun ChatScreen(
         topBar = {
             ChatTopBar(
                 chatRoom.title,
+                projectName,
                 chatRoom.id > 0,
                 chatViewModel.enabledPlatformsInChat.isNotEmpty(),
                 onBackAction,
@@ -710,6 +712,7 @@ internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
     title: String,
+    projectName: String?,
     isMenuItemEnabled: Boolean,
     isModelItemEnabled: Boolean,
     onBackAction: () -> Unit,
@@ -725,7 +728,20 @@ private fun ChatTopBar(
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
     TopAppBar(
-        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!projectName.isNullOrBlank()) {
+                    Text(
+                        text = projectName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(
                 onClick = onBackAction
