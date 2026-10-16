@@ -27,6 +27,13 @@
 # OpenApiTool implementations, which must match the interfaces they override.
 -keep class com.google.ai.edge.litertlm.** { *; }
 
+# Mozilla Rhino. The sandbox runs in interpreter mode and never exposes Java
+# classes to scripts. Rhino still references optional beans/script types.
+-keep class org.mozilla.javascript.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+
 # Ignore missing optional logging dependencies used by Netty
 -dontwarn org.apache.log4j.**
 -dontwarn org.apache.logging.log4j.**

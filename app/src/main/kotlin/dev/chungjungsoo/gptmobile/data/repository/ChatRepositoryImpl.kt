@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
+import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession
@@ -19,6 +20,8 @@ import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAIResponsesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.ProviderAttachmentEncoder
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
+import dev.chungjungsoo.gptmobile.data.agent.tool.code.selectSpreadsheetTexts
+import dev.chungjungsoo.gptmobile.data.agent.tool.code.withJavascriptAttachments
 import dev.chungjungsoo.gptmobile.data.bot.BotCompletionTools
 import dev.chungjungsoo.gptmobile.data.context.AnthropicNativeCompactor
 import dev.chungjungsoo.gptmobile.data.context.ApiErrorKind
@@ -76,6 +79,9 @@ import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
 import javax.inject.Inject
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -188,6 +194,7 @@ class ChatRepositoryImpl @Inject constructor(
             val chatId = userMessages.firstOrNull()?.chatId ?: completion.chatId
             val platform = applyInstructionStack(platform, completion, chatId)
             val resolvedTools = resolveCompletionTools(platform, completion)
+                .withJavascriptAttachments { spreadsheetAttachments(userMessages) }
             val toolEvidence = loadToolEvidence(assistantMessages, platform)
             val toolDefinitionTokens = estimateAssignedToolDefinitionTokens(resolvedTools)
             val outputReserve = outputReserveTokens(platform, resolvedTools.isNotEmpty())
@@ -831,6 +838,32 @@ class ChatRepositoryImpl @Inject constructor(
         is CompactionOutcome.InputTooLarge -> CompactionResult(CompactionStatus.INPUT_TOO_LARGE, message)
     }
     private fun contextString(resId: Int, fallback: String): String = runCatching { context.getString(resId) }.getOrDefault(fallback)
+
+    private fun spreadsheetAttachments(messages: List<MessageV2>) = selectSpreadsheetTexts(
+        messages.flatMap { it.attachments }
+    ) { path, maxBytes -> readBoundedAttachment(path, maxBytes) }
+
+    private fun readBoundedAttachment(path: String, maxBytes: Int): ByteArray? = try {
+        val stream = when {
+            path.startsWith("content://") -> context.contentResolver.openInputStream(Uri.parse(path))
+            path.startsWith("file://") -> FileInputStream(File(path.removePrefix("file://")))
+            else -> FileInputStream(File(path))
+        } ?: return null
+        stream.use { input ->
+            val buffer = ByteArrayOutputStream()
+            val chunk = ByteArray(8192)
+            var total = 0
+            while (total < maxBytes) {
+                val read = input.read(chunk, 0, minOf(chunk.size, maxBytes - total))
+                if (read < 0) break
+                buffer.write(chunk, 0, read)
+                total += read
+            }
+            buffer.toByteArray()
+        }
+    } catch (ignored: Exception) {
+        null
+    }
 }
 
 internal fun MessageV2.sendableAssistantContent(): String {

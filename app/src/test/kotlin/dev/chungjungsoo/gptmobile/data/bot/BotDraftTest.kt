@@ -51,6 +51,19 @@ class BotDraftTest {
     }
 
     @Test
+    fun toBindings_includesJavascriptWhenEnabled() {
+        val bindings = BotDraft(runJavascript = true).toBindings(botUid = "bot-1", now = 9)
+
+        assertEquals(listOf(BuiltInAgentTool.RUN_JAVASCRIPT), bindings.map { it.toolName })
+        val draft = BotDraft.fromBot(
+            Bot(botUid = "bot-1", name = "Coder", instructions = "Be careful."),
+            bindings
+        )
+        assertTrue(draft.runJavascript)
+        assertFalse(draft.readUrl)
+    }
+
+    @Test
     fun fromBot_roundTripsToolToggles() {
         val bot = Bot(
             botUid = "bot-1",

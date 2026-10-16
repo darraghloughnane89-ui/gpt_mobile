@@ -144,7 +144,8 @@ class BotRepository @Inject constructor(
             require(binding.toolName.isNotBlank()) { "Bot tool name is required." }
             when (binding.toolName) {
                 BuiltInAgentTool.CURRENT_DATE,
-                BuiltInAgentTool.READ_URL -> require(binding.connectionUid == null) {
+                BuiltInAgentTool.READ_URL,
+                BuiltInAgentTool.RUN_JAVASCRIPT -> require(binding.connectionUid == null) {
                     "Built-in bot tools do not use a connection."
                 }
 

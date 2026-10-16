@@ -161,6 +161,9 @@ class PlatformSettingViewModel @Inject constructor(
                         it.toolName == WEB_SEARCH_TOOL && it.connectionUid in searchConnectionUids
                     }?.connectionUid,
                     readUrlEnabled = bindings.any { it.toolName == BuiltInAgentTool.READ_URL && it.connectionUid == null },
+                    runJavascriptEnabled = bindings.any {
+                        it.toolName == BuiltInAgentTool.RUN_JAVASCRIPT && it.connectionUid == null
+                    },
                     mcpConnections = mcpConnections,
                     selectedMcpTools = bindings.mapNotNull { binding ->
                         binding.connectionUid?.takeIf { it in mcpConnectionUids }?.let { ToolBindingSelection(it, binding.toolName) }
@@ -436,6 +439,16 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun toggleRunJavascript(enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching { toolConnectionRepository.setRunJavascriptBinding(platformUid, enabled) }
+                .onSuccess {
+                    _toolBindingState.update { it.copy(runJavascriptEnabled = enabled, errorMessage = null) }
+                }
+                .onFailure(::showToolError)
+        }
+    }
+
     fun openMcpToolsDialog() {
         mcpDiscoveryJob?.cancel()
         val connections = _toolBindingState.value.mcpConnections
@@ -548,6 +561,7 @@ class PlatformSettingViewModel @Inject constructor(
         val searchConnections: List<ToolConnection> = emptyList(),
         val selectedSearchConnectionUid: String? = null,
         val readUrlEnabled: Boolean = false,
+        val runJavascriptEnabled: Boolean = false,
         val mcpConnections: List<ToolConnection> = emptyList(),
         val selectedMcpTools: Set<ToolBindingSelection> = emptySet(),
         val pendingMcpTools: Set<ToolBindingSelection> = emptySet(),

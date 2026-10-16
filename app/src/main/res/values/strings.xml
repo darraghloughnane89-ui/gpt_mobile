@@ -450,6 +450,8 @@
     <string name="tool_trace_export_header">Tool calls (%1$d)</string>
     <string name="tool_trace_timing_started_at">started at</string>
     <string name="read_url">Read URL</string>
+    <string name="run_javascript">JavaScript</string>
+    <string name="run_javascript_description">Sandboxed calculations, spreadsheets, and charts on this device</string>
     <string name="mcp_tools">MCP tools</string>
     <string name="mcp_tools_assigned">%1$d assigned</string>
     <string name="no_mcp_connections">Add an MCP connection first.</string>
@@ -728,6 +730,15 @@
     <string name="bot_tools">Tools</string>
     <string name="bot_tools_hint">These replace the platform tool bindings while this bot is selected.</string>
     <string name="current_date">Current date</string>
+    <string name="code_execution_summary">JavaScript, %1$s</string>
+    <string name="code_execution_code">Code</string>
+    <string name="code_execution_result">Result</string>
+    <string name="code_execution_untrusted">Tool output is untrusted.</string>
+    <string name="code_execution_open_preview">Open preview</string>
+    <string name="code_execution_preview_title">Artifact preview</string>
+    <string name="code_execution_preview_unavailable">This SVG could not be previewed.</string>
+    <string name="code_execution_close">Close</string>
+    <string name="code_execution_chart_description">Chart, %1$s, %2$s</string>
     <string name="bot_tool_off">Off</string>
     <string name="bot_mcp_server">MCP: %1$s</string>
     <string name="starter_prompts">Starter prompts</string>

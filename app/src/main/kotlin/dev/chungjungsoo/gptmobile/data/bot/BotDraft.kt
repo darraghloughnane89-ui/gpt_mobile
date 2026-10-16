@@ -18,6 +18,7 @@ data class BotDraft(
     val builtin: Boolean = false,
     val currentDate: Boolean = false,
     val readUrl: Boolean = false,
+    val runJavascript: Boolean = false,
     val webSearchConnectionUid: String? = null,
     val mcpConnectionUids: Set<String> = emptySet()
 ) {
@@ -57,6 +58,9 @@ data class BotDraft(
         if (clean.readUrl) {
             bindings += binding(botUid, null, BuiltInAgentTool.READ_URL, now)
         }
+        if (clean.runJavascript) {
+            bindings += binding(botUid, null, BuiltInAgentTool.RUN_JAVASCRIPT, now)
+        }
         clean.webSearchConnectionUid?.let { connectionUid ->
             bindings += binding(botUid, connectionUid, BotToolNames.WEB_SEARCH, now)
         }
@@ -84,6 +88,7 @@ data class BotDraft(
             builtin = bot.builtin,
             currentDate = bindings.any { it.toolName == BuiltInAgentTool.CURRENT_DATE && it.connectionUid == null },
             readUrl = bindings.any { it.toolName == BuiltInAgentTool.READ_URL && it.connectionUid == null },
+            runJavascript = bindings.any { it.toolName == BuiltInAgentTool.RUN_JAVASCRIPT && it.connectionUid == null },
             webSearchConnectionUid = bindings.firstOrNull { it.toolName == BotToolNames.WEB_SEARCH }?.connectionUid,
             mcpConnectionUids = bindings
                 .filter { it.toolName == BotToolNames.MCP_ALL }

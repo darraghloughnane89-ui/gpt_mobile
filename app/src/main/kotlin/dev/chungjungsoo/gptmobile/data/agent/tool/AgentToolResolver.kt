@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentTool
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.agent.tool.code.RunJavascriptTool
 import dev.chungjungsoo.gptmobile.data.bot.BotToolNames
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentToolBindingWithConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
@@ -103,6 +104,12 @@ class AgentToolResolver @Inject constructor(
 
         BuiltInAgentTool.READ_URL -> if (binding.binding.connectionUid == null) {
             ReadUrlTool().resolved(null, null, BuiltInAgentTool.READ_URL)
+        } else {
+            null
+        }
+
+        BuiltInAgentTool.RUN_JAVASCRIPT -> if (binding.binding.connectionUid == null) {
+            RunJavascriptTool().resolved(null, null, BuiltInAgentTool.RUN_JAVASCRIPT)
         } else {
             null
         }

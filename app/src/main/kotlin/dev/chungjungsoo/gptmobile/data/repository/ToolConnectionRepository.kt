@@ -80,6 +80,15 @@ class ToolConnectionRepository internal constructor(
         }
     }
 
+    suspend fun setRunJavascriptBinding(profileUid: String, enabled: Boolean) {
+        if (enabled) {
+            toolConnectionDao.deleteBuiltInToolBinding(profileUid, BuiltInAgentTool.RUN_JAVASCRIPT)
+            toolConnectionDao.insertBinding(newBinding(profileUid, null, BuiltInAgentTool.RUN_JAVASCRIPT))
+        } else {
+            toolConnectionDao.deleteBuiltInToolBinding(profileUid, BuiltInAgentTool.RUN_JAVASCRIPT)
+        }
+    }
+
     suspend fun replaceMcpToolBindings(profileUid: String, selections: List<ToolBindingSelection>) {
         requireMcpSelections(selections)
         toolConnectionDao.replaceMcpBindings(

@@ -7,7 +7,7 @@ GPT Mobile 0.8.0 upgrades each existing provider profile into an optional on-dev
 1. Open **Settings → Tool connections**.
 2. Add a Firecrawl, Perplexity, or Exa search connection, or add an MCP server that uses Streamable HTTP.
 3. For MCP, choose public access, a bearer token, or OAuth. Cleartext HTTP can be approved for any MCP endpoint; it is unencrypted, so credentials and tool data could be intercepted.
-4. Open a provider profile and select **Tools**. Assign one search backend, the built-in `read_url` tool, and any discovered MCP tools you want that profile to use.
+4. Open a provider profile and select **Tools**. Assign one search backend, the built-in `read_url` tool, the on-device `run_javascript` sandbox, and any discovered MCP tools you want that profile to use.
 5. Start or continue a chat normally.
 
 Only assigned tools are sent to the model. Assigned tools execute without a confirmation prompt and remain visible in the chat timeline. Newly discovered MCP tools stay disabled until you assign them.
@@ -20,6 +20,7 @@ Retrying creates a new run and may invoke tools again. Prior tool results are sh
 
 - `web_search`: Firecrawl, Perplexity, or Exa; one search backend per profile.
 - `read_url`: HTTP(S) pages only, with private/loopback/metadata destinations blocked, up to five redirects, a 1 MiB download limit, and at most 64 KiB returned to the model.
+- `run_javascript`: on-device JavaScript (Mozilla Rhino, MPL-2.0) with no network or filesystem access. Scripts stop on a time and instruction limit. CSV and XLSX text from the user message is passed in memory. Chart specs render in the chat, and SVG is shown only after a sanitizer check in the artifact preview. Tool output is untrusted. The engine is pure Java, so it does not add native libraries for extra ABIs.
 - MCP: current Streamable HTTP servers, including JSON and SSE responses, bearer auth, and OAuth 2.1/PKCE.
 
 Each profile run is limited to 15 minutes, eight model/tool rounds, 24 tool calls, and four concurrent tool calls. Individual calls time out after 60 seconds. Model-visible and persisted output is bounded to 64 KiB per tool call.
@@ -37,4 +38,4 @@ Models or endpoints that reject native tool definitions fall back once to chat-o
 - Deleting a chat removes its runs and traces. Duplicating a chat copies completed history with regenerated IDs. Markdown export includes bounded traces and excludes credentials.
 - Credentials are not logged. Unsupported MCP binary/image blocks may be identified in the local trace but are not forwarded to the model.
 
-Google search, legacy MCP HTTP+SSE, stdio MCP, multimodal MCP output forwarding, code execution, browser automation, scheduled jobs, image generation, device control, cross-device sync, and a cloud agent backend are outside 0.8.0.
+Google search, legacy MCP HTTP+SSE, stdio MCP, multimodal MCP output forwarding, browser automation, scheduled jobs, image generation, device control, cross-device sync, and a cloud agent backend are outside 0.8.0. Sandboxed on-device JavaScript is the `run_javascript` tool above; it is not a general-purpose code interpreter with network or files.
