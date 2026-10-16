@@ -61,7 +61,8 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToVoiceSettings: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -160,6 +161,13 @@ fun SettingScreen(
                 )
             }
             SettingsSection(title = stringResource(R.string.settings_app)) {
+                SettingItem(
+                    title = stringResource(R.string.voice_settings),
+                    description = stringResource(R.string.voice_settings_description),
+                    onItemClick = onNavigateToVoiceSettings,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
 

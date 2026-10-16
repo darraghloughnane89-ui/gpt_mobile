@@ -49,6 +49,7 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
+import dev.chungjungsoo.gptmobile.data.voice.canAcceptVoiceUtterance
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -117,6 +118,7 @@ class ChatViewModel @Inject constructor(
 
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
+    val openVoiceOnStart: Boolean = savedStateHandle.get<Boolean>("openVoice") ?: false
     private val launchedProjectId: Int = savedStateHandle.get<Int>("projectId") ?: -1
     val enabledPlatformsInChat = enabledPlatformString.split(',')
 
@@ -303,6 +305,13 @@ class ChatViewModel @Inject constructor(
         }
 
         sendQuestion(questionText, _selectedAttachments.value)
+    }
+
+    fun submitVoiceUtterance(text: String): Boolean {
+        val trimmed = text.trim()
+        if (!canAcceptVoiceUtterance(isVoiceTurnBusy(), trimmed)) return false
+        sendQuestion(trimmed, emptyList(), fromVoice = true)
+        return true
     }
 
     fun cancelActiveRuns() {
@@ -1084,9 +1093,15 @@ class ChatViewModel @Inject constructor(
         sendQuestion(queuedQuestion, attachments)
     }
 
-    private fun sendQuestion(questionText: String, attachments: List<ChatAttachmentDraft>) {
+    private fun isVoiceTurnBusy(): Boolean = _isContextBusy.value || _loadingStates.value.any { it != LoadingState.Idle }
+
+    private fun sendQuestion(
+        questionText: String,
+        attachments: List<ChatAttachmentDraft>,
+        fromVoice: Boolean = false
+    ) {
         if (_isContextBusy.value) return
-        if (question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
+        if (!fromVoice && question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
         val draftAtStart = question.text.toString()
         val message = MessageV2(
             chatId = chatRoomId,
@@ -1115,10 +1130,10 @@ class ChatViewModel @Inject constructor(
                     }
                     return@launch
                 }
-                if (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments) return@launch
+                if (!fromVoice && (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments)) return@launch
                 addMessage(message)
-                if (question.text.toString() == questionText) question.clearText()
-                clearSelectedFiles()
+                if (!fromVoice && question.text.toString() == questionText) question.clearText()
+                if (!fromVoice) clearSelectedFiles()
                 completeChat()
             } catch (error: CancellationException) {
                 throw error

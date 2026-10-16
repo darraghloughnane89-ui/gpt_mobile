@@ -22,13 +22,18 @@ object Route {
     const val OLLAMA_API_ADDRESS = "ollama_api_address"
 
     const val CHAT_LIST = "chat_list"
-    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&projectId={projectId}"
+    const val CHAT_ROOM = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&projectId={projectId}&voice={openVoice}"
+    const val VOICE_SETTINGS = "voice_settings"
     const val PROJECTS = "projects"
     const val PROJECT_DETAIL = "project/{projectId}"
     const val PROJECT_EDITOR = "project_editor?projectId={projectId}"
 
-    fun chatRoomRoute(chatRoomId: Int, enabledPlatforms: String, projectId: Int = -1): String =
-        "chat_room/$chatRoomId?enabled=$enabledPlatforms&projectId=$projectId"
+    fun chatRoomRoute(
+        chatRoomId: Int,
+        enabledPlatforms: String,
+        projectId: Int = -1,
+        openVoice: Boolean = false
+    ): String = "chat_room/$chatRoomId?enabled=$enabledPlatforms&projectId=$projectId&voice=$openVoice"
 
     fun projectDetail(projectId: Int): String = "project/$projectId"
 
@@ -62,3 +67,21 @@ object Route {
      */
     const val VOICE_SESSION = "voice_session"
 }
+
+fun chatRoomRoute(
+    chatRoomId: Int,
+    enabledPlatforms: List<String>,
+    openVoice: Boolean = false,
+    projectId: Int = -1
+): String = Route.chatRoomRoute(
+    chatRoomId = chatRoomId,
+    enabledPlatforms = enabledPlatforms.joinToString(","),
+    projectId = projectId,
+    openVoice = openVoice
+)
+
+fun voiceSessionChatRoute(enabledPlatforms: List<String>): String = chatRoomRoute(
+    chatRoomId = 0,
+    enabledPlatforms = enabledPlatforms,
+    openVoice = true
+)
