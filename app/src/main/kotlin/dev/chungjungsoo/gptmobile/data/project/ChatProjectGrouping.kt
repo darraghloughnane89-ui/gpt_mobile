@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.project
 
+import androidx.compose.runtime.Immutable
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 
@@ -10,8 +11,20 @@ sealed class ProjectFilter {
 }
 
 sealed class ChatListRow {
+    @Immutable
     data class Header(val key: String, val title: String, val projectId: Int?) : ChatListRow()
+
+    @Immutable
     data class Chat(val chat: ChatRoomV2, val chatIndex: Int) : ChatListRow()
+}
+
+fun chatListRowKey(row: ChatListRow): String = when (row) {
+    is ChatListRow.Header -> "header-${row.key}"
+    is ChatListRow.Chat -> if (row.chat.id > 0) {
+        "chat-${row.chat.id}"
+    } else {
+        "chat-new-${row.chat.createdAt}-${row.chatIndex}"
+    }
 }
 
 fun groupChatsByProject(

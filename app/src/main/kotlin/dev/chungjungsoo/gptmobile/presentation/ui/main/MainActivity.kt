@@ -13,11 +13,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -95,16 +100,22 @@ class MainActivity : ComponentActivity() {
                     dynamicTheme = LocalDynamicTheme.current,
                     themeMode = LocalThemeMode.current
                 ) {
-                    if (isReady) {
-                        SetupNavGraph(
-                            navController = navController,
-                            toolConnectionsViewModel = toolConnectionsViewModel,
-                            onLaunchOAuth = ::launchOAuth,
-                            voiceLaunchEnabled = startupReady
-                        )
-                        LaunchedEffect(navController) {
-                            navController.awaitStartupRoute()
-                            startupReady = true
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .semantics { testTagsAsResourceId = true }
+                    ) {
+                        if (isReady) {
+                            SetupNavGraph(
+                                navController = navController,
+                                toolConnectionsViewModel = toolConnectionsViewModel,
+                                onLaunchOAuth = ::launchOAuth,
+                                voiceLaunchEnabled = startupReady
+                            )
+                            LaunchedEffect(navController) {
+                                navController.awaitStartupRoute()
+                                startupReady = true
+                            }
                         }
                     }
                 }

@@ -13,6 +13,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.BuildConfig
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.backup.SanitizedChatBackup
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
@@ -49,6 +50,7 @@ class GPTMobileApp :
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
+        installStrictModeIfDebug(BuildConfig.DEBUG, ::enableDebugStrictMode)
         SanitizedChatBackup.restoreIfPresent(this)
         super.onCreate()
         registerActivityLifecycleCallbacks(AppForegroundTracker)

@@ -41,9 +41,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,22 +77,29 @@ import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import java.io.File
 
+@Immutable
+data class DisplayPaths(val paths: List<String> = emptyList())
+
 @Composable
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
-    files: List<String> = emptyList(),
+    files: DisplayPaths = DisplayPaths(),
     contentIdentity: Any = text,
     canEdit: Boolean = false,
     onCopyClick: () -> Unit = {},
     onEditClick: () -> Unit = {}
 ) {
-    val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-    )
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val cardColor = remember(primaryContainer, onPrimaryContainer) {
+        CardColors(
+            containerColor = primaryContainer,
+            contentColor = onPrimaryContainer,
+            disabledContentColor = primaryContainer.copy(alpha = 0.38f),
+            disabledContainerColor = onPrimaryContainer.copy(alpha = 0.38f)
+        )
+    }
 
     var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     val messageActionsLabel = stringResource(R.string.message_actions)
@@ -116,7 +125,7 @@ fun UserChatBubble(
             )
         }
         MessageFileThumbnailRow(
-            files = files,
+            files = files.paths,
             modifier = Modifier.padding(top = 8.dp)
         )
     }
@@ -157,19 +166,25 @@ fun OpponentChatBubble(
     onShowPreviousRevision: () -> Unit = {},
     onShowNextRevision: () -> Unit = {}
 ) {
-    val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
-    )
+    val background = MaterialTheme.colorScheme.background
+    val onBackground = MaterialTheme.colorScheme.onBackground
+    val cardColor = remember(background, onBackground) {
+        CardColors(
+            containerColor = background,
+            contentColor = onBackground,
+            disabledContentColor = background.copy(alpha = 0.38f),
+            disabledContainerColor = onBackground.copy(alpha = 0.38f)
+        )
+    }
 
-    val noticeMessages = visibleChatRunNotices(
-        stored = runNotices,
-        timelineNotices = timelineNoticeMessages(timeline),
-        isRunActive = isLoading
-    )
-    val contentTimeline = timeline.filter { it.type != AssistantTimelineItemType.NOTICE }
+    val noticeMessages = remember(runNotices, timeline, isLoading) {
+        visibleChatRunNotices(
+            stored = runNotices,
+            timelineNotices = timelineNoticeMessages(timeline),
+            isRunActive = isLoading
+        )
+    }
+    val contentTimeline = remember(timeline) { timeline.filter { it.type != AssistantTimelineItemType.NOTICE } }
     val hasUnresolvedToolDetails = hasUnresolvedToolReferences(contentTimeline, toolEvents)
     val hasDetails = thoughts.isNotBlank() ||
         toolEvents.isNotEmpty() ||
@@ -612,7 +627,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, files = emptyList())
+        UserChatBubble(text = sampleText)
     }
 }
 

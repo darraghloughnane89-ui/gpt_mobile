@@ -31,10 +31,15 @@ class McpConnectionConfig(
 
 @Singleton
 class McpClientManager internal constructor(
-    private val httpClient: HttpClient
+    private val httpClientProvider: () -> HttpClient
 ) {
+    internal constructor(httpClient: HttpClient) : this({ httpClient })
+
     @Inject
-    constructor(networkClient: NetworkClient) : this(networkClient())
+    constructor(networkClient: NetworkClient) : this(networkClient::invoke)
+
+    private val httpClient: HttpClient
+        get() = httpClientProvider()
 
     private val mutex = Mutex()
 

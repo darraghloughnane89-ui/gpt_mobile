@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -82,10 +83,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.project.ChatListRow
 import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
+import dev.chungjungsoo.gptmobile.data.project.chatListRowKey
 import dev.chungjungsoo.gptmobile.data.project.groupChatsByProject
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.phone.AskAboutPhotoButton
+import dev.chungjungsoo.gptmobile.presentation.ui.BenchmarkTags
 import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectFilterBar
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectsEntryRow
@@ -103,7 +106,8 @@ fun HomeScreen(
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
+    val chatListStateHolder = homeViewModel.chatListState.collectAsStateWithLifecycle()
+    val chatListState = chatListStateHolder.value
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle()
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
@@ -115,20 +119,37 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val selectedChatCount = chatListState.selectedChats.count { it }
-    val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
+    val selectedChatCount by remember {
+        derivedStateOf { chatListStateHolder.value.selectedChats.count { it } }
+    }
+    val selectedChat by remember {
+        derivedStateOf {
+            val state = chatListStateHolder.value
+            state.chats.filterIndexed { index, _ ->
+                state.selectedChats.getOrElse(index) { false }
+            }.singleOrNull()
+        }
+    }
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
     val movedChatsMessage = stringResource(R.string.project_chats_moved)
     val activeProjectId = (projectFilter as? ProjectFilter.Project)?.id
     val ungroupedTitle = stringResource(R.string.project_filter_ungrouped)
-    val chatRows = groupChatsByProject(
-        chats = chatListState.chats,
-        projects = projects,
-        filter = projectFilter,
-        ungroupedTitle = ungroupedTitle,
-        grouped = !chatListState.isSearchMode
-    )
+    val chatRows = remember(
+        chatListState.chats,
+        projects,
+        projectFilter,
+        ungroupedTitle,
+        chatListState.isSearchMode
+    ) {
+        groupChatsByProject(
+            chats = chatListState.chats,
+            projects = projects,
+            filter = projectFilter,
+            ungroupedTitle = ungroupedTitle,
+            grouped = !chatListState.isSearchMode
+        )
+    }
     var startKind by remember { mutableStateOf(HomeStartKind.CHAT) }
     val beginChat: (HomeStartKind) -> Unit = { kind ->
         startKind = kind
@@ -167,7 +188,7 @@ fun HomeScreen(
                 isSelectionMode = chatListState.isSelectionMode,
                 isSearchMode = chatListState.isSearchMode,
                 selectedChats = selectedChatCount,
-                duplicateEnabled = selectedChat != null && selectedChat.id !in activeChatIds,
+                duplicateEnabled = selectedChat?.let { it.id !in activeChatIds } == true,
                 scrollBehavior = scrollBehavior,
                 actionOnClick = {
                     if (chatListState.isSelectionMode) {
@@ -212,7 +233,9 @@ fun HomeScreen(
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier
+                .padding(innerPadding)
+                .testTag(BenchmarkTags.CHAT_LIST),
             state = listState
         ) {
             if (!chatListState.isSelectionMode && !chatListState.isSearchMode && !chatListState.isLoading) {
@@ -230,7 +253,7 @@ fun HomeScreen(
                 }
             }
             when {
-                chatListState.isLoading -> item {
+                chatListState.isLoading -> item(key = "loading") {
                     Box(
                         modifier = Modifier.fillParentMaxSize(),
                         contentAlignment = Alignment.Center
@@ -239,7 +262,7 @@ fun HomeScreen(
                     }
                 }
 
-                chatListState.loadError != null -> item {
+                chatListState.loadError != null -> item(key = "load-error") {
                     EmptyErrorState(
                         title = stringResource(R.string.chats_load_error),
                         description = chatListState.loadError.orEmpty().takeIf { it.isNotBlank() }
@@ -251,7 +274,7 @@ fun HomeScreen(
                     )
                 }
 
-                chatListState.isSearchMode && searchQuery.isNotBlank() && chatRows.none { it is ChatListRow.Chat } -> item {
+                chatListState.isSearchMode && searchQuery.isNotBlank() && chatRows.none { it is ChatListRow.Chat } -> item(key = "empty-search") {
                     EmptyErrorState(
                         title = stringResource(R.string.no_search_results),
                         description = stringResource(R.string.no_search_results_description),
@@ -259,7 +282,7 @@ fun HomeScreen(
                     )
                 }
 
-                chatRows.none { it is ChatListRow.Chat } -> item {
+                chatRows.none { it is ChatListRow.Chat } -> item(key = "empty") {
                     EmptyErrorState(
                         title = stringResource(R.string.no_chats_title),
                         description = stringResource(R.string.no_chats_description),
@@ -273,9 +296,9 @@ fun HomeScreen(
 
                 else -> {
                     if (!chatListState.isSearchMode) {
-                        item { ChatsTitle(scrollBehavior) }
+                        item(key = "chats-title") { ChatsTitle(scrollBehavior) }
                         if (!chatListState.isSelectionMode) {
-                            item {
+                            item(key = "ask-photo") {
                                 AskAboutPhotoButton(
                                     onClick = { beginChat(HomeStartKind.PHOTO) },
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -283,12 +306,16 @@ fun HomeScreen(
                             }
                         }
                     }
-                    items(chatRows, key = { row ->
-                        when (row) {
-                            is ChatListRow.Header -> row.key
-                            is ChatListRow.Chat -> row.chat.id
+                    items(
+                        items = chatRows,
+                        key = { row -> chatListRowKey(row) },
+                        contentType = { row ->
+                            when (row) {
+                                is ChatListRow.Header -> "header"
+                                is ChatListRow.Chat -> "chat"
+                            }
                         }
-                    }) { row ->
+                    ) { row ->
                         when (row) {
                             is ChatListRow.Header -> {
                                 Text(
@@ -301,9 +328,12 @@ fun HomeScreen(
                             is ChatListRow.Chat -> {
                                 val idx = row.chatIndex
                                 val chatRoom = row.chat
-                                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
+                                val usingPlatform = remember(chatRoom.enabledPlatform, platformState) {
+                                    chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
+                                }
                                 ListItem(
                                     modifier = Modifier
+                                        .testTag(BenchmarkTags.CHAT_ROW)
                                         .animateItem()
                                         .padding(horizontal = 16.dp, vertical = 4.dp)
                                         .clip(MaterialTheme.shapes.medium)

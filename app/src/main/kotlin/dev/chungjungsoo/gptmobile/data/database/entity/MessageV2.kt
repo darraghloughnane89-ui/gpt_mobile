@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.database.entity
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -20,6 +21,7 @@ import kotlinx.serialization.Serializable
     ],
     indices = [Index(value = ["chat_id"])]
 )
+@Immutable
 data class MessageV2(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo("message_id")
@@ -59,6 +61,7 @@ data class MessageV2(
     val timeline: List<AssistantTimelineItem> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class AssistantRevision(
     val content: String,

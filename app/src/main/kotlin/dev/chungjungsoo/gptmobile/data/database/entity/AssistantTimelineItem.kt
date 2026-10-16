@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.database.entity
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -11,6 +12,7 @@ enum class AssistantTimelineItemType {
     LEGACY_ORDER
 }
 
+@Immutable
 @Serializable
 data class AssistantTimelineItem(
     val type: AssistantTimelineItemType,
