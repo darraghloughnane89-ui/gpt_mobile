@@ -27,6 +27,7 @@ import dev.chungjungsoo.gptmobile.data.project.archive.ProjectImportMap
 import dev.chungjungsoo.gptmobile.data.project.archive.ProjectTransferStage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.time.Instant
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -304,9 +305,11 @@ class ProjectArchiveTest {
             zip.closeEntry()
         }
 
-        val entries = ProjectArchiveZip.read(ByteArrayInputStream(raw.toByteArray()))
+        val error = assertThrows(ProjectArchiveException::class.java) {
+            ProjectArchiveZip.read(ByteArrayInputStream(raw.toByteArray()))
+        }
 
-        assertEquals(listOf("instructions.md"), entries.map { it.path })
+        assertEquals(ProjectArchiveFailure.UNREADABLE, error.failure)
     }
 
     @Test
@@ -316,6 +319,67 @@ class ProjectArchiveTest {
         }
 
         assertEquals(ProjectArchiveFailure.UNRECOGNIZED, error.failure)
+    }
+
+    @Test
+    fun read_rejectsParentDirectoryEntries() {
+        val error = assertThrows(ProjectArchiveException::class.java) {
+            ProjectArchiveZip.read(ByteArrayInputStream(zipBytes("../outside.txt" to "pwn".toByteArray())))
+        }
+        assertEquals(ProjectArchiveFailure.UNREADABLE, error.failure)
+    }
+
+    @Test
+    fun read_countsUnsafeEntriesTowardTheCap() {
+        val entries = (0..ProjectArchiveZip.MAX_ENTRIES).map { index ->
+            "../bomb-$index.txt" to byteArrayOf(1)
+        }
+        val error = assertThrows(ProjectArchiveException::class.java) {
+            ProjectArchiveZip.read(ByteArrayInputStream(zipBytes(*entries.toTypedArray())))
+        }
+        assertEquals(ProjectArchiveFailure.TOO_LARGE, error.failure)
+    }
+
+    @Test
+    fun write_doesNotEmitParentDirectoryPaths() {
+        val project = robinSample().copy(
+            files = listOf(ImportedFile("files/../../outside.txt", "outside.txt", "x".toByteArray(), "text/plain"))
+        )
+        val entries = ProjectArchiveZip.read(ByteArrayInputStream(ProjectArchiveZip.write(project)))
+        assertTrue(entries.none { it.path.split('/').any { part -> part == ".." } })
+        assertTrue(entries.any { it.path.startsWith("files/") })
+    }
+
+    @Test
+    fun projectStorageFile_rejectsParentSegments() {
+        val dir = File.createTempFile("proj", "dir").apply {
+            delete()
+            mkdirs()
+        }
+        try {
+            val stored = projectStorageFile(dir, "note.md")
+            assertEquals(dir.canonicalFile, stored.parentFile?.canonicalFile)
+            assertThrows(IllegalArgumentException::class.java) {
+                projectStorageFile(dir, "..")
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                projectStorageFile(dir, "../secret")
+            }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    private fun zipBytes(vararg files: Pair<String, ByteArray>): ByteArray {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            files.forEach { (path, bytes) ->
+                zip.putNextEntry(ZipEntry(path))
+                zip.write(bytes)
+                zip.closeEntry()
+            }
+        }
+        return output.toByteArray()
     }
 
     private fun robinSample() = ImportedProject(
