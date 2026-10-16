@@ -25,6 +25,10 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.agent.tool.MCP_OAUTH_SCHEME
 import dev.chungjungsoo.gptmobile.data.agent.tool.isMcpOAuthCallbackUri
+import dev.chungjungsoo.gptmobile.data.portable.PortableDocuments
+import dev.chungjungsoo.gptmobile.data.portable.PortableFileIntake
+import dev.chungjungsoo.gptmobile.data.portable.PortableImportInbox
+import dev.chungjungsoo.gptmobile.data.portable.PortableLimits
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -35,9 +39,12 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.phone.PhoneEntryBus
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.PortableImportBus
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.PortableIntents
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
 import dev.chungjungsoo.gptmobile.presentation.voice.VoiceLaunchSignals
 import dev.chungjungsoo.gptmobile.presentation.voice.requestsVoiceChat
+import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -49,6 +56,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var authTabLauncher: ActivityResultLauncher<Intent>
     private lateinit var oauthCustomTabLauncher: ActivityResultLauncher<Intent>
     private var lastOAuthCallback: String? = null
+
+    @Inject lateinit var portableInbox: PortableImportInbox
+
+    @Inject lateinit var portableIntake: PortableFileIntake
 
     @Volatile
     private var isThemeModeReady = false
@@ -112,6 +123,7 @@ class MainActivity : ComponentActivity() {
         }
         dispatchOAuthIntent(intent)
         PhoneEntryBus.publish(intent)
+        dispatchPortableIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -120,6 +132,7 @@ class MainActivity : ComponentActivity() {
         dispatchOAuthIntent(intent)
         PhoneEntryBus.publish(intent)
         publishVoiceLaunch(intent)
+        dispatchPortableIntent(intent)
     }
 
     private fun publishVoiceLaunch(intent: Intent?) {
@@ -152,6 +165,37 @@ class MainActivity : ComponentActivity() {
     private fun dispatchOAuthIntent(intent: Intent?) = intent?.data?.toString()
         ?.takeIf(::isMcpOAuthCallbackUri)
         ?.let(::dispatchOAuthCallback)
+
+    private fun dispatchPortableIntent(intent: Intent?) {
+        if (intent == null) return
+        var offered = false
+        val data = intent.data
+        if (data?.scheme.equals(PortableLimits.SCHEME, ignoreCase = true)) {
+            portableInbox.offer(
+                PortableDocuments.decodeLink(
+                    data?.scheme,
+                    data?.host,
+                    data?.getQueryParameter(PortableLimits.QUERY)
+                )
+            )
+            offered = true
+        } else {
+            val uri = portableUri(intent)
+            if (uri != null && portableIntake.accepts(contentResolver, uri, intent.type)) {
+                portableInbox.offer(portableIntake.read(contentResolver, uri))
+                offered = true
+            }
+        }
+        if (offered || intent.getBooleanExtra(PortableIntents.EXTRA_PORTABLE_IMPORT, false)) {
+            PortableImportBus.publish()
+        }
+    }
+
+    private fun portableUri(intent: Intent): Uri? {
+        val data = intent.data
+        if (data?.scheme == "content" || data?.scheme == "file") return data
+        return androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+    }
 
     private suspend fun NavHostController.awaitStartupRoute() {
         when (mainViewModel.event.first()) {

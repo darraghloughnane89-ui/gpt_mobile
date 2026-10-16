@@ -6,6 +6,9 @@
     <cache-path
         name="camera"
         path="camera/" />
+    <cache-path
+        name="portable"
+        path="portable/" />
     <files-path
         name="attachments"
         path="attachments/" />

@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.bot
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -46,6 +48,9 @@ import dev.chungjungsoo.gptmobile.data.bot.BotDraft
 import dev.chungjungsoo.gptmobile.data.bot.StarterPrompts
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
+import dev.chungjungsoo.gptmobile.data.portable.PortableKind
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.botExportJson
+import dev.chungjungsoo.gptmobile.presentation.ui.portable.sharePortableDocument
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +65,9 @@ fun BotEditorScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
     val draft = uiState.draft
+    val context = LocalContext.current
+    val shareTitle = stringResource(R.string.share_portable_chooser)
+    val shareFailed = stringResource(R.string.portable_share_failed)
 
     Scaffold(
         topBar = {
@@ -90,6 +98,22 @@ fun BotEditorScreen(
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.bot_actions))
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share_portable)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    val json = botExportJson(draft)
+                                    if (json == null) {
+                                        Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        runCatching {
+                                            sharePortableDocument(context, json, PortableKind.BOT, draft.name, shareTitle)
+                                        }.onFailure {
+                                            Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.duplicate_bot)) },
                                 onClick = {
@@ -141,6 +165,7 @@ fun BotEditorScreen(
                 searchConnections = uiState.searchConnections,
                 mcpConnections = uiState.mcpConnections,
                 errorMessage = uiState.errorMessage,
+                imported = uiState.imported,
                 onDraftChange = viewModel::updateDraft
             )
         }
@@ -200,6 +225,7 @@ fun BotEditorForm(
     searchConnections: List<ToolConnection>,
     mcpConnections: List<ToolConnection>,
     errorMessage: String?,
+    imported: Boolean = false,
     onDraftChange: ((BotDraft) -> BotDraft) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -207,6 +233,13 @@ fun BotEditorForm(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (imported) {
+            Text(
+                text = stringResource(R.string.portable_imported_banner),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically

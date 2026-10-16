@@ -73,6 +73,23 @@ class ShareIntentParserTest {
     }
 
     @Test
+    fun parse_portableFile_isNotChatText() {
+        val parsed = ShareIntentParser.parse(
+            ShareIntentParser.Snapshot(
+                action = ShareIntentParser.ACTION_SEND,
+                mimeType = "text/plain",
+                extraText = null,
+                streamUris = listOf("content://docs/field.robin-bot"),
+                streamMimeTypes = listOf("text/plain")
+            )
+        )
+
+        assertEquals(listOf("content://docs/field.robin-bot"), parsed.portableUris)
+        assertTrue(parsed.textFileUris.isEmpty())
+        assertTrue(parsed.text.isEmpty())
+    }
+
+    @Test
     fun parse_unknownAction_isEmpty() {
         val parsed = ShareIntentParser.parse(
             ShareIntentParser.Snapshot(

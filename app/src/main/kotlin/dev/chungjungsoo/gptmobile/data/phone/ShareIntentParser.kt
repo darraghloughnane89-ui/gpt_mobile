@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.phone
 
+import dev.chungjungsoo.gptmobile.data.portable.PortableKind
+
 /**
  * Classifies an ACTION_SEND or ACTION_SEND_MULTIPLE payload.
  * Android-specific intent reading stays in [ShareIntentSnapshots].
@@ -22,9 +24,10 @@ object ShareIntentParser {
         val imageUris: List<String> = emptyList(),
         val pdfUris: List<String> = emptyList(),
         val textFileUris: List<String> = emptyList(),
+        val portableUris: List<String> = emptyList(),
         val rejected: Int = 0
     ) {
-        fun isEmpty(): Boolean = text.isBlank() && imageUris.isEmpty() && pdfUris.isEmpty() && textFileUris.isEmpty()
+        fun isEmpty(): Boolean = text.isBlank() && imageUris.isEmpty() && pdfUris.isEmpty() && textFileUris.isEmpty() && portableUris.isEmpty()
     }
 
     fun parse(snapshot: Snapshot): Parsed {
@@ -32,6 +35,7 @@ object ShareIntentParser {
         val images = mutableListOf<String>()
         val pdfs = mutableListOf<String>()
         val textFiles = mutableListOf<String>()
+        val portable = mutableListOf<String>()
         var rejected = 0
         val limit = snapshot.streamUris.take(MAX_STREAMS)
         rejected += (snapshot.streamUris.size - limit.size).coerceAtLeast(0)
@@ -41,6 +45,7 @@ object ShareIntentParser {
                 Kind.IMAGE -> images += uri
                 Kind.PDF -> pdfs += uri
                 Kind.TEXT -> textFiles += uri
+                Kind.PORTABLE -> portable += uri
                 Kind.REJECT -> rejected++
             }
         }
@@ -49,6 +54,7 @@ object ShareIntentParser {
             imageUris = images.distinct(),
             pdfUris = pdfs.distinct(),
             textFileUris = textFiles.distinct(),
+            portableUris = portable.distinct(),
             rejected = rejected
         )
     }
@@ -57,6 +63,7 @@ object ShareIntentParser {
         val mime = mimeType?.substringBefore(';')?.trim()?.lowercase().orEmpty()
         val extension = uri.substringAfterLast('.', "").substringBefore('?').lowercase()
         return when {
+            extension in PORTABLE_EXTENSIONS || mime in PORTABLE_MIMES -> Kind.PORTABLE
             mime.startsWith("image/") || extension in IMAGE_EXTENSIONS -> Kind.IMAGE
             mime == "application/pdf" || extension == "pdf" -> Kind.PDF
             mime.startsWith("text/") || extension == "txt" -> Kind.TEXT
@@ -64,7 +71,9 @@ object ShareIntentParser {
         }
     }
 
-    enum class Kind { IMAGE, PDF, TEXT, REJECT }
+    enum class Kind { IMAGE, PDF, TEXT, PORTABLE, REJECT }
 
     private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif")
+    private val PORTABLE_EXTENSIONS = PortableKind.entries.map { it.extension }.toSet()
+    private val PORTABLE_MIMES = PortableKind.entries.map { it.mime }.toSet()
 }
