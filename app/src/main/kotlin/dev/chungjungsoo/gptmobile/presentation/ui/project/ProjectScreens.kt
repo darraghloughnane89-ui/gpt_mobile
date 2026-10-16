@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,6 +59,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Project
 import dev.chungjungsoo.gptmobile.data.project.ProjectColors
 import dev.chungjungsoo.gptmobile.data.project.ProjectIcons
+import dev.chungjungsoo.gptmobile.presentation.a11y.minimumTouchTarget
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.ui.home.SelectPlatformDialog
 
@@ -143,12 +145,10 @@ fun ProjectsScreen(
                             .padding(horizontal = 16.dp, vertical = 4.dp)
                             .clip(MaterialTheme.shapes.medium)
                             .clickable { onOpenProject(project.id) },
-                        headlineContent = { Text(project.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        headlineContent = { Text(project.name) },
                         supportingContent = {
                             Text(
-                                text = project.instructions.ifBlank { stringResource(R.string.project_no_instructions) },
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                text = project.instructions.ifBlank { stringResource(R.string.project_no_instructions) }
                             )
                         },
                         leadingContent = { ProjectBadge(project.icon, project.color) },
@@ -379,7 +379,7 @@ fun ProjectDetailScreen(
                 } else {
                     items(files, key = { it.id }) { file ->
                         ListItem(
-                            headlineContent = { Text(file.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            headlineContent = { Text(file.displayName) },
                             supportingContent = { Text(file.mimeType) },
                             leadingContent = { Icon(Icons.Outlined.Description, contentDescription = null) },
                             trailingContent = {
@@ -403,7 +403,7 @@ fun ProjectDetailScreen(
                     items(chats, key = { it.id }) { chat ->
                         ListItem(
                             modifier = Modifier.clickable { onOpenChat(chat) },
-                            headlineContent = { Text(chat.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            headlineContent = { Text(chat.title) },
                             trailingContent = {
                                 TextButton(onClick = { viewModel.removeChat(chat.id) }) {
                                     Text(stringResource(R.string.project_remove_chat))
@@ -443,6 +443,8 @@ fun ProjectDetailScreen(
                                 text = chat.title,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .minimumTouchTarget()
                                     .clickable { viewModel.addChat(chat.id) }
                                     .padding(vertical = 12.dp)
                             )

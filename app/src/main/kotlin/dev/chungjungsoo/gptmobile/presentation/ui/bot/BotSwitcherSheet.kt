@@ -114,7 +114,7 @@ fun BotStarterPromptRow(
         prompts.forEach { prompt ->
             SuggestionChip(
                 onClick = { onPromptClick(prompt) },
-                label = { Text(prompt, maxLines = 1) }
+                label = { Text(prompt) }
             )
         }
     }

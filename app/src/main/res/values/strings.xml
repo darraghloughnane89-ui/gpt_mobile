@@ -603,6 +603,7 @@
     <string name="project_name">Project name</string>
     <string name="project_icon">Icon</string>
     <string name="project_color">Colour</string>
+    <string name="project_color_swatch">Colour %1$s</string>
     <string name="project_instructions">Shared instructions</string>
     <string name="project_instructions_limit">%1$d/%2$d characters. Instructions and files are added to every chat in this project.</string>
     <string name="project_name_required">Enter a project name.</string>
@@ -681,4 +682,15 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="crash_log_title">Crash log</string>
+    <string name="crash_log_description">Crashes stay on this device. Export shares a text file. Nothing is sent automatically.</string>
+    <string name="crash_log_empty">No crashes saved on this device.</string>
+    <string name="crash_log_export">Export</string>
+    <string name="crash_log_clear">Clear</string>
+    <string name="crash_log_clear_confirm">Delete the saved crash log from this device?</string>
+    <string name="crash_log_setting">Crash log</string>
+    <string name="crash_log_setting_description">Review and export crashes saved on this device</string>
+    <string name="storage_full_message">Not enough storage to save this. Free some space and retry.</string>
+    <string name="generating_reply">Generating reply</string>
+    <string name="bot_avatar_color_swatch">Avatar colour %1$s</string>
 </resources>

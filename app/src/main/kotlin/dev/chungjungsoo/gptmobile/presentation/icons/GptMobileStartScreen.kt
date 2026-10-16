@@ -688,6 +688,6 @@ fun GPTLogoStartScreen() {
         dynamicTheme = DynamicTheme.ON,
         themeMode = ThemeMode.DARK
     ) {
-        Image(imageVector = GptMobileStartScreen, contentDescription = "")
+        Image(imageVector = GptMobileStartScreen, contentDescription = null)
     }
 }

@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.common
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -18,9 +19,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.a11y.minimumTouchTarget
 
 @Composable
 fun SettingItem(
@@ -49,23 +50,17 @@ fun SettingItem(
     ListItem(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .minimumTouchTarget()
             .semantics(mergeDescendants = true) { }
             .then(interactionModifier)
             .padding(horizontal = 8.dp),
         headlineContent = {
-            Text(
-                text = title,
-                overflow = TextOverflow.Ellipsis,
-                maxLines = 1
-            )
+            Text(text = title)
         },
         supportingContent = {
             description?.let {
-                Text(
-                    text = it,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 2
-                )
+                Text(text = it)
             }
         },
         leadingContent = if (showLeadingIcon) {

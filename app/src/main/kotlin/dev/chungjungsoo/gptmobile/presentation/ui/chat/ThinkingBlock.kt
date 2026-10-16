@@ -39,6 +39,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.a11y.motionSpec
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
@@ -55,9 +57,10 @@ fun ThinkingBlock(
     var isExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     val expandLabel = stringResource(R.string.expand)
     val collapseLabel = stringResource(R.string.collapse)
+    val reducedMotion = prefersReducedMotion()
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = fastEffectsSpec(),
+        animationSpec = motionSpec(reducedMotion, fastEffectsSpec()),
         label = "rotation"
     )
 
@@ -104,10 +107,10 @@ fun ThinkingBlock(
 
         AnimatedVisibility(
             visible = isExpanded,
-            enter = expandVertically(animationSpec = defaultSpatialSpec()) +
-                fadeIn(animationSpec = fastEffectsSpec()),
-            exit = shrinkVertically(animationSpec = defaultSpatialSpec()) +
-                fadeOut(animationSpec = fastEffectsSpec())
+            enter = expandVertically(animationSpec = motionSpec(reducedMotion, defaultSpatialSpec())) +
+                fadeIn(animationSpec = motionSpec(reducedMotion, fastEffectsSpec())),
+            exit = shrinkVertically(animationSpec = motionSpec(reducedMotion, defaultSpatialSpec())) +
+                fadeOut(animationSpec = motionSpec(reducedMotion, fastEffectsSpec()))
         ) {
             Column {
                 ChatMarkdown(
@@ -119,11 +122,7 @@ fun ThinkingBlock(
                         .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                 )
                 if (isLoading) {
-                    Text(
-                        text = "●",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    )
+                    StreamingCaret(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
                 }
             }
         }
@@ -134,7 +133,7 @@ fun ThinkingBlock(
             Text(
                 text = if (isLoading) preview + "●" else preview,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)

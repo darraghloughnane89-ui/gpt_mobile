@@ -70,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,6 +115,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
@@ -144,7 +146,8 @@ fun ChatScreen(
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val listState = rememberChatListState(groupedMessages.userMessages.size)
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
-    var isFollowingBottom by remember { mutableStateOf(true) }
+    var isFollowingBottom by rememberSaveable { mutableStateOf(true) }
+    val reducedMotion = prefersReducedMotion()
     val agentRunsById by chatViewModel.agentRunsById.collectAsStateWithLifecycle()
     val runNoticesById by chatViewModel.runNoticesById.collectAsStateWithLifecycle()
     val toolEventsByRun by chatViewModel.toolEventsByRun.collectAsStateWithLifecycle()
@@ -221,8 +224,12 @@ fun ChatScreen(
         )
     }
 
+    var previousLastIndex by rememberSaveable { mutableIntStateOf(lastMessageIndex) }
     LaunchedEffect(lastMessageIndex) {
-        isFollowingBottom = true
+        if (lastMessageIndex != previousLastIndex) {
+            isFollowingBottom = true
+            previousLastIndex = lastMessageIndex
+        }
     }
 
     ChatBottomAutoScroller(
@@ -293,7 +300,8 @@ fun ChatScreen(
                 ) {
                     itemsIndexed(
                         items = groupedMessages.userMessages,
-                        key = { index, message -> chatMessagePairKey(message, index) }
+                        key = { index, message -> chatMessagePairKey(message, index) },
+                        contentType = { _, _ -> "chat-turn" }
                     ) { index, message ->
                         ChatMessagePair(
                             messageIndex = index,
@@ -341,7 +349,7 @@ fun ChatScreen(
                     ) {
                         ScrollToBottomButton {
                             scope.launch {
-                                listState.animateScrollToLatestChatMessage()
+                                listState.scrollToLatestChatMessage(animated = !reducedMotion)
                                 isFollowingBottom = true
                             }
                         }
@@ -702,10 +710,13 @@ internal fun ChatBottomAutoScroller(
 }
 
 internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
+    scrollToLatestChatMessage(animated = true)
+}
+
+internal suspend fun LazyListState.scrollToLatestChatMessage(animated: Boolean) {
     val latestItemIndex = layoutInfo.totalItemsCount - 1
-    if (latestItemIndex >= 0) {
-        animateScrollToItem(latestItemIndex)
-    }
+    if (latestItemIndex < 0) return
+    if (animated) animateScrollToItem(latestItemIndex) else scrollToItem(latestItemIndex)
 }
 
 @Composable
@@ -725,7 +736,7 @@ private fun ChatTopBar(
     botContentDescription: String,
     onBotClick: () -> Unit
 ) {
-    var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+    var isDropDownMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
     TopAppBar(
         title = {
@@ -1094,8 +1105,6 @@ internal fun FileThumbnail(
             text = file.name,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier
                 .padding(top = 4.dp)
@@ -1107,8 +1116,6 @@ internal fun FileThumbnail(
                 text = notice,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.width(72.dp)
             )
@@ -1119,8 +1126,6 @@ internal fun FileThumbnail(
                 text = errorMessage,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.width(72.dp)
             )

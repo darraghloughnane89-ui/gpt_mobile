@@ -2,6 +2,8 @@ package dev.chungjungsoo.gptmobile.presentation
 
 import android.content.ComponentCallbacks2
 import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -52,5 +54,19 @@ class GPTMobileAppTest {
 
         assertEquals(0, runtime.trimIdleEngineCalls)
         assertEquals(0, runtime.unloadEngineCalls)
+    }
+
+    @Test
+    fun `staged backup restore runs on the injected dispatcher`() = runTest {
+        val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "backup-io") }
+        val dispatcher = executor.asCoroutineDispatcher()
+        try {
+            var threadName: String? = null
+            restoreStagedBackup(dispatcher) { threadName = Thread.currentThread().name }
+            assertEquals("backup-io", threadName)
+        } finally {
+            dispatcher.close()
+            executor.shutdown()
+        }
     }
 }

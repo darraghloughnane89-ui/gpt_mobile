@@ -52,6 +52,7 @@ object Route {
     const val OLLAMA_SETTINGS = "ollama_settings"
     const val ABOUT_PAGE = "about"
     const val LICENSE = "license"
+    const val CRASH_LOG = "crash_log"
 
     const val MIGRATE_V2 = "migrate_v2"
 }

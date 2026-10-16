@@ -82,6 +82,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.project.ChatListRow
 import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
 import dev.chungjungsoo.gptmobile.data.project.groupChatsByProject
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
@@ -98,6 +99,7 @@ fun HomeScreen(
     onExistingChatClick: (ChatRoomV2) -> Unit,
     navigateToNewChat: (enabledPlatforms: List<String>, projectId: Int?) -> Unit
 ) {
+    val reducedMotion = prefersReducedMotion()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
@@ -263,12 +265,21 @@ fun HomeScreen(
                     if (!chatListState.isSearchMode) {
                         item { ChatsTitle(scrollBehavior) }
                     }
-                    items(chatRows, key = { row ->
-                        when (row) {
-                            is ChatListRow.Header -> row.key
-                            is ChatListRow.Chat -> row.chat.id
+                    items(
+                        items = chatRows,
+                        key = { row ->
+                            when (row) {
+                                is ChatListRow.Header -> row.key
+                                is ChatListRow.Chat -> row.chat.id
+                            }
+                        },
+                        contentType = { row ->
+                            when (row) {
+                                is ChatListRow.Header -> "project-header"
+                                is ChatListRow.Chat -> "chat-room"
+                            }
                         }
-                    }) { row ->
+                    ) { row ->
                         when (row) {
                             is ChatListRow.Header -> {
                                 Text(
@@ -284,7 +295,8 @@ fun HomeScreen(
                                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
                                 ListItem(
                                     modifier = Modifier
-                                        .animateItem()
+                                        .then(if (reducedMotion) Modifier else Modifier.animateItem())
+                                        .heightIn(min = 48.dp)
                                         .padding(horizontal = 16.dp, vertical = 4.dp)
                                         .clip(MaterialTheme.shapes.medium)
                                         .combinedClickable(

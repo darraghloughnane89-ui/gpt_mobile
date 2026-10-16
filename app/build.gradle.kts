@@ -169,6 +169,8 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // Debug builds only. LeakCanary installs itself and is absent from release.
+    debugImplementation(libs.leakcanary)
 }
 
 aboutLibraries {
