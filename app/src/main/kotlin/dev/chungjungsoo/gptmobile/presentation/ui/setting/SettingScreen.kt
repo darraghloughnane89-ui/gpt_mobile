@@ -61,6 +61,7 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
+    onNavigateToHelp: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -160,6 +161,13 @@ fun SettingScreen(
                 )
             }
             SettingsSection(title = stringResource(R.string.settings_app)) {
+                SettingItem(
+                    title = stringResource(R.string.help),
+                    description = stringResource(R.string.help_description),
+                    onItemClick = onNavigateToHelp,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
 
