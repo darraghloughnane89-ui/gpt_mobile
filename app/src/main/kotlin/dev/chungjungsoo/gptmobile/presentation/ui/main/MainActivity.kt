@@ -29,9 +29,11 @@ import dev.chungjungsoo.gptmobile.presentation.common.SetupNavGraph
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeLoadState
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
+import dev.chungjungsoo.gptmobile.presentation.service.EXTRA_OPEN_CHAT_ID
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -50,6 +52,8 @@ class MainActivity : ComponentActivity() {
     @Volatile
     private var isStartupRouteReady = false
 
+    private val pendingChatId = MutableStateFlow(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().apply {
             setKeepOnScreenCondition { !isThemeModeReady || !isStartupRouteReady }
@@ -65,6 +69,7 @@ class MainActivity : ComponentActivity() {
 
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        pendingChatId.value = intent.openChatId()
 
         setContent {
             val navController = rememberNavController()
@@ -107,6 +112,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        pendingChatId.value = intent.openChatId()
     }
 
     private fun launchOAuth(authorizationUri: String) {
@@ -135,7 +141,8 @@ class MainActivity : ComponentActivity() {
         ?.let(::dispatchOAuthCallback)
 
     private suspend fun NavHostController.awaitStartupRoute() {
-        when (mainViewModel.event.first()) {
+        val event = mainViewModel.event.first()
+        when (event) {
             MainViewModel.SplashEvent.OpenIntro -> {
                 navigate(Route.GET_STARTED) {
                     popUpTo(Route.CHAT_LIST) { inclusive = true }
@@ -150,6 +157,22 @@ class MainActivity : ComponentActivity() {
 
             MainViewModel.SplashEvent.OpenHome -> {}
         }
-        isStartupRouteReady = true
+        pendingChatId.collect { chatId ->
+            try {
+                if (event == MainViewModel.SplashEvent.OpenHome && chatId > 0) {
+                    mainViewModel.chatRoute(chatId)?.let { route ->
+                        navigate(route) {
+                            popUpTo(Route.CHAT_LIST) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                    if (pendingChatId.value == chatId) pendingChatId.value = 0
+                }
+            } finally {
+                isStartupRouteReady = true
+            }
+        }
     }
+
+    private fun Intent.openChatId(): Int = getIntExtra(EXTRA_OPEN_CHAT_ID, 0).takeIf { it > 0 } ?: 0
 }

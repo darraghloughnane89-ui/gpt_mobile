@@ -22,6 +22,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.presentation.service.ensureGenerationNotificationChannels
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,7 @@ class GPTMobileApp :
         SanitizedChatBackup.restoreIfPresent(this)
         super.onCreate()
         registerActivityLifecycleCallbacks(AppForegroundTracker)
+        ensureGenerationNotificationChannels(this)
         StartupRecoveryGate.start(applicationScope) {
             val startup = startupDependencies()
             startup.pendingLocalPlatformActivator().start()

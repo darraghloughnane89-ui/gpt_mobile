@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +27,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +48,10 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.presentation.service.GENERATION_COMPLETE_CHANNEL_ID
+import dev.chungjungsoo.gptmobile.presentation.service.GENERATION_PROGRESS_CHANNEL_ID
+import dev.chungjungsoo.gptmobile.presentation.service.ensureGenerationNotificationChannels
+import dev.chungjungsoo.gptmobile.presentation.service.generationChannelSettingsIntent
 import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
@@ -159,6 +165,9 @@ fun SettingScreen(
                     showLeadingIcon = false
                 )
             }
+            SettingsSection(title = stringResource(R.string.generation_notifications)) {
+                GenerationNotificationSettings()
+            }
             SettingsSection(title = stringResource(R.string.settings_app)) {
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
@@ -199,6 +208,30 @@ private fun SettingTopBar(
         },
         scrollBehavior = scrollBehavior
     )
+}
+
+@Composable
+private fun GenerationNotificationSettings() {
+    val context = LocalContext.current
+    SettingItem(
+        title = stringResource(R.string.generation_progress_channel_settings),
+        description = stringResource(R.string.generation_progress_channel_settings_description),
+        onItemClick = { openGenerationChannelSettings(context, GENERATION_PROGRESS_CHANNEL_ID) },
+        showTrailingIcon = true,
+        showLeadingIcon = false
+    )
+    SettingItem(
+        title = stringResource(R.string.generation_complete_channel_settings),
+        description = stringResource(R.string.generation_complete_channel_settings_description),
+        onItemClick = { openGenerationChannelSettings(context, GENERATION_COMPLETE_CHANNEL_ID) },
+        showTrailingIcon = true,
+        showLeadingIcon = false
+    )
+}
+
+private fun openGenerationChannelSettings(context: Context, channelId: String) {
+    ensureGenerationNotificationChannels(context)
+    context.startActivity(generationChannelSettingsIntent(context.packageName, channelId))
 }
 
 @Composable

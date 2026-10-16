@@ -86,6 +86,9 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
+        <receiver
+            android:name=".presentation.service.GenerationReplyReceiver"
+            android:exported="false" />
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:directBootAware="false"

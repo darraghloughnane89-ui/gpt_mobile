@@ -3,8 +3,10 @@ package dev.chungjungsoo.gptmobile.presentation.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
+import dev.chungjungsoo.gptmobile.presentation.service.chatNotificationRoute
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +18,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class MainViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
+class MainViewModel @Inject constructor(
+    private val settingRepository: SettingRepository,
+    private val chatRepository: ChatRepository
+) : ViewModel() {
 
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
@@ -60,6 +65,12 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
 
     private suspend fun sendSplashEvent(event: SplashEvent) {
         _event.emit(event)
+    }
+
+    suspend fun chatRoute(chatId: Int): String? {
+        if (chatId <= 0) return null
+        val room = chatRepository.fetchChatListV2().firstOrNull { it.id == chatId } ?: return null
+        return chatNotificationRoute(room.id, room.enabledPlatform)
     }
 
     private fun setAsReady() {

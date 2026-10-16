@@ -1,7 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.service
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -11,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,7 +35,9 @@ class AgentRunForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lastStartId = 0
+    private var foregroundStarted = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private val completionPreviews = mutableMapOf<Int, String>()
     private val cpuWakeLock = AgentRunCpuWakeLock(
         acquire = { timeoutMs -> acquireAgentRunWakeLock(timeoutMs) },
         release = { releaseAgentRunWakeLock() },
@@ -44,9 +46,10 @@ class AgentRunForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        ensureGenerationNotificationChannels(this)
         var wasActive = coordinator.activeRuns.value.isNotEmpty()
-        if (!showNotification(coordinator.activeRuns.value.size)) {
+        var previouslyActiveChats = coordinator.activeRuns.value.values.mapTo(mutableSetOf()) { it.chatId }
+        if (!showNotification()) {
             coordinator.interruptAll()
             cpuWakeLock.releaseHeld()
             stopSelf()
@@ -56,11 +59,24 @@ class AgentRunForegroundService : Service() {
         serviceScope.launch {
             coordinator.activeRuns.collectLatest {
                 val currentRuns = coordinator.activeRuns.value
+                val currentChats = currentRuns.values.mapTo(mutableSetOf()) { it.chatId }
+                val finishedChats = previouslyActiveChats - currentChats
+                (currentChats - previouslyActiveChats).forEach { chatId -> completionPreviews.remove(chatId) }
+                previouslyActiveChats = currentChats
+                dismissCompletionNotifications(currentChats)
+                if (shouldNotifyAgentRunsCompleted(
+                        wasActive = finishedChats.isNotEmpty(),
+                        isActive = false,
+                        isAppBackground = AppForegroundTracker.isBackgrounded
+                    )
+                ) {
+                    completionChatIds(finishedChats).forEach(::showCompletionNotification)
+                }
                 if (currentRuns.isEmpty()) {
-                    wasActive = stopIfIdle(wasActive)
+                    wasActive = stopIfIdle()
                     return@collectLatest
                 }
-                if (!resumeActiveWork(currentRuns.size)) {
+                if (!resumeActiveWork()) {
                     return@collectLatest
                 }
                 wasActive = true
@@ -70,16 +86,37 @@ class AgentRunForegroundService : Service() {
                 }
             }
         }
+        serviceScope.launch {
+            var lastCharacters = -1
+            var lastCount = -1
+            coordinator.liveSnapshots.collect { snapshots ->
+                val progress = generationProgress(coordinator.activeRuns.value.values, snapshots)
+                progress.previewByChat.forEach { (chatId, preview) ->
+                    if (preview.isNotBlank()) completionPreviews[chatId] = preview
+                }
+                if (progress.activeCount == 0) {
+                    lastCharacters = -1
+                    lastCount = -1
+                    return@collect
+                }
+                if (!shouldRefreshProgressNotification(lastCharacters, progress.receivedCharacters, lastCount, progress.activeCount)) {
+                    return@collect
+                }
+                lastCharacters = progress.receivedCharacters
+                lastCount = progress.activeCount
+                updateProgressNotification(progress)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
-        if (intent?.action == ACTION_CANCEL_ALL) {
+        if (isGenerationStopAction(intent?.action)) {
+            // Job cancellation is the existing stop path, including remote response-id cancellation.
             coordinator.cancelAll()
         }
-        val activeCount = coordinator.activeRuns.value.size
-        if (activeCount > 0) {
-            resumeActiveWork(activeCount)
+        if (coordinator.activeRuns.value.isNotEmpty()) {
+            resumeActiveWork()
         }
         return START_NOT_STICKY
     }
@@ -102,9 +139,10 @@ class AgentRunForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun resumeActiveWork(activeCount: Int): Boolean {
+    private fun resumeActiveWork(): Boolean {
         cpuWakeLock.onActiveChanged(true)
-        if (showNotification(activeCount)) {
+        dismissCompletionNotifications(coordinator.activeRuns.value.values.map { it.chatId })
+        if (showNotification()) {
             return true
         }
         coordinator.interruptAll()
@@ -113,19 +151,17 @@ class AgentRunForegroundService : Service() {
         return false
     }
 
-    private fun stopIfIdle(wasActive: Boolean): Boolean {
+    private fun stopIfIdle(): Boolean {
         if (coordinator.activeRuns.value.isNotEmpty()) {
-            resumeActiveWork(coordinator.activeRuns.value.size)
+            resumeActiveWork()
             return true
         }
         cpuWakeLock.onActiveChanged(false)
+        foregroundStarted = false
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        if (shouldNotifyAgentRunsCompleted(wasActive, isActive = false, AppForegroundTracker.isBackgrounded)) {
-            showCompletionNotification()
-        }
         val stopped = requestStop()
         if (shouldResumeAfterIdleStop(stopped, coordinator.activeRuns.value.isNotEmpty())) {
-            resumeActiveWork(coordinator.activeRuns.value.size)
+            resumeActiveWork()
             return true
         }
         return false
@@ -157,53 +193,98 @@ class AgentRunForegroundService : Service() {
         }
     }
 
-    private fun showNotification(activeCount: Int): Boolean = runCatching {
+    private fun currentProgress(): GenerationProgress = generationProgress(coordinator.activeRuns.value.values, coordinator.liveSnapshots.value)
+
+    private fun showNotification(): Boolean = runCatching {
+        val progress = currentProgress().let { progress ->
+            if (progress.activeCount == 0) progress.copy(activeCount = 1) else progress
+        }
         ServiceCompat.startForeground(
             this,
-            NOTIFICATION_ID,
-            buildNotification(activeCount.coerceAtLeast(1)),
+            ONGOING_NOTIFICATION_ID,
+            buildNotification(progress),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         )
+        foregroundStarted = true
     }.isSuccess
 
-    private fun buildNotification(activeCount: Int): Notification {
-        val openApp = buildOpenAppPendingIntent(0)
-        val cancelRuns = PendingIntent.getService(
+    private fun updateProgressNotification(progress: GenerationProgress) {
+        if (!foregroundStarted || progress.activeCount <= 0) return
+        getSystemService(NotificationManager::class.java).notify(ONGOING_NOTIFICATION_ID, buildNotification(progress))
+    }
+
+    private fun buildNotification(progress: GenerationProgress): Notification {
+        val activeCount = progress.activeCount.coerceAtLeast(1)
+        val summary = resources.getQuantityString(R.plurals.agent_runs_active, activeCount, activeCount)
+        val body = progress.preview.ifBlank { summary }
+        val openApp = openChatPendingIntent(progress.chatIds.singleOrNull() ?: 0, requestCode = 0)
+        val stopRuns = PendingIntent.getService(
             this,
             1,
-            Intent(this, AgentRunForegroundService::class.java).setAction(ACTION_CANCEL_ALL),
+            Intent(this, AgentRunForegroundService::class.java).setAction(ACTION_STOP_GENERATION),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, GENERATION_PROGRESS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_gpt_mobile_monochrome_foreground)
             .setContentTitle(getString(R.string.agent_notification_title))
-            .setContentText(resources.getQuantityString(R.plurals.agent_runs_active, activeCount, activeCount))
+            .setContentText(body)
+            .setSubText(getString(R.string.generation_progress_characters, progress.receivedCharacters))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(openApp)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setProgress(0, 0, true)
-            .addAction(0, getString(R.string.cancel_agent_runs), cancelRuns)
+            .addAction(0, getString(R.string.stop_generation), stopRuns)
             .build()
     }
 
-    private fun showCompletionNotification() {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildCompletionNotification())
+    private fun showCompletionNotification(chatId: Int) {
+        if (chatId <= 0) return
+        if (!shouldPostCompletionNotification(generationNotificationDelivery(GENERATION_COMPLETE_CHANNEL_ID))) return
+        val preview = completionPreviews[chatId]?.takeIf { it.isNotBlank() }
+        val text = preview ?: getString(R.string.agent_completion_notification_text)
+        getSystemService(NotificationManager::class.java).notify(
+            completionNotificationId(chatId),
+            buildCompletionNotification(chatId, text)
+        )
     }
 
-    private fun buildCompletionNotification(): Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_gpt_mobile_monochrome_foreground)
-        .setContentTitle(getString(R.string.agent_completion_notification_title))
-        .setContentText(getString(R.string.agent_completion_notification_text))
-        .setContentIntent(buildOpenAppPendingIntent(2))
-        .setAutoCancel(true)
-        .setCategory(NotificationCompat.CATEGORY_STATUS)
-        .build()
+    private fun buildCompletionNotification(chatId: Int, text: String): Notification {
+        val replyIntent = Intent(this, GenerationReplyReceiver::class.java).apply {
+            action = ACTION_REPLY_TO_CHAT
+            putExtra(EXTRA_OPEN_CHAT_ID, chatId)
+        }
+        val replyPending = PendingIntent.getBroadcast(
+            this,
+            chatId,
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val remoteInput = RemoteInput.Builder(EXTRA_REPLY_TEXT)
+            .setLabel(getString(R.string.reply_hint))
+            .build()
+        val replyAction = NotificationCompat.Action.Builder(0, getString(R.string.reply_to_chat), replyPending)
+            .addRemoteInput(remoteInput)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            .build()
+        return NotificationCompat.Builder(this, GENERATION_COMPLETE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_gpt_mobile_monochrome_foreground)
+            .setContentTitle(getString(R.string.agent_completion_notification_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openChatPendingIntent(chatId, requestCode = chatId + COMPLETION_NOTIFICATION_BASE))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .addAction(replyAction)
+            .build()
+    }
 
-    private fun buildOpenAppPendingIntent(requestCode: Int): PendingIntent {
-        val openAppIntent = Intent().setClass(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    private fun openChatPendingIntent(chatId: Int, requestCode: Int): PendingIntent {
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            if (chatId > 0) putExtra(EXTRA_OPEN_CHAT_ID, chatId)
         }
         return PendingIntent.getActivity(
             this,
@@ -213,21 +294,14 @@ class AgentRunForegroundService : Service() {
         )
     }
 
-    private fun createNotificationChannel() {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.agent_notification_channel),
-                NotificationManager.IMPORTANCE_LOW
-            )
-        )
+    private fun dismissCompletionNotifications(chatIds: Collection<Int>) {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        completionChatIds(chatIds.toSet()).forEach { chatId ->
+            manager.cancel(completionNotificationId(chatId))
+        }
     }
 
     companion object {
-        private const val CHANNEL_ID = "agent_runs"
-        private const val NOTIFICATION_ID = 8001
-        private const val ACTION_CANCEL_ALL = "dev.chungjungsoo.gptmobile.action.CANCEL_AGENT_RUNS"
         private const val WAKE_LOCK_TAG = "dev.chungjungsoo.gptmobile:agent-run"
 
         fun start(context: Context) {
