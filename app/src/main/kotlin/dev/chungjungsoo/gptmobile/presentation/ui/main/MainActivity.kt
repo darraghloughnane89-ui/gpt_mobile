@@ -15,6 +15,9 @@ import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -32,9 +35,13 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntrySignals
 import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntryViewModel
 import dev.chungjungsoo.gptmobile.presentation.fastentry.collectFastEntries
+import dev.chungjungsoo.gptmobile.presentation.fastentry.toFastEntryRequest
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneEntryBus
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import dev.chungjungsoo.gptmobile.presentation.voice.VoiceLaunchSignals
+import dev.chungjungsoo.gptmobile.presentation.voice.requestsVoiceChat
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -71,10 +78,14 @@ class MainActivity : ComponentActivity() {
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
         if (savedInstanceState == null) {
-            FastEntrySignals.publish(intent)
+            publishFastEntry(intent)
+        }
+        if (intent?.toFastEntryRequest() == null) {
+            publishVoiceLaunch(intent)
         }
         setContent {
             val navController = rememberNavController()
+            var startupReady by remember { mutableStateOf(false) }
             val isReady by mainViewModel.isReady.collectAsStateWithLifecycle()
             val themeLoadState by themeViewModel.loadState.collectAsStateWithLifecycle()
             val themeSetting by themeViewModel.themeSetting.collectAsStateWithLifecycle()
@@ -98,10 +109,12 @@ class MainActivity : ComponentActivity() {
                         SetupNavGraph(
                             navController = navController,
                             toolConnectionsViewModel = toolConnectionsViewModel,
-                            onLaunchOAuth = ::launchOAuth
+                            onLaunchOAuth = ::launchOAuth,
+                            voiceLaunchEnabled = startupReady
                         )
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
+                            startupReady = true
                             collectFastEntries(
                                 navController = navController,
                                 context = this@MainActivity,
@@ -116,6 +129,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         dispatchOAuthIntent(intent)
+        PhoneEntryBus.publish(intent)
     }
 
     override fun onStart() {
@@ -127,7 +141,22 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        PhoneEntryBus.publish(intent)
+        if (intent.toFastEntryRequest() != null) {
+            publishFastEntry(intent)
+        } else {
+            publishVoiceLaunch(intent)
+        }
+    }
+
+    private fun publishFastEntry(intent: Intent?) {
         FastEntrySignals.publish(intent)
+    }
+
+    private fun publishVoiceLaunch(intent: Intent?) {
+        if (intent?.requestsVoiceChat() == true) {
+            VoiceLaunchSignals.request()
+        }
     }
 
     private fun launchOAuth(authorizationUri: String) {

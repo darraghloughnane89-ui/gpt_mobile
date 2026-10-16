@@ -12,7 +12,8 @@ import kotlinx.parcelize.Parcelize
 @Entity(
     tableName = "chats_v2",
     indices = [
-        Index(value = ["bot_uid"])
+        Index(value = ["bot_uid"]),
+        Index(value = ["project_id"])
     ]
 )
 data class ChatRoomV2(
@@ -37,7 +38,10 @@ data class ChatRoomV2(
     val updatedAt: Long = System.currentTimeMillis() / 1000,
 
     @ColumnInfo(name = "bot_uid")
-    val botUid: String? = null
+    val botUid: String? = null,
+
+    @ColumnInfo(name = "project_id")
+    val projectId: Int? = null
 ) : Parcelable
 
 class StringListConverter {

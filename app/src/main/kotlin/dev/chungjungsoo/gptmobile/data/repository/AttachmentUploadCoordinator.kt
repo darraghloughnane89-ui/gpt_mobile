@@ -83,6 +83,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!isVisionAttachment(attachment)) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.OPENAI_FILE &&
@@ -113,6 +114,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!isVisionAttachment(attachment)) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE &&
@@ -143,6 +145,7 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        if (!isVisionAttachment(attachment)) return attachment
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.GOOGLE_FILE &&
@@ -171,6 +174,11 @@ class AttachmentUploadCoordinator @Inject constructor(
     }
 
     private fun resolveUploadFilePath(attachment: ChatAttachment): String = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
+
+    private fun isVisionAttachment(attachment: ChatAttachment): Boolean {
+        val mimeType = resolveMimeType(attachment)
+        return FileUtils.isInlineVisionMimeType(mimeType)
+    }
 
     private fun resolveMimeType(attachment: ChatAttachment): String = attachment.mimeType.ifBlank {
         FileUtils.getMimeTypeFromPath(resolveUploadFilePath(attachment))

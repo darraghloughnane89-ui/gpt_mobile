@@ -45,8 +45,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
@@ -114,8 +116,11 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
+import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceChatHost
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -140,6 +145,7 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val projectName by chatViewModel.projectName.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val listState = rememberChatListState(groupedMessages.userMessages.size)
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
@@ -158,6 +164,12 @@ fun ChatScreen(
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
+    val launchCamera by chatViewModel.launchCamera.collectAsStateWithLifecycle()
+    ChatCameraCapture(
+        launchRequested = launchCamera,
+        onLaunchConsumed = chatViewModel::consumeCameraLaunch,
+        onPhotoReady = chatViewModel::addSelectedFile
+    )
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
@@ -205,6 +217,7 @@ fun ChatScreen(
     }
 
     val scope = rememberCoroutineScope()
+    var showVoice by rememberSaveable { mutableStateOf(chatViewModel.openVoiceOnStart) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         chatViewModel.refreshLocalNetworkRequirement()
@@ -251,6 +264,7 @@ fun ChatScreen(
         topBar = {
             ChatTopBar(
                 chatRoom.title,
+                projectName,
                 chatRoom.id > 0,
                 chatViewModel.enabledPlatformsInChat.isNotEmpty(),
                 onBackAction,
@@ -273,112 +287,125 @@ fun ChatScreen(
             )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            Box(
+        Box(Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 ) {
-                    itemsIndexed(
-                        items = groupedMessages.userMessages,
-                        key = { index, message -> chatMessagePairKey(message, index) }
-                    ) { index, message ->
-                        ChatMessagePair(
-                            messageIndex = index,
-                            message = message,
-                            assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
-                            agentRunsById = agentRunsById,
-                            runNoticesById = runNoticesById,
-                            toolEventsByRun = toolEventsByRun,
-                            platformIndexState = indexStates.getOrElse(index) { 0 },
-                            loadingStates = loadingStates,
-                            enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
-                            enabledPlatformLookup = enabledPlatformLookup,
-                            canUseChat = canUseChat,
-                            isIdle = isIdle,
-                            isActiveMessage = index == lastMessageIndex,
-                            maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
-                            maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
-                            onEditQuestion = chatViewModel::openUserMessageEditDialog,
-                            onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
-                            onCopyText = { copiedText ->
-                                scope.launch {
-                                    clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
-                                }
-                            },
-                            onPlatformClick = chatViewModel::updateChatPlatformIndex,
-                            onSelectText = chatViewModel::openSelectTextSheet,
-                            onRetry = chatViewModel::retryChat,
-                            onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
-                            onShowNextRevision = chatViewModel::showNextAssistantRevision
-                        )
-                    }
-                    if (groupedMessages.userMessages.isNotEmpty()) {
-                        item(key = "chat-bottom-anchor") {
-                            Spacer(Modifier.size(1.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState
+                    ) {
+                        itemsIndexed(
+                            items = groupedMessages.userMessages,
+                            key = { index, message -> chatMessagePairKey(message, index) }
+                        ) { index, message ->
+                            ChatMessagePair(
+                                messageIndex = index,
+                                message = message,
+                                assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
+                                agentRunsById = agentRunsById,
+                                runNoticesById = runNoticesById,
+                                toolEventsByRun = toolEventsByRun,
+                                platformIndexState = indexStates.getOrElse(index) { 0 },
+                                loadingStates = loadingStates,
+                                enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
+                                enabledPlatformLookup = enabledPlatformLookup,
+                                canUseChat = canUseChat,
+                                isIdle = isIdle,
+                                isActiveMessage = index == lastMessageIndex,
+                                maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
+                                maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
+                                onEditQuestion = chatViewModel::openUserMessageEditDialog,
+                                onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
+                                onCopyText = { copiedText ->
+                                    scope.launch {
+                                        clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
+                                    }
+                                },
+                                onPlatformClick = chatViewModel::updateChatPlatformIndex,
+                                onSelectText = chatViewModel::openSelectTextSheet,
+                                onRetry = chatViewModel::retryChat,
+                                onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
+                                onShowNextRevision = chatViewModel::showNextAssistantRevision
+                            )
+                        }
+                        if (groupedMessages.userMessages.isNotEmpty()) {
+                            item(key = "chat-bottom-anchor") {
+                                Spacer(Modifier.size(1.dp))
+                            }
                         }
                     }
-                }
 
-                if (!isFollowingBottom && listState.canScrollForward) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 16.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        ScrollToBottomButton {
-                            scope.launch {
-                                listState.animateScrollToLatestChatMessage()
-                                isFollowingBottom = true
+                    if (!isFollowingBottom && listState.canScrollForward) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = 16.dp),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            ScrollToBottomButton {
+                                scope.launch {
+                                    listState.animateScrollToLatestChatMessage()
+                                    isFollowingBottom = true
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (groupedMessages.userMessages.isEmpty()) {
-                BotStarterPromptRow(
-                    prompts = selectedBot?.starterPromptList().orEmpty(),
-                    onPromptClick = chatViewModel::applyStarterPrompt
-                )
-            }
-            ChatInputBox(
-                inputState = chatViewModel.question,
-                chatEnabled = canUseChat,
-                sendButtonEnabled = isIdle,
-                isRunning = !isIdle,
-                selectedAttachments = selectedAttachments,
-                onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
-                onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
-                onCancelButtonClick = chatViewModel::cancelActiveRuns
-            ) {
-                if (!requestedNotificationPermission &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterNotificationPermission = true
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (needsLocalNetworkAccess &&
-                    Build.VERSION.SDK_INT >= 37 &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    sendAfterLocalNetworkPermission = true
-                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-                } else {
-                    chatViewModel.askQuestion()
-                    focusManager.clearFocus()
+                if (groupedMessages.userMessages.isEmpty()) {
+                    BotStarterPromptRow(
+                        prompts = selectedBot?.starterPromptList().orEmpty(),
+                        onPromptClick = chatViewModel::applyStarterPrompt
+                    )
                 }
+                ChatInputBox(
+                    inputState = chatViewModel.question,
+                    chatEnabled = canUseChat,
+                    sendButtonEnabled = isIdle,
+                    isRunning = !isIdle,
+                    selectedAttachments = selectedAttachments,
+                    onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
+                    onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
+                    onCancelButtonClick = chatViewModel::cancelActiveRuns,
+                    onVoiceClick = if (canUseChat) {
+                        { showVoice = true }
+                    } else {
+                        null
+                    }
+                ) {
+                    if (!requestedNotificationPermission &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterNotificationPermission = true
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else if (needsLocalNetworkAccess &&
+                        Build.VERSION.SDK_INT >= 37 &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        sendAfterLocalNetworkPermission = true
+                        localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                    } else {
+                        chatViewModel.askQuestion()
+                        focusManager.clearFocus()
+                    }
+                }
+            }
+            if (showVoice) {
+                VoiceChatHost(
+                    chatViewModel = chatViewModel,
+                    onDismiss = { showVoice = false }
+                )
             }
         }
 
@@ -710,6 +737,7 @@ internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
     title: String,
+    projectName: String?,
     isMenuItemEnabled: Boolean,
     isModelItemEnabled: Boolean,
     onBackAction: () -> Unit,
@@ -725,7 +753,20 @@ private fun ChatTopBar(
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
     TopAppBar(
-        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!projectName.isNullOrBlank()) {
+                    Text(
+                        text = projectName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(
                 onClick = onBackAction
@@ -884,6 +925,7 @@ fun ChatInputBox(
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
     onCancelButtonClick: () -> Unit = {},
+    onVoiceClick: (() -> Unit)? = null,
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
@@ -905,6 +947,7 @@ fun ChatInputBox(
             }
         }
     }
+    val openCamera = rememberCameraPhotoLauncher(onFileSelected)
 
     Surface(
         modifier = Modifier
@@ -944,6 +987,15 @@ fun ChatInputBox(
                                 contentDescription = stringResource(R.string.attach_file)
                             )
                         }
+                        IconButton(
+                            enabled = chatEnabled,
+                            onClick = openCamera
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PhotoCamera,
+                                contentDescription = stringResource(R.string.take_photo)
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -957,6 +1009,17 @@ fun ChatInputBox(
                             }
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 innerTextField()
+                            }
+                        }
+                        if (onVoiceClick != null) {
+                            IconButton(
+                                enabled = chatEnabled,
+                                onClick = onVoiceClick
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Mic,
+                                    contentDescription = stringResource(R.string.voice_chat)
+                                )
                             }
                         }
                         IconButton(

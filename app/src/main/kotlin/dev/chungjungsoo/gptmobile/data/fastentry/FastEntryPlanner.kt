@@ -157,6 +157,7 @@ object FastEntryPlanner {
     fun fillChatRoute(template: String, chatId: Int, platforms: List<String>, openVoice: Boolean): String = template
         .replace("{chatRoomId}", chatId.toString())
         .replace("{enabledPlatforms}", platforms.joinToString(","))
+        .replace("{projectId}", "-1")
         .replace("{openVoice}", openVoice.toString())
 
     fun dynamicBudget(maxPerActivity: Int, staticCount: Int = STATIC_SHORTCUT_COUNT): Int =

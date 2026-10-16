@@ -104,6 +104,28 @@ class FastEntryPlannerTest {
     }
 
     @Test
+    fun voiceEntry_opensVoiceSessionAndNewChatKeepsProjectId() {
+        val current = "chat_room/{chatRoomId}?enabled={enabledPlatforms}&projectId={projectId}&voice={openVoice}"
+        val routes = setOf(current, FastEntryPlanner.VOICE_SESSION_ROUTE)
+        assertEquals(
+            FastEntryPlanner.Destination.Voice(FastEntryPlanner.VOICE_SESSION_ROUTE),
+            FastEntryPlanner.resolve(
+                request = FastEntryPlanner.Request(FastEntryPlanner.Action.VOICE),
+                enabledPlatforms = listOf("alpha"),
+                registeredRoutes = routes
+            )
+        )
+        assertEquals(
+            FastEntryPlanner.Destination.Chat("chat_room/0?enabled=alpha&projectId=-1&voice=false"),
+            FastEntryPlanner.resolve(
+                request = FastEntryPlanner.Request(FastEntryPlanner.Action.NEW_CHAT),
+                enabledPlatforms = listOf("alpha"),
+                registeredRoutes = routes
+            )
+        )
+    }
+
+    @Test
     fun planDynamicShortcuts_keepsLastThreeChatsAheadOfFavouriteBots() {
         val chats = (1..5).map { id ->
             FastEntryPlanner.RecentChat(id = id, title = "Chat $id", enabledPlatforms = listOf("p"))

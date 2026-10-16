@@ -53,9 +53,12 @@ class FileUtilsTest {
     }
 
     @Test
-    fun `non image mime types are not supported by image upload pipeline`() {
+    fun `pdf attachments are accepted and only images stay inline vision`() {
         assertTrue(FileUtils.isSupportedUploadMimeType("image/jpeg"))
-        assertFalse(FileUtils.isSupportedUploadMimeType("application/pdf"))
+        assertTrue(FileUtils.isSupportedUploadMimeType("application/pdf"))
+        assertFalse(FileUtils.isSupportedUploadMimeType("application/msword"))
+        assertTrue(FileUtils.isInlineVisionMimeType("image/png"))
+        assertFalse(FileUtils.isInlineVisionMimeType("application/pdf"))
     }
 
     @Test

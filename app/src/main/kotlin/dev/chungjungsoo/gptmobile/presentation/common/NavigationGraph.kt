@@ -19,12 +19,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkEffect
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
@@ -41,13 +44,17 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.VoiceLaunchEffect
+import dev.chungjungsoo.gptmobile.presentation.ui.voice.voiceNavigation
 
 @Composable
 fun SetupNavGraph(
     navController: NavHostController,
     toolConnectionsViewModel: ToolConnectionsViewModel,
-    onLaunchOAuth: (String) -> Unit = {}
+    onLaunchOAuth: (String) -> Unit = {},
+    voiceLaunchEnabled: Boolean = false
 ) {
+    PhoneDeepLinkEffect(navController)
     NavHost(
         modifier = Modifier
             .fillMaxSize()
@@ -66,12 +73,15 @@ fun SetupNavGraph(
         }
     ) {
         homeScreenNavigation(navController)
+        projectsNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
         chatScreenNavigation(navController)
+        voiceNavigation(navController)
     }
+    VoiceLaunchEffect(navController = navController, enabled = voiceLaunchEnabled)
 }
 
 fun NavGraphBuilder.migrationScreenNavigation(navController: NavHostController) {
@@ -158,22 +168,35 @@ fun NavGraphBuilder.setupNavigation(
 
 fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
+        val phoneDeepLinkViewModel: PhoneDeepLinkViewModel = hiltViewModel()
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
+            onOpenProjects = { navController.navigate(Route.PROJECTS) },
             onExistingChatClick = { chatRoom ->
-                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
                 navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                    Route.chatRoomRoute(
+                        chatRoomId = chatRoom.id,
+                        enabledPlatforms = chatRoom.enabledPlatform.joinToString(",")
+                    )
                 )
             },
-            navigateToNewChat = {
-                val enabledPlatformString = it.joinToString(",")
+            navigateToNewChat = { enabledPlatforms, projectId ->
                 navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "0")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                    Route.chatRoomRoute(
+                        chatRoomId = 0,
+                        enabledPlatforms = enabledPlatforms.joinToString(","),
+                        projectId = projectId ?: -1
+                    )
+                )
+            },
+            onAskAboutPhoto = { platforms, projectId ->
+                phoneDeepLinkViewModel.offerCameraForNewChat()
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = 0,
+                        enabledPlatforms = platforms.joinToString(","),
+                        projectId = projectId ?: -1
+                    )
                 )
             }
         )
@@ -185,7 +208,15 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
         Route.CHAT_ROOM,
         arguments = listOf(
             navArgument("chatRoomId") { type = NavType.IntType },
-            navArgument("enabledPlatforms") { defaultValue = "" }
+            navArgument("enabledPlatforms") { defaultValue = "" },
+            navArgument("projectId") {
+                type = NavType.IntType
+                defaultValue = -1
+            },
+            navArgument("openVoice") {
+                type = NavType.BoolType
+                defaultValue = false
+            }
         )
     ) {
         ChatScreen(
@@ -218,7 +249,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToVoiceSettings = { navController.navigate(Route.VOICE_SETTINGS) }
             )
         }
         composable(Route.ADD_PLATFORM) {

@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
@@ -52,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,8 +80,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.project.ChatListRow
+import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
+import dev.chungjungsoo.gptmobile.data.project.groupChatsByProject
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.phone.AskAboutPhotoButton
+import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
+import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectFilterBar
+import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectsEntryRow
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -87,8 +96,10 @@ import dev.chungjungsoo.gptmobile.util.getPlatformName
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
+    onOpenProjects: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>, projectId: Int?) -> Unit,
+    onAskAboutPhoto: (enabledPlatforms: List<String>, projectId: Int?) -> Unit = { _, _ -> }
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -98,6 +109,9 @@ fun HomeScreen(
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
     val activeChatIds by homeViewModel.activeChatIds.collectAsStateWithLifecycle()
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
+    val projects by homeViewModel.projects.collectAsStateWithLifecycle()
+    val projectFilter by homeViewModel.projectFilter.collectAsStateWithLifecycle()
+    val showMoveDialog by homeViewModel.showMoveDialog.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -105,14 +119,31 @@ fun HomeScreen(
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
-    val startChat = {
+    val movedChatsMessage = stringResource(R.string.project_chats_moved)
+    val activeProjectId = (projectFilter as? ProjectFilter.Project)?.id
+    val ungroupedTitle = stringResource(R.string.project_filter_ungrouped)
+    val chatRows = groupChatsByProject(
+        chats = chatListState.chats,
+        projects = projects,
+        filter = projectFilter,
+        ungroupedTitle = ungroupedTitle,
+        grouped = !chatListState.isSearchMode
+    )
+    var startKind by remember { mutableStateOf(HomeStartKind.CHAT) }
+    val beginChat: (HomeStartKind) -> Unit = { kind ->
+        startKind = kind
         val enabledPlatformUids = platformState.filter { it.enabled }.map { it.uid }
         if (enabledPlatformUids.size == 1) {
-            navigateToNewChat(enabledPlatformUids)
+            if (kind == HomeStartKind.PHOTO) {
+                onAskAboutPhoto(enabledPlatformUids, activeProjectId)
+            } else {
+                navigateToNewChat(enabledPlatformUids, activeProjectId)
+            }
         } else {
             homeViewModel.openSelectModelDialog()
         }
     }
+    val startChat = { beginChat(HomeStartKind.CHAT) }
 
     LaunchedEffect(lifecycleState) {
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
@@ -149,6 +180,7 @@ fun HomeScreen(
                     homeViewModel.duplicateSelectedChat()
                     Toast.makeText(context, duplicatedChatMessage, Toast.LENGTH_SHORT).show()
                 },
+                moveOnClick = homeViewModel::openMoveDialog,
                 navigationOnClick = {
                     if (chatListState.isSelectionMode) {
                         homeViewModel.disableSelectionMode()
@@ -183,6 +215,20 @@ fun HomeScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
+            if (!chatListState.isSelectionMode && !chatListState.isSearchMode && !chatListState.isLoading) {
+                item(key = "projects-entry") {
+                    ProjectsEntryRow(count = projects.size, onClick = onOpenProjects)
+                }
+                if (projects.isNotEmpty()) {
+                    item(key = "project-filter") {
+                        ProjectFilterBar(
+                            projects = projects,
+                            filter = projectFilter,
+                            onFilter = homeViewModel::setProjectFilter
+                        )
+                    }
+                }
+            }
             when {
                 chatListState.isLoading -> item {
                     Box(
@@ -205,7 +251,7 @@ fun HomeScreen(
                     )
                 }
 
-                chatListState.isSearchMode && searchQuery.isNotBlank() && chatListState.chats.isEmpty() -> item {
+                chatListState.isSearchMode && searchQuery.isNotBlank() && chatRows.none { it is ChatListRow.Chat } -> item {
                     EmptyErrorState(
                         title = stringResource(R.string.no_search_results),
                         description = stringResource(R.string.no_search_results_description),
@@ -213,63 +259,92 @@ fun HomeScreen(
                     )
                 }
 
-                chatListState.chats.isEmpty() -> item {
+                chatRows.none { it is ChatListRow.Chat } -> item {
                     EmptyErrorState(
                         title = stringResource(R.string.no_chats_title),
                         description = stringResource(R.string.no_chats_description),
                         modifier = Modifier.fillParentMaxSize(),
                         primaryActionLabel = stringResource(R.string.start_a_chat),
-                        onPrimaryAction = startChat
+                        onPrimaryAction = startChat,
+                        secondaryActionLabel = stringResource(R.string.ask_about_photo),
+                        onSecondaryAction = { beginChat(HomeStartKind.PHOTO) }
                     )
                 }
 
                 else -> {
                     if (!chatListState.isSearchMode) {
                         item { ChatsTitle(scrollBehavior) }
+                        if (!chatListState.isSelectionMode) {
+                            item {
+                                AskAboutPhotoButton(
+                                    onClick = { beginChat(HomeStartKind.PHOTO) },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     }
-                    itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                        val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
-                        ListItem(
-                            modifier = Modifier
-                                .animateItem()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .clip(MaterialTheme.shapes.medium)
-                                .combinedClickable(
-                                    onLongClick = {
-                                        if (!chatListState.isSearchMode) {
-                                            homeViewModel.enableSelectionMode()
-                                            homeViewModel.selectChat(idx)
+                    items(chatRows, key = { row ->
+                        when (row) {
+                            is ChatListRow.Header -> row.key
+                            is ChatListRow.Chat -> row.chat.id
+                        }
+                    }) { row ->
+                        when (row) {
+                            is ChatListRow.Header -> {
+                                Text(
+                                    text = row.title,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            is ChatListRow.Chat -> {
+                                val idx = row.chatIndex
+                                val chatRoom = row.chat
+                                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
+                                ListItem(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                        .clip(MaterialTheme.shapes.medium)
+                                        .combinedClickable(
+                                            onLongClick = {
+                                                if (!chatListState.isSearchMode) {
+                                                    homeViewModel.enableSelectionMode()
+                                                    homeViewModel.selectChat(idx)
+                                                }
+                                            },
+                                            onClick = {
+                                                if (chatListState.isSelectionMode) {
+                                                    homeViewModel.selectChat(idx)
+                                                } else {
+                                                    onExistingChatClick(chatRoom)
+                                                }
+                                            }
+                                        ),
+                                    headlineContent = { Text(text = chatRoom.title) },
+                                    leadingContent = {
+                                        if (chatListState.isSelectionMode) {
+                                            Checkbox(
+                                                checked = chatListState.selectedChats.getOrElse(idx) { false },
+                                                onCheckedChange = { homeViewModel.selectChat(idx) }
+                                            )
+                                        } else {
+                                            Icon(
+                                                ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
+                                                contentDescription = null
+                                            )
                                         }
                                     },
-                                    onClick = {
-                                        if (chatListState.isSelectionMode) {
-                                            homeViewModel.selectChat(idx)
-                                        } else {
-                                            onExistingChatClick(chatRoom)
-                                        }
-                                    }
-                                ),
-                            headlineContent = { Text(text = chatRoom.title) },
-                            leadingContent = {
-                                if (chatListState.isSelectionMode) {
-                                    Checkbox(
-                                        checked = chatListState.selectedChats[idx],
-                                        onCheckedChange = { homeViewModel.selectChat(idx) }
+                                    supportingContent = {
+                                        Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                     )
-                                } else {
-                                    Icon(
-                                        ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
-                                        contentDescription = null
-                                    )
-                                }
-                            },
-                            supportingContent = {
-                                Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
-                            },
-                            colors = ListItemDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                            )
-                        )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -279,9 +354,17 @@ fun HomeScreen(
             SelectPlatformDialog(
                 platformState,
                 selectedPlatforms = chatListState.selectedPlatforms,
-                onDismissRequest = { homeViewModel.closeSelectModelDialog() },
-                onConfirmation = {
-                    navigateToNewChat(it)
+                onDismissRequest = {
+                    homeViewModel.closeSelectModelDialog()
+                    startKind = HomeStartKind.CHAT
+                },
+                onConfirmation = { platforms ->
+                    if (startKind == HomeStartKind.PHOTO) {
+                        onAskAboutPhoto(platforms, activeProjectId)
+                    } else {
+                        navigateToNewChat(platforms, activeProjectId)
+                    }
+                    startKind = HomeStartKind.CHAT
                     homeViewModel.closeSelectModelDialog()
                 },
                 onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
@@ -295,6 +378,17 @@ fun HomeScreen(
                     homeViewModel.deleteSelectedChats()
                     Toast.makeText(context, deletedChatsMessage, Toast.LENGTH_SHORT).show()
                     homeViewModel.closeDeleteWarningDialog()
+                }
+            )
+        }
+
+        if (showMoveDialog) {
+            MoveToProjectDialog(
+                projects = projects,
+                onDismiss = homeViewModel::closeMoveDialog,
+                onSelect = { projectId ->
+                    homeViewModel.moveSelectedChats(projectId)
+                    Toast.makeText(context, movedChatsMessage, Toast.LENGTH_SHORT).show()
                 }
             )
         }
@@ -313,7 +407,8 @@ fun HomeTopAppBar(
     duplicateOnClick: () -> Unit,
     navigationOnClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
-    searchQuery: String
+    searchQuery: String,
+    moveOnClick: () -> Unit = {}
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -413,6 +508,16 @@ fun HomeTopAppBar(
         actions = {
             when {
                 isSelectionMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = moveOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Folder,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            contentDescription = stringResource(R.string.move_to_project)
+                        )
+                    }
                     if (selectedChats == 1) {
                         IconButton(
                             modifier = Modifier.padding(4.dp),
@@ -450,6 +555,11 @@ fun HomeTopAppBar(
         },
         scrollBehavior = scrollBehavior
     )
+}
+
+private enum class HomeStartKind {
+    CHAT,
+    PHOTO
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

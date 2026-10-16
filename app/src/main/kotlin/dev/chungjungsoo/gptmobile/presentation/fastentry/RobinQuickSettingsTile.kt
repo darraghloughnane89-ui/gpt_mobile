@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.fastentry
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -21,6 +22,7 @@ class RobinQuickSettingsTile : TileService() {
         tile.updateTile()
     }
 
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         unlockAndRun {
             val intent = FastEntryIntents.quickAsk(this)
