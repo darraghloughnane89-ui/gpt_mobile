@@ -147,6 +147,57 @@ class HermesContentTest {
         assertTrue(body.contains("image_url"))
         assertTrue(body.contains("cbre-admin"))
     }
+
+    @Test
+    fun handoffBody_redactsSecretsAndMarksContentUntrusted() {
+        val secret = "sk-live-secret-value"
+        val content = buildHermesUserContent(
+            kind = HermesHandoffKind.TRANSCRIPT,
+            text = "Please summarise. The key is $secret",
+            files = listOf(
+                HermesPreparedFile(
+                    "notes.txt",
+                    "text/plain",
+                    "token = $secret".toByteArray(),
+                    16,
+                    false
+                )
+            )
+        )
+        val body = chatCompletionBody("cbre-admin", emptyList(), content)
+
+        assertFalse(body.contains(secret))
+        assertTrue(body.contains("untrusted"))
+        assertFalse(body.contains("Keep your tools"))
+    }
+
+    @Test
+    fun load_refusesPathsOutsideTheInbox() {
+        val root = File.createTempFile("inbox", "dir").apply {
+            delete()
+            mkdirs()
+        }
+        val outside = File.createTempFile("secret", ".txt")
+        val inside = File(root, "notes.txt")
+        try {
+            outside.writeText("secret")
+            inside.writeText("hello")
+            val blocked = HermesFileLoader.load(
+                HermesAttachment("secret.txt", outside.absolutePath, "text/plain"),
+                listOf(root)
+            )
+            val allowed = HermesFileLoader.load(
+                HermesAttachment("notes.txt", inside.absolutePath, "text/plain"),
+                listOf(root)
+            )
+            assertTrue(blocked.missing)
+            assertFalse(allowed.missing)
+        } finally {
+            outside.delete()
+            inside.delete()
+            root.deleteRecursively()
+        }
+    }
 }
 
 class HermesDeliveryTest {

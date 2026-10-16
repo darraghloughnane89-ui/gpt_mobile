@@ -8,7 +8,8 @@ class HermesDeliveryProcessor @Inject constructor(
     private val threads: HermesThreadStore,
     private val settingsStore: HermesSettingsStore,
     private val credentials: HermesCredentialStore,
-    private val transport: HermesTransport
+    private val transport: HermesTransport,
+    private val attachmentRoots: HermesAttachmentRoots = HermesAttachmentRoots { emptyList() }
 ) {
     suspend fun drain(attempt: Int): Boolean {
         threads.update { HermesThreadReducer.recover(it) }
@@ -37,7 +38,7 @@ class HermesDeliveryProcessor @Inject constructor(
         token: String,
         attempt: Int
     ): Boolean {
-        val files = pending.user.attachments.map { HermesFileLoader.load(it) }
+        val files = pending.user.attachments.map { HermesFileLoader.load(it, attachmentRoots.roots()) }
         val content = buildHermesUserContent(pending.user.kind, pending.user.text, files)
         val history = HermesThreadReducer.priorHistory(threads.snapshot.value, pending)
         val body = chatCompletionBody(route.modelId, history, content)
