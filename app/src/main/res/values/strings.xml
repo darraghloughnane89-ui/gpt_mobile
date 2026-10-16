@@ -199,6 +199,10 @@
     <string name="gemini_safety_block_low_and_above">Block low and above</string>
     <string name="about">About</string>
     <string name="about_description">Version, License, Feedback</string>
+    <string name="help">Help</string>
+    <string name="help_description">One-time setup for this phone</string>
+    <string name="help_missing_title">Setup guide didn’t open</string>
+    <string name="help_missing_body">The copy inside the app is missing. Reinstall, then open Settings, Help again.</string>
     <string name="app_identity">App</string>
     <string name="legal">Legal</string>
     <string name="project_links">Project links</string>

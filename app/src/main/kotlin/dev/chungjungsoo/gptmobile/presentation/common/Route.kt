@@ -41,6 +41,7 @@ object Route {
     const val GROQ_SETTINGS = "groq_settings"
     const val OLLAMA_SETTINGS = "ollama_settings"
     const val ABOUT_PAGE = "about"
+    const val HELP = "help"
     const val LICENSE = "license"
 
     const val MIGRATE_V2 = "migrate_v2"

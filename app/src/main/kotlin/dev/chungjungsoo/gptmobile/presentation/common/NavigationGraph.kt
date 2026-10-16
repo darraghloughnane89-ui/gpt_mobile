@@ -35,6 +35,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionEditorScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.help.HelpScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupCompleteScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformListScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
@@ -218,6 +219,7 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
+                onNavigateToHelp = { navController.navigate(Route.HELP) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
@@ -277,6 +279,9 @@ fun NavGraphBuilder.settingNavigation(
             )
         }
         botNavigation(navController)
+        composable(Route.HELP) {
+            HelpScreen(onNavigationClick = { navController.navigateUp() })
+        }
         composable(Route.ABOUT_PAGE) {
             AboutScreen(
                 onNavigationClick = { navController.navigateUp() },
