@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTモバイル</string>
-    <string name="gpt_mobile_introduction_logo">GPTモバイル紹介ロゴ</string>
-    <string name="welcome_title">あなたのスマートフォンで\n使える最高の\nAIアシスタント。</string>
-    <string name="welcome_description">あなたにピッタリのモデルを使えます。\n何でも聞きましょう！</string>
+    <string name="gpt_mobile_introduction_logo">%1$s紹介ロゴ</string>
     <string name="get_started">始める</string>
     <string name="platform_select_description">ご利用になりたいプラットフォームを選択してください。後で設定画面から変更できます。今後さらに多くのプラットフォームへ対応予定です。</string>
     <string name="sample_item_title">項目1</string>
@@ -36,8 +33,6 @@
     <string name="gemini_1_5_pro_description">コードやテキスト生成を含むタスクを推論するために最適化.</string>
     <string name="gemini_1_5_flash_description">多様なタスクを横断して、迅速かつ多彩なパフォーマンスを実現します.</string>
     <string name="gemini_1_0_pro_description">自然言語タスク、マルチターンテキスト、コードチャット、コード生成.</string>
-    <string name="setup_complete">準備完了です！</string>
-    <string name="setup_complete_description">GPT Mobileを始めましょう！</string>
     <string name="done">完了</string>
     <string name="setup_complete_logo">セットアップ完了ロゴ</string>
     <string name="chats">チャット</string>

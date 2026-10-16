@@ -1,10 +1,12 @@
 package dev.chungjungsoo.gptmobile.presentation.theme
 
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.spring
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.fadeSpring
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.playfulSpring
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.snapSpring
 
-internal fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.8f, stiffness = 380f)
+internal fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> = playfulSpring()
 
-internal fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.6f, stiffness = 800f)
+internal fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> = snapSpring()
 
-internal fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 3800f)
+internal fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> = fadeSpring()

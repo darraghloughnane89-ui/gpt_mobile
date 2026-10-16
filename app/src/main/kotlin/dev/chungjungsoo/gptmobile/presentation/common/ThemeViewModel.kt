@@ -20,7 +20,7 @@ enum class ThemeLoadState { LOADING, READY, FALLBACK_SYSTEM }
 @HiltViewModel
 class ThemeViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
 
-    private val _themeSetting = MutableStateFlow(ThemeSetting())
+    private val _themeSetting = MutableStateFlow(ThemeSetting(themeMode = ThemeMode.DARK))
     val themeSetting = _themeSetting.asStateFlow()
 
     private val _loadState = MutableStateFlow(ThemeLoadState.LOADING)

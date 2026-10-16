@@ -1,5 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.agent.tool
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import io.ktor.client.HttpClient
 import io.ktor.client.request.accept
@@ -79,10 +82,17 @@ class McpOAuthClient internal constructor(
     private val httpClient: HttpClient,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val randomBytes: (Int) -> ByteArray = { size -> ByteArray(size).also(SecureRandom()::nextBytes) },
-    private val discoveryTimeoutMillis: Long = DEFAULT_DISCOVERY_TIMEOUT_MILLIS
+    private val discoveryTimeoutMillis: Long = DEFAULT_DISCOVERY_TIMEOUT_MILLIS,
+    private val clientName: String = ""
 ) {
     @Inject
-    constructor(networkClient: NetworkClient) : this(networkClient())
+    constructor(
+        networkClient: NetworkClient,
+        @ApplicationContext context: Context
+    ) : this(
+        httpClient = networkClient(),
+        clientName = context.getString(R.string.app_name)
+    )
 
     suspend fun discover(resourceUrl: String, allowCleartext: Boolean): McpOAuthDiscovery {
         val resourceUri = resourceUrl.validatedUrl(allowCleartext, "MCP resource")
@@ -251,7 +261,7 @@ class McpOAuthClient internal constructor(
             contentType(ContentType.Application.Json)
             setBody(
                 buildJsonObject {
-                    put("client_name", "GPT Mobile")
+                    put("client_name", clientName)
                     put("redirect_uris", buildJsonArray { add(JsonPrimitive(redirectUri)) })
                     put("token_endpoint_auth_method", "none")
                     put(

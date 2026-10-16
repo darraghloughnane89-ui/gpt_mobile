@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="gpt_mobile_introduction_logo">Logotipo de introdução do GPT Mobile</string>
-    <string name="welcome_description">Use o modelo que mais combina com você\nmais. Pergunte o que quiser!</string>
+    <string name="gpt_mobile_introduction_logo">Logotipo de introdução do %1$s</string>
     <string name="get_started">Começar</string>
     <string name="sample_item_title">Item 1</string>
     <string name="sample_item_description">Descrição do item</string>
@@ -22,8 +21,6 @@
     <string name="claude_3_sonnet_description">Modelo equilibrado entre inteligência e velocidade.</string>
     <string name="claude_3_haiku_description">O modelo mais rápido e compacto da Anthropic.</string>
     <string name="gemini_1_5_flash_description">Desempenho rápido e versátil em uma grande variedade de tarefas.</string>
-    <string name="setup_complete">Está tudo pronto!</string>
-    <string name="setup_complete_description">Vamos começar a usar o GPT Mobile!</string>
     <string name="done">Feito</string>
     <string name="setup_complete_logo">Configuração concluída</string>
     <string name="chats">Bate-papos</string>
@@ -99,8 +96,6 @@
     <string name="groq_setting">Configurações do Groq</string>
     <string name="groq_description">Inferência rápida de IA para modelos disponíveis abertamente.</string>
     <string name="groq_api_key">Chave API Groq</string>
-    <string name="app_name">GPTMovel</string>
-    <string name="welcome_title">O melhor assistente de IA\nque você pode ter no seu\nsmartphone.</string>
     <string name="openai_description">Criador do ChatGPT.</string>
     <string name="next">Próximo</string>
     <string name="anthropic_description">Claude nasceu aqui.</string>

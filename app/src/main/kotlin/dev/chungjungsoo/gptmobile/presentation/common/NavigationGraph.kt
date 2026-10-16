@@ -1,12 +1,17 @@
 package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -22,6 +27,11 @@ import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.AppDestination
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LocalAnimatedVisibilityScope
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LocalSharedTransitionScope
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.designNavigation
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.openAppDestination
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
@@ -41,11 +51,25 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScree
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun SetupNavGraph(
     navController: NavHostController,
     toolConnectionsViewModel: ToolConnectionsViewModel,
     onLaunchOAuth: (String) -> Unit = {}
+) {
+    SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+            AppNavHost(navController, toolConnectionsViewModel, onLaunchOAuth)
+        }
+    }
+}
+
+@Composable
+private fun AppNavHost(
+    navController: NavHostController,
+    toolConnectionsViewModel: ToolConnectionsViewModel,
+    onLaunchOAuth: (String) -> Unit
 ) {
     NavHost(
         modifier = Modifier
@@ -55,16 +79,21 @@ fun SetupNavGraph(
         startDestination = Route.CHAT_LIST,
         enterTransition = {
             fadeIn(fastEffectsSpec()) +
+                scaleIn(animationSpec = fastSpatialSpec(), initialScale = 0.96f) +
                 slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, fastSpatialSpec()) { it / 12 }
         },
         exitTransition = { fadeOut(fastEffectsSpec()) },
-        popEnterTransition = { fadeIn(fastEffectsSpec()) },
+        popEnterTransition = {
+            fadeIn(fastEffectsSpec()) + scaleIn(animationSpec = fastSpatialSpec(), initialScale = 0.98f)
+        },
         popExitTransition = {
             fadeOut(fastEffectsSpec()) +
+                scaleOut(animationSpec = fastSpatialSpec(), targetScale = 0.92f) +
                 slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, fastSpatialSpec()) { it / 12 }
         }
     ) {
         homeScreenNavigation(navController)
+        designNavigation(navController)
         migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
@@ -157,25 +186,28 @@ fun NavGraphBuilder.setupNavigation(
 
 fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
-        HomeScreen(
-            settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
-            onExistingChatClick = { chatRoom ->
-                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
-                navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
-                )
-            },
-            navigateToNewChat = {
-                val enabledPlatformString = it.joinToString(",")
-                navController.navigate(
-                    Route.CHAT_ROOM
-                        .replace(oldValue = "{chatRoomId}", newValue = "0")
-                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
-                )
-            }
-        )
+        CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+            HomeScreen(
+                settingOnClick = { navController.openAppDestination(AppDestination.Settings) },
+                onDestination = navController::openAppDestination,
+                onExistingChatClick = { chatRoom ->
+                    val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
+                    navController.navigate(
+                        Route.CHAT_ROOM
+                            .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
+                            .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                    )
+                },
+                navigateToNewChat = {
+                    val enabledPlatformString = it.joinToString(",")
+                    navController.navigate(
+                        Route.CHAT_ROOM
+                            .replace(oldValue = "{chatRoomId}", newValue = "0")
+                            .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                    )
+                }
+            )
+        }
     }
 }
 
@@ -187,10 +219,13 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
             navArgument("enabledPlatforms") { defaultValue = "" }
         )
     ) {
-        ChatScreen(
-            onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
-        )
+        CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+            ChatScreen(
+                onBackAction = { navController.navigateUp() },
+                onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+                onOpenVoice = { navController.openAppDestination(AppDestination.Voice) }
+            )
+        }
     }
 }
 
@@ -216,7 +251,9 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToUsage = { navController.openAppDestination(AppDestination.Usage) },
+                onNavigateToObsidian = { navController.openAppDestination(AppDestination.Obsidian) }
             )
         }
         composable(Route.ADD_PLATFORM) {

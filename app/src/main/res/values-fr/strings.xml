@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobile</string>
     <string name="gemini_safety_settings">Paramètres de sécurité Gemini</string>
     <string name="gemini_safety_settings_description">Harcèlement, discours haineux, contenu sexuel et dangereux</string>
     <string name="gemini_safety_settings_icon">Icône des paramètres de sécurité Gemini</string>

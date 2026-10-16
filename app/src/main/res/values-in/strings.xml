@@ -4,7 +4,6 @@
     <string name="select_anthropic_model_description">Pilih model obrolan Anthropic. Kami saat ini hanya mendukung input teks untuk keluarga model Claude 3.</string>
     <string name="gpt_4o_description">Model andalan tercepat dan paling terjangkau.</string>
     <string name="gemini_1_5_pro_description">Dioptimalkan untuk tugas penalaran termasuk kode dan pembuatan teks.</string>
-    <string name="setup_complete_description">Mari sekarang memulai GPT Mobile!</string>
     <string name="select_platform">Pilih Platform</string>
     <string name="select_platform_description">Pilih platform yang ingin Anda gunakan dalam obrolan ini. Setelah obrolan dibuat, Anda tidak dapat mengubah pengaturan ini. Jika Anda ingin mengubah ini, silakan buat obrolan baru.</string>
     <string name="confirm">Konfirmasi</string>
@@ -12,8 +11,7 @@
     <string name="theme_description">Tema Dinamis, Mode Gelap</string>
     <string name="google_setting">Pengaturan Google</string>
     <string name="google_description">Gemini sedang dalam perjalanan.</string>
-    <string name="gpt_mobile_introduction_logo">GPT Mobile Logo Pendahuluan</string>
-    <string name="welcome_description">Gunakan model yang paliling cocok untuk Anda.\nTanyakan apapun yang Anda inginkan!</string>
+    <string name="gpt_mobile_introduction_logo">%1$s Logo Pendahuluan</string>
     <string name="sample_item_title">Item 1</string>
     <string name="sample_item_description">Deskripsi item</string>
     <string name="openai_description">Pencipta ChatGPT.</string>
@@ -35,7 +33,6 @@
     <string name="select_google_model_description">Gemini adalah keluarga model AI generatif yang dibuat oleh Google. Hanya input teks yang didukung.</string>
     <string name="gemini_1_5_flash_description">Kinerja cepat dan serbaguna di berbagai tugas.</string>
     <string name="gemini_1_0_pro_description">Tugas bahasa alami, obrolan teks dan kode multigiliran, dan pembuatan kode.</string>
-    <string name="setup_complete">Anda siap!</string>
     <string name="done">Selesai</string>
     <string name="setup_complete_logo">Siapkan Logo Lengkap</string>
     <string name="chats">Obrolan</string>
@@ -59,8 +56,6 @@
     <string name="api_model">Model API</string>
     <string name="dynamic_theme">Tema Dinamis</string>
     <string name="dark_mode">Mode gelap</string>
-    <string name="app_name">GPTMobile</string>
-    <string name="welcome_title">Asisten AI Terbaik\nyang ada\ndi ponsel.</string>
     <string name="get_started">Mulai Sekarang</string>
     <string name="platform_select_description">Pilih platform yang ingin Anda gunakan. Anda dapat mengubah ini nanti di pengaturan. Platform-platform lain akan didukung.</string>
     <string name="anthropic_description">Claude lahir di sini.</string>
@@ -184,7 +179,6 @@
     <string name="select_text">Pilih Teks</string>
     <string name="unknown">Tidak diketahui</string>
     <string name="search_chats">Cari obrolan</string>
-    <string name="no_search_results">Tidak ada obrolan yang ditemukan</string>
     <string name="clear">Bersihkan</string>
     <string name="attach_file">Lampirkan File</string>
     <string name="add_platform">Tambahkan Platform</string>
@@ -328,8 +322,8 @@
     <string name="preregistered_client_id_optional">ID klien yang telah terdaftar sebelumnya (opsional)</string>
     <string name="dynamic_client_registration_hint">Kosongkan untuk menggunakan Dynamic Client Registration bila diiklankan.</string>
     <string name="agent_notification_channel">Jalankan agen</string>
-    <string name="agent_notification_title">Agen GPT Mobile sedang bekerja</string>
-    <string name="agent_completion_notification_title">Agen GPT Mobile selesai</string>
+    <string name="agent_notification_title">Agen %1$s sedang bekerja</string>
+    <string name="agent_completion_notification_title">Agen %1$s selesai</string>
     <string name="agent_completion_notification_text">Ketuk untuk melihat respons.</string>
     <string name="cancel_agent_runs">Batal</string>
     <plurals name="agent_runs_active">
@@ -354,11 +348,6 @@
     <string name="pending_providers">Menunggu pengunduhan: %1$s</string>
     <string name="start_chatting">Mulai mengobrol</string>
     <string name="start_a_chat">Mulai percakapan</string>
-    <string name="no_chats_title">Belum ada percakapan</string>
-    <string name="no_chats_description">Mulai percakapan saat Anda siap.</string>
-    <string name="chats_load_error">Tidak dapat memuat percakapan</string>
-    <string name="chats_load_error_description">Periksa koneksi Anda, lalu coba lagi.</string>
-    <string name="no_search_results_description">Coba pencarian lain.</string>
     <string name="message_actions">Tindakan pesan</string>
     <string name="details">Detail</string>
     <string name="details_unavailable">Detail tidak tersedia</string>

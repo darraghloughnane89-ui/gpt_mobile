@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">جی‌پی‌تی موبایل</string>
-    <string name="gpt_mobile_introduction_logo">لوگوی معرفی جی‌پی‌تی موبایل</string>
-    <string name="welcome_title">بهترین دستیار هوش مصنوعی\nکه میتونی داشته باشی روی\nگوشیت</string>
+    <string name="gpt_mobile_introduction_logo">لوگوی معرفی %1$s</string>
     <string name="gemini_safety_settings">تنظیمات ایمنی Gemini</string>
     <string name="gemini_safety_settings_description">آزار، نفرت پراکنی، محتوای جنسی، محتوای خطرناک</string>
     <string name="gemini_safety_settings_icon">نماد تنظیمات ایمنی Gemini</string>
@@ -14,7 +12,6 @@
     <string name="gemini_safety_block_only_high">فقط سطح بالا را مسدود کن</string>
     <string name="gemini_safety_block_medium_and_above">سطح متوسط و بالاتر را مسدود کن</string>
     <string name="gemini_safety_block_low_and_above">سطح پایین و بالاتر را مسدود کن</string>
-    <string name="welcome_description">مدلی که بیشتر ازهمه مناسب شماست\nاستفاده کنید.هرچه می‌خواهید بپرسید!</string>
     <string name="get_started">شروع کنید</string>
     <string name="platform_select_description">پلتفرمی را که می‌خواهید استفاده کنید انتخاب کنید. می‌توانید این مورد را بعداً در تنظیمات تغییر دهید. پلتفرم‌های بیشتری پشتیبانی خواهند شد.</string>
     <string name="sample_item_title">مورد ۱</string>

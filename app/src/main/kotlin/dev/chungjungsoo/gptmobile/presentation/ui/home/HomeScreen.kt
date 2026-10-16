@@ -5,7 +5,6 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,12 +24,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -80,6 +78,17 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.AppDestination
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.AppNavScaffold
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.ChatListSkeleton
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.EmptyState
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LoadingCaption
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.Mascot
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.sharedChatContainer
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -88,7 +97,10 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit,
+    onDestination: (AppDestination) -> Unit = { destination ->
+        if (destination == AppDestination.Settings) settingOnClick()
+    }
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -105,6 +117,7 @@ fun HomeScreen(
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
+    val haptic = rememberHaptic()
     val startChat = {
         val enabledPlatformUids = platformState.filter { it.enabled }.map { it.uid }
         if (enabledPlatformUids.size == 1) {
@@ -128,175 +141,193 @@ fun HomeScreen(
         }
     }
 
-    Scaffold(
-        modifier = Modifier
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            HomeTopAppBar(
-                isSelectionMode = chatListState.isSelectionMode,
-                isSearchMode = chatListState.isSearchMode,
-                selectedChats = selectedChatCount,
-                duplicateEnabled = selectedChat != null && selectedChat.id !in activeChatIds,
-                scrollBehavior = scrollBehavior,
-                actionOnClick = {
-                    if (chatListState.isSelectionMode) {
-                        homeViewModel.openDeleteWarningDialog()
-                    } else {
-                        settingOnClick()
-                    }
-                },
-                duplicateOnClick = {
-                    homeViewModel.duplicateSelectedChat()
-                    Toast.makeText(context, duplicatedChatMessage, Toast.LENGTH_SHORT).show()
-                },
-                navigationOnClick = {
-                    if (chatListState.isSelectionMode) {
-                        homeViewModel.disableSelectionMode()
-                        return@HomeTopAppBar
-                    }
+    AppNavScaffold(
+        current = AppDestination.Chats,
+        onDestination = onDestination,
+        gesturesEnabled = !chatListState.isSelectionMode && !chatListState.isSearchMode
+    ) { openDrawer, _ ->
+        Scaffold(
+            modifier = Modifier
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            topBar = {
+                HomeTopAppBar(
+                    isSelectionMode = chatListState.isSelectionMode,
+                    isSearchMode = chatListState.isSearchMode,
+                    selectedChats = selectedChatCount,
+                    duplicateEnabled = selectedChat != null && selectedChat.id !in activeChatIds,
+                    scrollBehavior = scrollBehavior,
+                    actionOnClick = {
+                        if (chatListState.isSelectionMode) {
+                            haptic(HapticEvent.Reject)
+                            homeViewModel.openDeleteWarningDialog()
+                        } else {
+                            homeViewModel.enableSearchMode()
+                        }
+                    },
+                    duplicateOnClick = {
+                        homeViewModel.duplicateSelectedChat()
+                        Toast.makeText(context, duplicatedChatMessage, Toast.LENGTH_SHORT).show()
+                    },
+                    navigationOnClick = {
+                        if (chatListState.isSelectionMode) {
+                            homeViewModel.disableSelectionMode()
+                            return@HomeTopAppBar
+                        }
 
-                    if (chatListState.isSearchMode) {
-                        homeViewModel.disableSearchMode()
-                    } else {
-                        homeViewModel.enableSearchMode()
-                    }
-                },
-                onSearchQueryChanged = homeViewModel::updateSearchQuery,
-                searchQuery = searchQuery
-            )
-        },
-        floatingActionButton = {
-            if (!chatListState.isSelectionMode &&
-                !chatListState.isSearchMode &&
-                !chatListState.isLoading &&
-                chatListState.loadError == null &&
-                chatListState.chats.isNotEmpty()
-            ) {
-                NewChatButton(
-                    expanded = listState.isScrollingUp(),
-                    onClick = startChat
+                        if (chatListState.isSearchMode) {
+                            homeViewModel.disableSearchMode()
+                        } else {
+                            openDrawer()
+                        }
+                    },
+                    onSearchQueryChanged = homeViewModel::updateSearchQuery,
+                    searchQuery = searchQuery
                 )
+            },
+            floatingActionButton = {
+                if (!chatListState.isSelectionMode &&
+                    !chatListState.isSearchMode &&
+                    !chatListState.isLoading &&
+                    chatListState.loadError == null &&
+                    chatListState.chats.isNotEmpty()
+                ) {
+                    NewChatButton(
+                        expanded = listState.isScrollingUp(),
+                        onClick = {
+                            haptic(HapticEvent.Confirm)
+                            startChat()
+                        }
+                    )
+                }
             }
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            state = listState
-        ) {
-            when {
-                chatListState.isLoading -> item {
-                    Box(
-                        modifier = Modifier.fillParentMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                chatListState.loadError != null -> item {
-                    EmptyErrorState(
-                        title = stringResource(R.string.chats_load_error),
-                        description = chatListState.loadError.orEmpty().takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.chats_load_error_description),
-                        modifier = Modifier.fillParentMaxSize(),
-                        primaryActionLabel = stringResource(R.string.retry),
-                        onPrimaryAction = homeViewModel::retryFetchChats,
-                        isError = true
-                    )
-                }
-
-                chatListState.isSearchMode && searchQuery.isNotBlank() && chatListState.chats.isEmpty() -> item {
-                    EmptyErrorState(
-                        title = stringResource(R.string.no_search_results),
-                        description = stringResource(R.string.no_search_results_description),
-                        modifier = Modifier.fillParentMaxSize()
-                    )
-                }
-
-                chatListState.chats.isEmpty() -> item {
-                    EmptyErrorState(
-                        title = stringResource(R.string.no_chats_title),
-                        description = stringResource(R.string.no_chats_description),
-                        modifier = Modifier.fillParentMaxSize(),
-                        primaryActionLabel = stringResource(R.string.start_a_chat),
-                        onPrimaryAction = startChat
-                    )
-                }
-
-                else -> {
-                    if (!chatListState.isSearchMode) {
-                        item { ChatsTitle(scrollBehavior) }
-                    }
-                    itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                        val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
-                        ListItem(
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier.padding(innerPadding),
+                state = listState
+            ) {
+                when {
+                    chatListState.isLoading -> item {
+                        Column(
                             modifier = Modifier
-                                .animateItem()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .clip(MaterialTheme.shapes.medium)
-                                .combinedClickable(
-                                    onLongClick = {
-                                        if (!chatListState.isSearchMode) {
-                                            homeViewModel.enableSelectionMode()
-                                            homeViewModel.selectChat(idx)
-                                        }
-                                    },
-                                    onClick = {
-                                        if (chatListState.isSelectionMode) {
-                                            homeViewModel.selectChat(idx)
-                                        } else {
-                                            onExistingChatClick(chatRoom)
-                                        }
-                                    }
-                                ),
-                            headlineContent = { Text(text = chatRoom.title) },
-                            leadingContent = {
-                                if (chatListState.isSelectionMode) {
-                                    Checkbox(
-                                        checked = chatListState.selectedChats[idx],
-                                        onCheckedChange = { homeViewModel.selectChat(idx) }
-                                    )
-                                } else {
-                                    Icon(
-                                        ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
-                                        contentDescription = null
-                                    )
-                                }
-                            },
-                            supportingContent = {
-                                Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
-                            },
-                            colors = ListItemDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                            )
+                                .fillParentMaxSize()
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                        ) {
+                            Mascot(mood = MascotMood.Think)
+                            LoadingCaption(seed = 2, modifier = Modifier.padding(top = 12.dp, bottom = 28.dp))
+                            ChatListSkeleton()
+                        }
+                    }
+
+                    chatListState.loadError != null -> item {
+                        EmptyErrorState(
+                            title = stringResource(R.string.chats_load_error),
+                            description = chatListState.loadError.orEmpty().takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.chats_load_error_description),
+                            modifier = Modifier.fillParentMaxSize(),
+                            primaryActionLabel = stringResource(R.string.retry),
+                            onPrimaryAction = homeViewModel::retryFetchChats,
+                            isError = true
                         )
                     }
+
+                    chatListState.isSearchMode && searchQuery.isNotBlank() && chatListState.chats.isEmpty() -> item {
+                        EmptyErrorState(
+                            title = stringResource(R.string.no_search_results),
+                            description = stringResource(R.string.no_search_results_description),
+                            modifier = Modifier.fillParentMaxSize()
+                        )
+                    }
+
+                    chatListState.chats.isEmpty() -> item {
+                        EmptyState(
+                            title = stringResource(R.string.empty_chats_title),
+                            body = stringResource(R.string.empty_chats_body),
+                            modifier = Modifier.fillParentMaxSize(),
+                            mood = MascotMood.Wave,
+                            actionLabel = stringResource(R.string.start_a_chat),
+                            onAction = startChat
+                        )
+                    }
+
+                    else -> {
+                        if (!chatListState.isSearchMode) {
+                            item { ChatsTitle(scrollBehavior) }
+                        }
+                        itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
+                            val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
+                            ListItem(
+                                modifier = Modifier
+                                    .animateItem()
+                                    .sharedChatContainer(chatRoom.id)
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .combinedClickable(
+                                        onLongClick = {
+                                            if (!chatListState.isSearchMode) {
+                                                haptic(HapticEvent.Tick)
+                                                homeViewModel.enableSelectionMode()
+                                                homeViewModel.selectChat(idx)
+                                            }
+                                        },
+                                        onClick = {
+                                            if (chatListState.isSelectionMode) {
+                                                homeViewModel.selectChat(idx)
+                                            } else {
+                                                onExistingChatClick(chatRoom)
+                                            }
+                                        }
+                                    ),
+                                headlineContent = { Text(text = chatRoom.title) },
+                                leadingContent = {
+                                    if (chatListState.isSelectionMode) {
+                                        Checkbox(
+                                            checked = chatListState.selectedChats[idx],
+                                            onCheckedChange = { homeViewModel.selectChat(idx) }
+                                        )
+                                    } else {
+                                        Icon(
+                                            ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
+                                            contentDescription = null
+                                        )
+                                    }
+                                },
+                                supportingContent = {
+                                    Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                )
+                            )
+                        }
+                    }
                 }
             }
-        }
 
-        if (showSelectModelDialog) {
-            SelectPlatformDialog(
-                platformState,
-                selectedPlatforms = chatListState.selectedPlatforms,
-                onDismissRequest = { homeViewModel.closeSelectModelDialog() },
-                onConfirmation = {
-                    navigateToNewChat(it)
-                    homeViewModel.closeSelectModelDialog()
-                },
-                onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
-            )
-        }
+            if (showSelectModelDialog) {
+                SelectPlatformDialog(
+                    platformState,
+                    selectedPlatforms = chatListState.selectedPlatforms,
+                    onDismissRequest = { homeViewModel.closeSelectModelDialog() },
+                    onConfirmation = {
+                        navigateToNewChat(it)
+                        homeViewModel.closeSelectModelDialog()
+                    },
+                    onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
+                )
+            }
 
-        if (showDeleteWarningDialog) {
-            DeleteWarningDialog(
-                onDismissRequest = homeViewModel::closeDeleteWarningDialog,
-                onConfirm = {
-                    homeViewModel.deleteSelectedChats()
-                    Toast.makeText(context, deletedChatsMessage, Toast.LENGTH_SHORT).show()
-                    homeViewModel.closeDeleteWarningDialog()
-                }
-            )
+            if (showDeleteWarningDialog) {
+                DeleteWarningDialog(
+                    onDismissRequest = homeViewModel::closeDeleteWarningDialog,
+                    onConfirm = {
+                        homeViewModel.deleteSelectedChats()
+                        Toast.makeText(context, deletedChatsMessage, Toast.LENGTH_SHORT).show()
+                        homeViewModel.closeDeleteWarningDialog()
+                    }
+                )
+            }
         }
     }
 }
@@ -316,11 +347,7 @@ fun HomeTopAppBar(
     searchQuery: String
 ) {
     TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            scrolledContainerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else Color.Unspecified,
-            containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
-            titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
-        ),
+        colors = frostTopAppBarColors(selection = isSelectionMode),
         title = {
             when {
                 isSearchMode -> {
@@ -403,8 +430,8 @@ fun HomeTopAppBar(
                         onClick = navigationOnClick
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = stringResource(R.string.search_chats)
+                            imageVector = Icons.Outlined.Menu,
+                            contentDescription = stringResource(R.string.open_menu)
                         )
                     }
                 }
@@ -443,7 +470,7 @@ fun HomeTopAppBar(
                         modifier = Modifier.padding(4.dp),
                         onClick = actionOnClick
                     ) {
-                        Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                        Icon(imageVector = Icons.Rounded.Search, contentDescription = stringResource(R.string.search_chats))
                     }
                 }
             }
