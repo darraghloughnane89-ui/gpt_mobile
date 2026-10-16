@@ -6,6 +6,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -147,5 +149,41 @@ class LiveSnapshotOverlayTest {
         val overlaid = overlayLiveSnapshots(persisted, live).assistantMessages[0][0]
         assertEquals("Latest", overlaid.content)
         assertEquals(0, overlaid.activeRevisionIndex)
+    }
+
+    @Test
+    fun overlayCopiesOnlyTheLiveRowInALargeChat() {
+        val liveRow = listOf(
+            MessageV2(
+                id = 10_000,
+                content = "partial",
+                currentRunId = "run-live",
+                platformType = "profile"
+            )
+        )
+        val rows = List(10_000) { index ->
+            if (index == 9_999) {
+                liveRow
+            } else {
+                listOf(MessageV2(id = index + 1, content = "m$index", platformType = "profile"))
+            }
+        }
+        val persisted = ChatViewModel.GroupedMessages(assistantMessages = rows)
+        val live = mapOf(
+            "run-live" to LiveAgentResponseSnapshot(
+                runId = "run-live",
+                messageId = 10_000,
+                content = "partial and still growing",
+                thoughts = "",
+                timeline = emptyList()
+            )
+        )
+
+        val overlaid = overlayLiveSnapshots(persisted, live)
+
+        assertSame(rows.first(), overlaid.assistantMessages.first())
+        assertNotSame(liveRow, overlaid.assistantMessages.last())
+        assertEquals("partial and still growing", overlaid.assistantMessages.last().single().content)
+        assertEquals("m0", overlaid.assistantMessages.first().single().content)
     }
 }

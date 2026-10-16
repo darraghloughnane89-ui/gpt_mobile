@@ -1,9 +1,11 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import android.content.Context
+import android.os.StatFs
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -55,6 +57,8 @@ import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.buildAssistantErrorContent
 import dev.chungjungsoo.gptmobile.util.determineLocalNetworkAccessRequirement
 import dev.chungjungsoo.gptmobile.util.getPlatformName
+import dev.chungjungsoo.gptmobile.util.hasRoomForBytes
+import dev.chungjungsoo.gptmobile.util.persistenceFailureMessage
 import dev.chungjungsoo.gptmobile.util.requiresLocalNetworkAccess
 import java.util.UUID
 import javax.inject.Inject
@@ -78,7 +82,7 @@ import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     @param:ApplicationContext private val context: Context,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
@@ -231,8 +235,17 @@ class ChatViewModel @Inject constructor(
     val isLoaded = _isLoaded.asStateFlow()
 
     private var pendingQuestionText: String? = null
+    private val streamCancelGate = StreamCancelGate()
 
     init {
+        restoreComposerDraft(savedStateHandle.get<String>(COMPOSER_DRAFT_KEY))?.let { restored ->
+            question.setTextAndPlaceCursorAtEnd(restored)
+        }
+        viewModelScope.launch {
+            snapshotFlow { question.text.toString() }
+                .distinctUntilChanged()
+                .collect { savedStateHandle[COMPOSER_DRAFT_KEY] = it }
+        }
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
@@ -296,8 +309,16 @@ class ChatViewModel @Inject constructor(
     }
 
     fun cancelActiveRuns() {
+        streamCancelGate.cancel()
+        pendingQuestionText = null
         contextOperationJob?.cancel()
-        _chatRoom.value.id.takeIf { it > 0 }?.let(agentRunCoordinator::cancelChat)
+        _isContextBusy.value = false
+        val chatId = _chatRoom.value.id
+        if (chatId > 0) {
+            agentRunCoordinator.cancelChat(chatId)
+        } else {
+            _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Idle } }
+        }
     }
 
     fun refreshLocalNetworkRequirement() {
@@ -485,9 +506,18 @@ class ChatViewModel @Inject constructor(
             ?: return
         val userMessage = _groupedMessages.value.userMessages.getOrNull(turnIndex) ?: return
         val runId = UUID.randomUUID().toString()
+        val sendToken = streamCancelGate.beginSend()
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
 
         viewModelScope.launch {
+            if (streamCancelGate.wasExplicitlyCancelled(sendToken)) {
+                _loadingStates.update { states ->
+                    states.toMutableList().apply {
+                        if (platformIndex in indices) this[platformIndex] = LoadingState.Idle
+                    }
+                }
+                return@launch
+            }
             persistBeforeProvider(
                 persist = {
                     chatRepository.persistAgentRetry(
@@ -504,7 +534,21 @@ class ChatViewModel @Inject constructor(
                         )
                     )
                 },
-                startProvider = { persisted ->
+                startProvider = startProvider@{ persisted ->
+                    if (streamCancelGate.wasExplicitlyCancelled(sendToken)) {
+                        chatRepository.finishQueuedAgentRun(
+                            runId,
+                            AgentRunStatus.CANCELED,
+                            currentTimeStamp,
+                            null
+                        )
+                        _loadingStates.update { states ->
+                            states.toMutableList().apply {
+                                if (platformIndex in indices) this[platformIndex] = LoadingState.Idle
+                            }
+                        }
+                        return@startProvider
+                    }
                     _groupedMessages.update { groupedMessages ->
                         updateAssistantSlot(groupedMessages, turnIndex, platformIndex) { persisted.assistantMessage }
                     }
@@ -779,11 +823,16 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun completeChat(persistSnapshotFirst: Boolean = false) {
+        val sendToken = streamCancelGate.beginSend()
         // Update all the platform loading states to Loading
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
         val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
 
         viewModelScope.launch {
+            if (streamCancelGate.wasExplicitlyCancelled(sendToken)) {
+                _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Idle } }
+                return@launch
+            }
             val platforms = resolveSelectedPlatforms(enabledPlatformsInChat, _platformsInApp.value)
                 .map { IndexedValue(it.index, resolvePlatformModel(it.value)) }
             val unavailableIndexes = enabledPlatformsInChat.indices - platforms.mapTo(mutableSetOf()) { it.index }
@@ -837,7 +886,19 @@ class ChatViewModel @Inject constructor(
                         )
                     )
                 },
-                startProvider = { persisted ->
+                startProvider = startProvider@{ persisted ->
+                    if (streamCancelGate.wasExplicitlyCancelled(sendToken)) {
+                        runs.forEach { run ->
+                            chatRepository.finishQueuedAgentRun(
+                                run.runId,
+                                AgentRunStatus.CANCELED,
+                                currentTimeStamp,
+                                null
+                            )
+                        }
+                        _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Idle } }
+                        return@startProvider
+                    }
                     _chatRoom.update { persisted.chatRoom }
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
@@ -877,7 +938,10 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun showPersistenceFailure(turnIndex: Int, platformIndexes: List<Int>, error: Throwable) {
-        val message = error.message ?: "Failed to save this turn."
+        val message = persistenceFailureMessage(
+            error,
+            lowStorageMessage = context.getString(R.string.storage_full_message)
+        )
         _groupedMessages.update { groupedMessages ->
             platformIndexes.fold(groupedMessages) { current, platformIndex ->
                 updateAssistantSlot(current, turnIndex, platformIndex) { assistantMessage ->
@@ -957,6 +1021,20 @@ class ChatViewModel @Inject constructor(
 
             val fileSize = withContext(Dispatchers.IO) {
                 FileUtils.getFileSize(context, filePath)
+            }
+
+            val availableBytes = withContext(Dispatchers.IO) {
+                runCatching { StatFs(context.filesDir.absolutePath).availableBytes }.getOrNull()
+            }
+            if (fileSize >= 0 && availableBytes != null && !hasRoomForBytes(availableBytes, fileSize)) {
+                rejectDraftAttachment(
+                    currentAttachments = currentAttachments,
+                    updateAttachments = updateAttachments,
+                    filePath = filePath,
+                    notice = context.getString(R.string.storage_full_message)
+                )
+                trySendPendingQuestionIfReady()
+                return@launch
             }
 
             if (fileSize > FileUtils.MAX_UPLOAD_SIZE_BYTES) {

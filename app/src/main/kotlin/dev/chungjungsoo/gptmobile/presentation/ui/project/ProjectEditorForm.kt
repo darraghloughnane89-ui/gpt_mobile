@@ -18,11 +18,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.project.ProjectColors
@@ -72,8 +78,13 @@ fun ProjectEditorForm(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             ProjectColors.palette.forEach { swatch ->
                 val selected = swatch == color
+                val description = stringResource(
+                    R.string.project_color_swatch,
+                    "#%06X".format(swatch and 0xFFFFFF)
+                )
                 Box(
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .size(32.dp)
                         .clip(CircleShape)
                         .background(ProjectColors.color(swatch))
@@ -82,7 +93,12 @@ fun ProjectEditorForm(
                             color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
                             shape = CircleShape
                         )
-                        .clickable { onColorChange(swatch) }
+                        .clickable(role = Role.RadioButton) { onColorChange(swatch) }
+                        .semantics {
+                            contentDescription = description
+                            role = Role.RadioButton
+                            if (selected) this.selected = true
+                        }
                 )
             }
         }

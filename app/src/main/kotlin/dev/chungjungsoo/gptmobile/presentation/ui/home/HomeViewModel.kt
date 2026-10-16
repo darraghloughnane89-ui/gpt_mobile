@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,7 +36,8 @@ class HomeViewModel @Inject constructor(
     private val settingRepository: SettingRepository,
     private val agentRunCoordinator: AgentRunCoordinator,
     private val projectChatListSource: ProjectChatListSource,
-    private val newChatBotHint: NewChatBotHint = NewChatBotHint.None
+    private val newChatBotHint: NewChatBotHint = NewChatBotHint.None,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
 ) : ViewModel() {
 
     companion object {
@@ -52,19 +54,24 @@ class HomeViewModel @Inject constructor(
         val selectedChats: List<Boolean> = listOf()
     )
 
-    private val _chatListState = MutableStateFlow(ChatListState())
+    private val restoredSearch = restoreHomeSearch(
+        savedStateHandle.get<String>(HOME_SEARCH_QUERY_KEY),
+        savedStateHandle.get<Boolean>(HOME_SEARCH_MODE_KEY)
+    )
+
+    private val _chatListState = MutableStateFlow(ChatListState(isSearchMode = restoredSearch.searchMode))
     val chatListState: StateFlow<ChatListState> = _chatListState.asStateFlow()
 
     private val _platformState = MutableStateFlow(listOf<PlatformV2>())
     val platformState = _platformState.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
+    private val _searchQuery = MutableStateFlow(restoredSearch.query)
     val searchQuery = _searchQuery.asStateFlow()
 
-    private val _showSelectModelDialog = MutableStateFlow(false)
+    private val _showSelectModelDialog = MutableStateFlow(savedStateHandle.get<Boolean>(HOME_SELECT_MODEL_KEY) == true)
     val showSelectModelDialog: StateFlow<Boolean> = _showSelectModelDialog.asStateFlow()
 
-    private val _showDeleteWarningDialog = MutableStateFlow(false)
+    private val _showDeleteWarningDialog = MutableStateFlow(savedStateHandle.get<Boolean>(HOME_DELETE_WARNING_KEY) == true)
     val showDeleteWarningDialog: StateFlow<Boolean> = _showDeleteWarningDialog.asStateFlow()
 
     private val _activeChatIds = MutableStateFlow<Set<Int>>(emptySet())
@@ -82,6 +89,9 @@ class HomeViewModel @Inject constructor(
     private var fetchChatsJob: Job? = null
 
     init {
+        if (restoredSearch.searchMode) {
+            searchChats(restoredSearch.query)
+        }
         // Set up debounced search
         _searchQuery
             .drop(1)
@@ -111,6 +121,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun updateSearchQuery(query: String) {
+        savedStateHandle[HOME_SEARCH_QUERY_KEY] = query
         _searchQuery.update { query }
     }
 
@@ -129,10 +140,12 @@ class HomeViewModel @Inject constructor(
 
     fun openDeleteWarningDialog() {
         closeSelectModelDialog()
+        savedStateHandle[HOME_DELETE_WARNING_KEY] = true
         _showDeleteWarningDialog.update { true }
     }
 
     fun closeDeleteWarningDialog() {
+        savedStateHandle[HOME_DELETE_WARNING_KEY] = false
         _showDeleteWarningDialog.update { false }
     }
 
@@ -147,12 +160,14 @@ class HomeViewModel @Inject constructor(
                     _chatListState.update { it.copy(selectedPlatforms = selected) }
                 }
             }
+            savedStateHandle[HOME_SELECT_MODEL_KEY] = true
             _showSelectModelDialog.update { true }
             disableSelectionMode()
         }
     }
 
     fun closeSelectModelDialog() {
+        savedStateHandle[HOME_SELECT_MODEL_KEY] = false
         _showSelectModelDialog.update { false }
         _chatListState.update { it.copy(selectedPlatforms = List(it.selectedPlatforms.size) { false }) }
     }
@@ -199,6 +214,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun disableSearchMode() {
+        savedStateHandle[HOME_SEARCH_MODE_KEY] = false
+        savedStateHandle[HOME_SEARCH_QUERY_KEY] = ""
         _chatListState.update { it.copy(isSearchMode = false) }
         _searchQuery.update { "" }
     }
@@ -210,10 +227,15 @@ class HomeViewModel @Inject constructor(
 
     fun enableSearchMode() {
         disableSelectionMode()
+        savedStateHandle[HOME_SEARCH_MODE_KEY] = true
         _chatListState.update { it.copy(isSearchMode = true) }
     }
 
     fun fetchChats() {
+        if (_chatListState.value.isSearchMode) {
+            searchChats(_searchQuery.value)
+            return
+        }
         fetchChatsJob?.cancel()
         _chatListState.update { it.copy(isLoading = it.chats.isEmpty(), loadError = null) }
         fetchChatsJob = viewModelScope.launch {

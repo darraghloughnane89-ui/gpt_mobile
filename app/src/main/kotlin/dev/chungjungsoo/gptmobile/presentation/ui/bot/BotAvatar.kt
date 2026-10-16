@@ -8,14 +8,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.bot.BotAvatarPalette
 
 fun botAvatarColor(hex: String?): Color {
@@ -57,12 +63,18 @@ fun BotColorSwatch(
     } else {
         Color.Transparent
     }
+    val description = stringResource(R.string.bot_avatar_color_swatch, colorHex)
     Box(
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .size(36.dp)
             .clip(CircleShape)
             .background(botAvatarColor(colorHex))
             .border(2.dp, borderColor, CircleShape)
             .clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics {
+                contentDescription = description
+                if (selected) this.selected = true
+            }
     )
 }

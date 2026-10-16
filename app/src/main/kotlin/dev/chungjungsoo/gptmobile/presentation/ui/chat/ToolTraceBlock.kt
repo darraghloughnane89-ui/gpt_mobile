@@ -48,6 +48,8 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventError
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
+import dev.chungjungsoo.gptmobile.presentation.a11y.motionSpec
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import java.time.Instant
@@ -67,9 +69,10 @@ fun ToolTraceBlock(
     val labels = toolTraceLabels()
     var isExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     var query by rememberSaveable(contentIdentity) { mutableStateOf("") }
+    val reducedMotion = prefersReducedMotion()
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = fastEffectsSpec(),
+        animationSpec = motionSpec(reducedMotion, fastEffectsSpec()),
         label = "tool trace rotation"
     )
     val summary = toolTraceStatusSummary(events, labels)
@@ -111,10 +114,10 @@ fun ToolTraceBlock(
 
         AnimatedVisibility(
             visible = isExpanded,
-            enter = expandVertically(animationSpec = defaultSpatialSpec()) +
-                fadeIn(animationSpec = fastEffectsSpec()),
-            exit = shrinkVertically(animationSpec = defaultSpatialSpec()) +
-                fadeOut(animationSpec = fastEffectsSpec())
+            enter = expandVertically(animationSpec = motionSpec(reducedMotion, defaultSpatialSpec())) +
+                fadeIn(animationSpec = motionSpec(reducedMotion, fastEffectsSpec())),
+            exit = shrinkVertically(animationSpec = motionSpec(reducedMotion, defaultSpatialSpec())) +
+                fadeOut(animationSpec = motionSpec(reducedMotion, fastEffectsSpec()))
         ) {
             key(contentIdentity) {
                 Column(

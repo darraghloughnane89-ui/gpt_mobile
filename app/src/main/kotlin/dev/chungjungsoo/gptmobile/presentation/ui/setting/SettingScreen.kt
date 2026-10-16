@@ -61,7 +61,8 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
-    onNavigateToAboutPage: () -> Unit
+    onNavigateToAboutPage: () -> Unit,
+    onNavigateToCrashLog: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -161,6 +162,13 @@ fun SettingScreen(
             }
             SettingsSection(title = stringResource(R.string.settings_app)) {
                 AboutPageItem(onItemClick = onNavigateToAboutPage)
+                SettingItem(
+                    title = stringResource(R.string.crash_log_setting),
+                    description = stringResource(R.string.crash_log_setting_description),
+                    onItemClick = onNavigateToCrashLog,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
             }
 
             if (dialogState.isThemeDialogOpen) {

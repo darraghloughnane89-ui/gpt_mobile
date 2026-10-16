@@ -17,10 +17,15 @@ internal fun nextLiveHighWater(
         val current = merged[runId]
         merged[runId] = if (current == null) snapshot else longerSnapshot(current, snapshot)
     }
-    val persistedByRunId = persisted.assistantMessages
-        .flatten()
-        .mapNotNull { message -> message.currentRunId?.let { it to message } }
-        .toMap()
+    val persistedByRunId = HashMap<String, MessageV2>(merged.size)
+    if (merged.isNotEmpty()) {
+        for (row in persisted.assistantMessages) {
+            for (message in row) {
+                val runId = message.currentRunId ?: continue
+                if (runId in merged) persistedByRunId[runId] = message
+            }
+        }
+    }
     return merged.filter { (runId, snapshot) ->
         val row = persistedByRunId[runId]
         row == null || snapshotAheadOf(snapshot, row)
@@ -32,11 +37,26 @@ internal fun overlayLiveSnapshots(
     liveByRunId: Map<String, LiveAgentResponseSnapshot>
 ): ChatViewModel.GroupedMessages {
     if (liveByRunId.isEmpty()) return persisted
-    return persisted.copy(
-        assistantMessages = persisted.assistantMessages.map { row ->
+    var changed = false
+    val rows = persisted.assistantMessages.map { row ->
+        if (row.none { message -> messageNeedsLiveOverlay(message, liveByRunId) }) {
+            row
+        } else {
+            changed = true
             row.map { message -> overlayLiveMessage(message, liveByRunId) }
         }
-    )
+    }
+    if (!changed) return persisted
+    return persisted.copy(assistantMessages = rows)
+}
+
+private fun messageNeedsLiveOverlay(
+    message: MessageV2,
+    liveByRunId: Map<String, LiveAgentResponseSnapshot>
+): Boolean {
+    if (message.hasHistoricalRevisionSelected()) return false
+    if (message.currentRunId?.let(liveByRunId::get) != null) return true
+    return message.id > 0 && liveByRunId.values.any { snapshot -> snapshot.messageId == message.id }
 }
 
 private fun overlayLiveMessage(

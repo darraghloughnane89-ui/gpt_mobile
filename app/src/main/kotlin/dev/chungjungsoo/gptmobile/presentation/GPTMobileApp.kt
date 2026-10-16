@@ -15,6 +15,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.backup.SanitizedChatBackup
+import dev.chungjungsoo.gptmobile.data.crash.AppCoroutineExceptionHandler
+import dev.chungjungsoo.gptmobile.data.crash.LocalCrashLog
+import dev.chungjungsoo.gptmobile.data.crash.installCrashHandlers
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
 import dev.chungjungsoo.gptmobile.data.localmodel.PendingLocalPlatformActivator
@@ -22,12 +25,15 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 @HiltAndroidApp
@@ -46,10 +52,18 @@ class GPTMobileApp :
     var secretMigrationErrors: List<SecretMigrationError> = emptyList()
         private set
 
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val applicationScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + AppCoroutineExceptionHandler(fatal = false)
+    )
 
     override fun onCreate() {
-        SanitizedChatBackup.restoreIfPresent(this)
+        val crashLog = LocalCrashLog(File(filesDir, LocalCrashLog.DIRECTORY_NAME))
+        installCrashHandlers(crashLog)
+        runBlocking {
+            restoreStagedBackup {
+                SanitizedChatBackup.restoreIfPresent(this@GPTMobileApp)
+            }
+        }
         super.onCreate()
         registerActivityLifecycleCallbacks(AppForegroundTracker)
         StartupRecoveryGate.start(applicationScope) {
@@ -132,6 +146,13 @@ internal suspend fun trimLocalRuntimeForMemory(level: Int, runtime: LocalRuntime
     if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
         runtime.trimIdleEngine()
     }
+}
+
+internal suspend fun restoreStagedBackup(
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    restore: suspend () -> Unit
+) {
+    withContext(dispatcher) { restore() }
 }
 
 internal suspend fun runStartupMaintenance(

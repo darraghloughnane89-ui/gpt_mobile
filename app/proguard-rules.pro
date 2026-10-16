@@ -5,6 +5,9 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# Local crash handler is loaded by name from META-INF/services.
+-keep class dev.chungjungsoo.gptmobile.data.crash.AppCoroutineExceptionHandler { <init>(); }
+
 # Keep reactive streams dependencies
 -keep class reactor.** { *; }
 -keep class io.micrometer.** { *; }

@@ -21,7 +21,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -257,7 +256,7 @@ fun UserMessageEditDialog(
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var question by remember { mutableStateOf(initialQuestion.content) }
+    var question by rememberSaveable(initialQuestion.id) { mutableStateOf(initialQuestion.content) }
     val questionFieldMaxLines = 8
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -339,8 +338,8 @@ fun AssistantMessageEditDialog(
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var responseText by remember { mutableStateOf(initialMessage.effectiveContent()) }
-    var thoughtsText by remember { mutableStateOf(initialMessage.effectiveThoughts()) }
+    var responseText by rememberSaveable(initialMessage.id) { mutableStateOf(initialMessage.effectiveContent()) }
+    var thoughtsText by rememberSaveable(initialMessage.id) { mutableStateOf(initialMessage.effectiveThoughts()) }
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->

@@ -201,7 +201,7 @@ private fun BotListRow(
             BotAvatar(emoji = bot.avatarEmoji, colorHex = bot.avatarColor)
         },
         headlineContent = {
-            Text(bot.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(bot.name)
         },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

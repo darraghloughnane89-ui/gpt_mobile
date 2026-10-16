@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
@@ -28,6 +30,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.project.projectsNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.CrashLogScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
@@ -49,6 +52,7 @@ fun SetupNavGraph(
     toolConnectionsViewModel: ToolConnectionsViewModel,
     onLaunchOAuth: (String) -> Unit = {}
 ) {
+    val reducedMotion = prefersReducedMotion()
     NavHost(
         modifier = Modifier
             .fillMaxSize()
@@ -56,14 +60,22 @@ fun SetupNavGraph(
         navController = navController,
         startDestination = Route.CHAT_LIST,
         enterTransition = {
-            fadeIn(fastEffectsSpec()) +
-                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, fastSpatialSpec()) { it / 12 }
+            if (reducedMotion) {
+                fadeIn(snap())
+            } else {
+                fadeIn(fastEffectsSpec()) +
+                    slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, fastSpatialSpec()) { it / 12 }
+            }
         },
-        exitTransition = { fadeOut(fastEffectsSpec()) },
-        popEnterTransition = { fadeIn(fastEffectsSpec()) },
+        exitTransition = { fadeOut(if (reducedMotion) snap() else fastEffectsSpec()) },
+        popEnterTransition = { fadeIn(if (reducedMotion) snap() else fastEffectsSpec()) },
         popExitTransition = {
-            fadeOut(fastEffectsSpec()) +
-                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, fastSpatialSpec()) { it / 12 }
+            if (reducedMotion) {
+                fadeOut(snap())
+            } else {
+                fadeOut(fastEffectsSpec()) +
+                    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, fastSpatialSpec()) { it / 12 }
+            }
         }
     ) {
         homeScreenNavigation(navController)
@@ -226,7 +238,8 @@ fun NavGraphBuilder.settingNavigation(
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
                 onNavigateToBots = { navController.navigate(Route.BOTS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToCrashLog = { navController.navigate(Route.CRASH_LOG) }
             )
         }
         composable(Route.ADD_PLATFORM) {
@@ -293,6 +306,9 @@ fun NavGraphBuilder.settingNavigation(
         }
         composable(Route.LICENSE) {
             LicenseScreen(onNavigationClick = { navController.navigateUp() })
+        }
+        composable(Route.CRASH_LOG) {
+            CrashLogScreen(onNavigationClick = { navController.navigateUp() })
         }
     }
 }

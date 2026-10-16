@@ -8,7 +8,6 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.UnknownEvent
 import dev.chungjungsoo.gptmobile.util.applyPlatformStreamingTimeout
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.accept
 import io.ktor.client.request.bearerAuth
@@ -21,11 +20,6 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readLine
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
-import java.nio.channels.UnresolvedAddressException
-import javax.net.ssl.SSLException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -295,18 +289,10 @@ private fun httpErrorEvent(status: Int, errorBody: String): ResponseErrorEvent {
     return ResponseErrorEvent(code = status.toString(), message = message)
 }
 
-private fun networkErrorEvent(error: Exception): ResponseErrorEvent {
-    val message = when (error) {
-        is UnknownHostException -> "Network error: Unable to resolve host."
-        is UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
-        is ConnectException -> "Network error: Connection refused. Check the API URL."
-        is HttpRequestTimeoutException -> "Request timed out."
-        is SocketTimeoutException -> "Response timed out while waiting for the next chunk."
-        is SSLException -> "Network error: SSL/TLS connection failed."
-        else -> error.message ?: "Unknown network error"
-    }
-    return ResponseErrorEvent(code = "network_error", message = message)
-}
+private fun networkErrorEvent(error: Exception): ResponseErrorEvent = ResponseErrorEvent(
+    code = "network_error",
+    message = userVisibleTransportError(error)
+)
 
 private suspend fun cancelRemoteResponse(
     client: HttpClient,

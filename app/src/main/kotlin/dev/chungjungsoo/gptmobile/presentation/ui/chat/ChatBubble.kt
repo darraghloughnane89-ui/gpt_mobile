@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -21,9 +22,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -57,8 +58,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,6 +73,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.hasUnavailableAssistantOrder
+import dev.chungjungsoo.gptmobile.presentation.a11y.motionSpec
+import dev.chungjungsoo.gptmobile.presentation.a11y.prefersReducedMotion
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
@@ -212,12 +217,13 @@ fun OpponentChatBubble(
             }
         }
 
+        val reducedMotion = prefersReducedMotion()
         AnimatedContent(
             targetState = isDetailsExpanded && hasDetails,
             transitionSpec = {
-                fadeIn(animationSpec = fastEffectsSpec()) togetherWith
-                    fadeOut(animationSpec = fastEffectsSpec()) using
-                    SizeTransform(sizeAnimationSpec = { _, _ -> defaultSpatialSpec() })
+                fadeIn(animationSpec = motionSpec(reducedMotion, fastEffectsSpec())) togetherWith
+                    fadeOut(animationSpec = motionSpec(reducedMotion, fastEffectsSpec())) using
+                    SizeTransform(sizeAnimationSpec = { _, _ -> motionSpec(reducedMotion, defaultSpatialSpec()) })
             },
             label = "assistant details"
         ) { showDetails ->
@@ -344,11 +350,7 @@ private fun QuietAssistantContent(
                 modifier = Modifier.padding(16.dp)
             )
             if (showStreamingIndicator) {
-                Text(
-                    text = "●",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                StreamingCaret(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
             MessageFileThumbnailRow(
                 files = attachments,
@@ -364,9 +366,10 @@ private fun DetailsButton(
     isExpanded: Boolean,
     onClick: () -> Unit
 ) {
+    val reducedMotion = prefersReducedMotion()
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = fastEffectsSpec(),
+        animationSpec = motionSpec(reducedMotion, fastEffectsSpec()),
         label = "details rotation"
     )
     val expandStateDescription = stringResource(R.string.expand)
@@ -495,11 +498,7 @@ private fun AssistantProcessContent(
         lastProcessIndex >= 0 &&
         timeline[lastProcessIndex].type == AssistantTimelineItemType.TOOL
     ) {
-        Text(
-            text = "●",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        StreamingCaret(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }
 
@@ -547,27 +546,30 @@ private fun LegacyAssistantProcessContent(
         onViewFull = onViewFull
     )
     if (showStreamingIndicator && thoughts.isBlank()) {
-        Text(
-            text = "●",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        StreamingCaret(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }
 
 @Composable
 fun GPTMobileIcon(loading: Boolean) {
+    val description = if (loading) {
+        stringResource(R.string.generating_reply)
+    } else {
+        stringResource(R.string.chat_icon)
+    }
     Box(
         modifier = Modifier
             .padding(start = 8.dp)
             .size(40.dp)
-            .clip(RoundedCornerShape(40.dp))
-            .background(color = Color(0xFF00A67D)),
+            .clip(CircleShape)
+            .background(Color(0xFFF4FBF7))
+            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            .semantics(mergeDescendants = true) { contentDescription = description },
         contentAlignment = Alignment.Center
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
         Image(
@@ -589,15 +591,15 @@ fun PlatformButton(
 
         Text(
             text = name,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.width(12.dp))
     }
 
     TextButton(
-        modifier = Modifier.widthIn(max = 160.dp),
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .semantics { if (selected) this.selected = true },
         onClick = onPlatformClick,
         colors = if (selected) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.textButtonColors(),
         content = buttonContent
