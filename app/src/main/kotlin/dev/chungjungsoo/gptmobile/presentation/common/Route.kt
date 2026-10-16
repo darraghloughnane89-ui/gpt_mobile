@@ -54,4 +54,11 @@ object Route {
     const val LICENSE = "license"
 
     const val MIGRATE_V2 = "migrate_v2"
+
+    /**
+     * Voice session destination. The voice stream registers this route.
+     * Phone integration does not add the screen. It navigates only when the graph already contains it.
+     * See docs/phone-deeplinks.md.
+     */
+    const val VOICE_SESSION = "voice_session"
 }

@@ -19,6 +19,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkEffect
+import dev.chungjungsoo.gptmobile.presentation.phone.PhoneDeepLinkViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
@@ -49,6 +51,7 @@ fun SetupNavGraph(
     toolConnectionsViewModel: ToolConnectionsViewModel,
     onLaunchOAuth: (String) -> Unit = {}
 ) {
+    PhoneDeepLinkEffect(navController)
     NavHost(
         modifier = Modifier
             .fillMaxSize()
@@ -160,6 +163,7 @@ fun NavGraphBuilder.setupNavigation(
 
 fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
+        val phoneDeepLinkViewModel: PhoneDeepLinkViewModel = hiltViewModel()
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
             onOpenProjects = { navController.navigate(Route.PROJECTS) },
@@ -176,6 +180,16 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
                     Route.chatRoomRoute(
                         chatRoomId = 0,
                         enabledPlatforms = enabledPlatforms.joinToString(","),
+                        projectId = projectId ?: -1
+                    )
+                )
+            },
+            onAskAboutPhoto = { platforms, projectId ->
+                phoneDeepLinkViewModel.offerCameraForNewChat()
+                navController.navigate(
+                    Route.chatRoomRoute(
+                        chatRoomId = 0,
+                        enabledPlatforms = platforms.joinToString(","),
                         projectId = projectId ?: -1
                     )
                 )

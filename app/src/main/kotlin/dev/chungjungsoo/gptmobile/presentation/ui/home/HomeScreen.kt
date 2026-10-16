@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +85,7 @@ import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
 import dev.chungjungsoo.gptmobile.data.project.groupChatsByProject
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.phone.AskAboutPhotoButton
 import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectFilterBar
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectsEntryRow
@@ -96,7 +98,8 @@ fun HomeScreen(
     settingOnClick: () -> Unit,
     onOpenProjects: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<String>, projectId: Int?) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>, projectId: Int?) -> Unit,
+    onAskAboutPhoto: (enabledPlatforms: List<String>, projectId: Int?) -> Unit = { _, _ -> }
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -126,14 +129,21 @@ fun HomeScreen(
         ungroupedTitle = ungroupedTitle,
         grouped = !chatListState.isSearchMode
     )
-    val startChat = {
+    var startKind by remember { mutableStateOf(HomeStartKind.CHAT) }
+    val beginChat: (HomeStartKind) -> Unit = { kind ->
+        startKind = kind
         val enabledPlatformUids = platformState.filter { it.enabled }.map { it.uid }
         if (enabledPlatformUids.size == 1) {
-            navigateToNewChat(enabledPlatformUids, activeProjectId)
+            if (kind == HomeStartKind.PHOTO) {
+                onAskAboutPhoto(enabledPlatformUids, activeProjectId)
+            } else {
+                navigateToNewChat(enabledPlatformUids, activeProjectId)
+            }
         } else {
             homeViewModel.openSelectModelDialog()
         }
     }
+    val startChat = { beginChat(HomeStartKind.CHAT) }
 
     LaunchedEffect(lifecycleState) {
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
@@ -255,13 +265,23 @@ fun HomeScreen(
                         description = stringResource(R.string.no_chats_description),
                         modifier = Modifier.fillParentMaxSize(),
                         primaryActionLabel = stringResource(R.string.start_a_chat),
-                        onPrimaryAction = startChat
+                        onPrimaryAction = startChat,
+                        secondaryActionLabel = stringResource(R.string.ask_about_photo),
+                        onSecondaryAction = { beginChat(HomeStartKind.PHOTO) }
                     )
                 }
 
                 else -> {
                     if (!chatListState.isSearchMode) {
                         item { ChatsTitle(scrollBehavior) }
+                        if (!chatListState.isSelectionMode) {
+                            item {
+                                AskAboutPhotoButton(
+                                    onClick = { beginChat(HomeStartKind.PHOTO) },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     }
                     items(chatRows, key = { row ->
                         when (row) {
@@ -334,9 +354,17 @@ fun HomeScreen(
             SelectPlatformDialog(
                 platformState,
                 selectedPlatforms = chatListState.selectedPlatforms,
-                onDismissRequest = { homeViewModel.closeSelectModelDialog() },
-                onConfirmation = {
-                    navigateToNewChat(it, activeProjectId)
+                onDismissRequest = {
+                    homeViewModel.closeSelectModelDialog()
+                    startKind = HomeStartKind.CHAT
+                },
+                onConfirmation = { platforms ->
+                    if (startKind == HomeStartKind.PHOTO) {
+                        onAskAboutPhoto(platforms, activeProjectId)
+                    } else {
+                        navigateToNewChat(platforms, activeProjectId)
+                    }
+                    startKind = HomeStartKind.CHAT
                     homeViewModel.closeSelectModelDialog()
                 },
                 onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
@@ -527,6 +555,11 @@ fun HomeTopAppBar(
         },
         scrollBehavior = scrollBehavior
     )
+}
+
+private enum class HomeStartKind {
+    CHAT,
+    PHOTO
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

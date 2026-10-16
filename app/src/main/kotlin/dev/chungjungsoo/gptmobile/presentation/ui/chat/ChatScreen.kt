@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
@@ -114,6 +115,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.presentation.phone.ChatCameraCapture
+import dev.chungjungsoo.gptmobile.presentation.phone.rememberCameraPhotoLauncher
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotStarterPromptRow
 import dev.chungjungsoo.gptmobile.presentation.ui.bot.BotSwitcherSheet
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
@@ -159,6 +162,12 @@ fun ChatScreen(
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
+    val launchCamera by chatViewModel.launchCamera.collectAsStateWithLifecycle()
+    ChatCameraCapture(
+        launchRequested = launchCamera,
+        onLaunchConsumed = chatViewModel::consumeCameraLaunch,
+        onPhotoReady = chatViewModel::addSelectedFile
+    )
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
@@ -921,6 +930,7 @@ fun ChatInputBox(
             }
         }
     }
+    val openCamera = rememberCameraPhotoLauncher(onFileSelected)
 
     Surface(
         modifier = Modifier
@@ -958,6 +968,15 @@ fun ChatInputBox(
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
                                 contentDescription = stringResource(R.string.attach_file)
+                            )
+                        }
+                        IconButton(
+                            enabled = chatEnabled,
+                            onClick = openCamera
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PhotoCamera,
+                                contentDescription = stringResource(R.string.take_photo)
                             )
                         }
                         Box(

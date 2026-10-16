@@ -41,6 +41,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.phone.PhoneHandoffStore
 import dev.chungjungsoo.gptmobile.data.project.ProjectInstructionBinder
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
@@ -88,7 +89,8 @@ class ChatViewModel @Inject constructor(
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val projectInstructionBinder: ProjectInstructionBinder,
-    private val chatBotSession: ChatBotSession
+    private val chatBotSession: ChatBotSession,
+    private val phoneHandoffStore: PhoneHandoffStore
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -194,6 +196,9 @@ class ChatViewModel @Inject constructor(
     private val _attachmentNotice = MutableStateFlow<String?>(null)
     val attachmentNotice = _attachmentNotice.asStateFlow()
 
+    private val _launchCamera = MutableStateFlow(false)
+    val launchCamera = _launchCamera.asStateFlow()
+
     private val _runNoticesById = MutableStateFlow<Map<String, List<ChatRunNotice>>>(emptyMap())
     val runNoticesById = _runNoticesById.asStateFlow()
 
@@ -244,11 +249,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
         }
+        viewModelScope.launch { collectPhoneHandoff() }
         viewModelScope.launch {
             chatRoom.map { it.projectId }.distinctUntilChanged().collect { projectId ->
                 _projectName.value = projectInstructionBinder.projectName(projectId)
             }
         }
+    }
+
+    fun consumeCameraLaunch() {
+        _launchCamera.value = false
     }
 
     /**
@@ -903,6 +913,20 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private suspend fun collectPhoneHandoff() {
+        phoneHandoffStore.pending.collect { handoff ->
+            if (handoff == null || handoff.targetChatId != chatRoomId) return@collect
+            if (phoneHandoffStore.consume(handoff.id) == null) return@collect
+            if (handoff.text.isNotBlank()) {
+                val existing = question.text.toString()
+                val merged = if (existing.isBlank()) handoff.text else "$existing\n\n${handoff.text}"
+                question.setTextAndPlaceCursorAtEnd(merged)
+            }
+            handoff.filePaths.forEach(::addSelectedFile)
+            if (handoff.launchCamera) _launchCamera.value = true
+        }
+    }
+
     private fun addDraftFile(
         currentAttachments: () -> List<ChatAttachmentDraft>,
         updateAttachments: (List<ChatAttachmentDraft>) -> Unit,
@@ -949,7 +973,7 @@ class ChatViewModel @Inject constructor(
                     currentAttachments = currentAttachments,
                     updateAttachments = updateAttachments,
                     filePath = filePath,
-                    notice = "Only image attachments are currently supported."
+                    notice = "Only images and PDFs can be attached."
                 )
                 trySendPendingQuestionIfReady()
                 return@launch
