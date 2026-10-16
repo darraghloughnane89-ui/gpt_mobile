@@ -46,6 +46,12 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
+import dev.chungjungsoo.gptmobile.data.skill.ChatSkillBridge
+import dev.chungjungsoo.gptmobile.data.skill.LearningResult
+import dev.chungjungsoo.gptmobile.data.skill.LearningTurn
+import dev.chungjungsoo.gptmobile.data.skill.SkillSlashParser
+import dev.chungjungsoo.gptmobile.data.skill.SkillSummary
+import dev.chungjungsoo.gptmobile.data.skill.skillTurns
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
@@ -84,7 +90,8 @@ class ChatViewModel @Inject constructor(
     private val agentRunCoordinator: AgentRunCoordinator,
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
-    private val modelCatalogRepository: ModelCatalogRepository
+    private val modelCatalogRepository: ModelCatalogRepository,
+    private val chatSkillBridge: ChatSkillBridge
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -203,6 +210,17 @@ class ChatViewModel @Inject constructor(
     // Loading states for each platform
     private val _loadingStates = MutableStateFlow(List<LoadingState>(enabledPlatformsInChat.size) { LoadingState.Idle })
     val loadingStates = _loadingStates.asStateFlow()
+    private val _isSkillPickerOpen = MutableStateFlow(false)
+    val isSkillPickerOpen = _isSkillPickerOpen.asStateFlow()
+    private val _skillChoices = MutableStateFlow<List<SkillSummary>>(emptyList())
+    val skillChoices = _skillChoices.asStateFlow()
+    private val _skillNotice = MutableStateFlow<String?>(null)
+    val skillNotice = _skillNotice.asStateFlow()
+    private val _feedbackSkillIds = MutableStateFlow<List<Long>>(emptyList())
+    val feedbackSkillIds = _feedbackSkillIds.asStateFlow()
+    private var sawActiveRunForSkillReview = false
+    private var explicitSkillReview = false
+    private var skillReviewJob: Job? = null
 
     // Used for text data to show in SelectText Bottom Sheet
     private val _selectedText = MutableStateFlow("")
@@ -297,6 +315,47 @@ class ChatViewModel @Inject constructor(
     }
 
     fun closeChatModelDialog() = _isChatModelDialogOpen.update { false }
+
+    fun openSkillPicker() {
+        viewModelScope.launch {
+            _skillChoices.value = chatSkillBridge.summaries()
+            _isSkillPickerOpen.value = true
+        }
+    }
+
+    fun closeSkillPicker() = _isSkillPickerOpen.update { false }
+
+    fun stageSkill(name: String) {
+        val token = "/$name"
+        val current = question.text.toString()
+        val alreadyPresent = current.split(Regex("\\s+")).any { it.equals(token, ignoreCase = true) }
+        if (!alreadyPresent) {
+            val next = if (current.isBlank()) "$token " else "$token $current"
+            question.setTextAndPlaceCursorAtEnd(next)
+        }
+        _isSkillPickerOpen.value = false
+    }
+
+    fun saveAsSkill() {
+        if (_loadingStates.value.any { it is LoadingState.Loading }) {
+            _skillNotice.value = context.getString(R.string.skill_review_busy)
+            return
+        }
+        val chatId = _chatRoom.value.id
+        val fallback = skillTurns(_groupedMessages.value.userMessages, _groupedMessages.value.assistantMessages)
+        viewModelScope.launch {
+            publishSkillReview(reviewSkills(chatId, fallback, explicit = true))
+        }
+    }
+
+    fun recordSkillFeedback(up: Boolean) {
+        val ids = _feedbackSkillIds.value
+        if (ids.isEmpty()) return
+        _feedbackSkillIds.value = emptyList()
+        viewModelScope.launch { chatSkillBridge.recordFeedback(ids, up) }
+    }
+
+    fun consumeSkillNotice() = _skillNotice.update { null }
 
     fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
     fun openChatModelDialog() = _isChatModelDialogOpen.update { true }
@@ -417,6 +476,7 @@ class ChatViewModel @Inject constructor(
             ?: return
         val userMessage = _groupedMessages.value.userMessages.getOrNull(turnIndex) ?: return
         val runId = UUID.randomUUID().toString()
+        _feedbackSkillIds.value = emptyList()
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
 
         viewModelScope.launch {
@@ -441,13 +501,14 @@ class ChatViewModel @Inject constructor(
                         updateAssistantSlot(groupedMessages, turnIndex, platformIndex) { persisted.assistantMessage }
                     }
                     val contextMessages = groupedMessagesThroughTurn(_groupedMessages.value, turnIndex)
+                    val augmented = platformsWithSkills(listOf(platformWithChatModel), userMessage.content).first()
                     agentRunCoordinator.start(
                         listOf(
                             AgentRunRequest(
                                 runId = runId,
                                 chatId = persisted.assistantMessage.chatId,
                                 assistantMessage = persisted.assistantMessage,
-                                platform = platformWithChatModel,
+                                platform = augmented,
                                 userMessages = contextMessages.userMessages,
                                 assistantMessages = contextMessages.assistantMessages
                             )
@@ -711,6 +772,7 @@ class ChatViewModel @Inject constructor(
 
     private fun completeChat(persistSnapshotFirst: Boolean = false) {
         // Update all the platform loading states to Loading
+        _feedbackSkillIds.value = emptyList()
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
         val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
 
@@ -786,8 +848,9 @@ class ChatViewModel @Inject constructor(
                         )
                     }
                     val contextMessages = _groupedMessages.value
+                    val augmentedPlatforms = platformsWithSkills(platforms.map { it.value }, persisted.userMessage.content)
                     agentRunCoordinator.start(
-                        platforms.mapIndexed { runIndex, (_, platform) ->
+                        augmentedPlatforms.mapIndexed { runIndex, platform ->
                             AgentRunRequest(
                                 runId = runs[runIndex].runId,
                                 chatId = persisted.chatRoom.id,
@@ -992,11 +1055,24 @@ class ChatViewModel @Inject constructor(
 
     private fun sendQuestion(questionText: String, attachments: List<ChatAttachmentDraft>) {
         if (_isContextBusy.value) return
+        if (SkillSlashParser.isBareLearn(questionText)) {
+            if (question.text.toString() == questionText) question.clearText()
+            saveAsSkill()
+            return
+        }
+        val learnOnly = SkillSlashParser.parse(questionText, emptySet())
+        val content = if (learnOnly.saveAsSkill && learnOnly.skillNames.isEmpty()) {
+            explicitSkillReview = true
+            learnOnly.remainder
+        } else {
+            questionText
+        }
+        if (content.isBlank() && attachments.none { it.status == ChatAttachmentDraft.Status.Ready }) return
         if (question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
         val draftAtStart = question.text.toString()
         val message = MessageV2(
             chatId = chatRoomId,
-            content = questionText,
+            content = content,
             attachments = attachments.mapNotNull { it.attachment },
             platformType = null,
             createdAt = currentTimeStamp
@@ -1257,14 +1333,74 @@ class ChatViewModel @Inject constructor(
         val runsById = runs.associateBy(AgentRun::runId)
         val activeRunIds = agentRunCoordinator.activeRuns.value.keys
         val latestAssistantRow = _groupedMessages.value.assistantMessages.lastOrNull()
-        _loadingStates.update {
-            loadingStatesForLatestAssistant(
-                platformCount = enabledPlatformsInChat.size,
-                latestAssistantRow = latestAssistantRow,
-                runsById = runsById,
-                activeRunIds = activeRunIds
-            )
+        val loading = loadingStatesForLatestAssistant(
+            platformCount = enabledPlatformsInChat.size,
+            latestAssistantRow = latestAssistantRow,
+            runsById = runsById,
+            activeRunIds = activeRunIds
+        )
+        _loadingStates.update { loading }
+        onSkillLoadingSettled(loading)
+    }
+
+    private suspend fun platformsWithSkills(platforms: List<PlatformV2>, userText: String): List<PlatformV2> = try {
+        val parsed = chatSkillBridge.parse(userText)
+        if (parsed.saveAsSkill) explicitSkillReview = true
+        val block = chatSkillBridge.skillBlock(
+            userText = parsed.remainder.ifBlank { userText },
+            manualNames = parsed.skillNames,
+            botUid = null
+        )
+        _feedbackSkillIds.value = block.skillIds
+        chatSkillBridge.recordUse(block.skillIds)
+        platforms.map { chatSkillBridge.applyBlock(it, block.text) }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        platforms
+    }
+
+    private fun onSkillLoadingSettled(loading: List<LoadingState>) {
+        val active = loading.any { it is LoadingState.Loading }
+        if (active) {
+            sawActiveRunForSkillReview = true
+            skillReviewJob?.cancel()
+            return
         }
+        if (!sawActiveRunForSkillReview) return
+        sawActiveRunForSkillReview = false
+        val explicit = explicitSkillReview
+        explicitSkillReview = false
+        val chatId = _chatRoom.value.id
+        val fallback = skillTurns(_groupedMessages.value.userMessages, _groupedMessages.value.assistantMessages)
+        skillReviewJob = viewModelScope.launch {
+            publishSkillReview(reviewSkills(chatId, fallback, explicit))
+        }
+    }
+
+    private suspend fun reviewSkills(
+        chatId: Int,
+        fallback: List<LearningTurn>,
+        explicit: Boolean
+    ): LearningResult = try {
+        chatSkillBridge.reviewAfterChat(chatId, fallback, explicit)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        LearningResult.Failed(error.message ?: context.getString(R.string.skill_review_failed))
+    }
+
+    private fun publishSkillReview(result: LearningResult) {
+        val message = when (result) {
+            is LearningResult.Skipped -> if (result.explicit) context.getString(R.string.skill_review_nothing) else null
+            is LearningResult.Proposed -> if (result.autoAccepted > 0 && result.autoAccepted == result.count) {
+                context.getString(R.string.skill_review_auto_accepted, result.count)
+            } else {
+                context.getString(R.string.skill_review_pending, result.count)
+            }
+            is LearningResult.Failed -> result.message
+        }
+        if (message != null) _skillNotice.value = message
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

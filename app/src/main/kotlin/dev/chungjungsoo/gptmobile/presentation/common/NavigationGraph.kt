@@ -39,6 +39,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformListScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
+import dev.chungjungsoo.gptmobile.presentation.ui.skill.skillNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
 @Composable
@@ -70,6 +71,7 @@ fun SetupNavGraph(
         setupNavigation(navController)
         settingNavigation(navController, toolConnectionsViewModel, onLaunchOAuth)
         chatScreenNavigation(navController)
+        skillNavigation(navController)
     }
 }
 
@@ -189,7 +191,8 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     ) {
         ChatScreen(
             onBackAction = { navController.navigateUp() },
-            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) }
+            onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
+            onNavigateToSkills = { navController.navigate(Route.SKILLS) }
         )
     }
 }
@@ -216,7 +219,8 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
-                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
+                onNavigateToSkills = { navController.navigate(Route.SKILLS) }
             )
         }
         composable(Route.ADD_PLATFORM) {
