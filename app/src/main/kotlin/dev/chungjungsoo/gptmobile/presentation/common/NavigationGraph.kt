@@ -26,6 +26,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastSpatialSpec
+import dev.chungjungsoo.gptmobile.presentation.ui.bot.botNavigation
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.AppDestination
 import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LocalAnimatedVisibilityScope
@@ -251,6 +252,7 @@ fun NavGraphBuilder.settingNavigation(
                 },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS) },
                 onNavigateToToolConnections = { navController.navigate(Route.TOOL_CONNECTIONS) },
+                onNavigateToBots = { navController.navigate(Route.BOTS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) },
                 onNavigateToUsage = { navController.openAppDestination(AppDestination.Usage) },
                 onNavigateToObsidian = { navController.openAppDestination(AppDestination.Obsidian) }
@@ -311,6 +313,7 @@ fun NavGraphBuilder.settingNavigation(
                 onSaveComplete = { navController.navigateUp() }
             )
         }
+        botNavigation(navController)
         composable(Route.ABOUT_PAGE) {
             AboutScreen(
                 onNavigationClick = { navController.navigateUp() },

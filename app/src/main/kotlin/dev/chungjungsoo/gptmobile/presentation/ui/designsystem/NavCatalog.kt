@@ -29,7 +29,6 @@ enum class AppSection {
 object DesignRoute {
     const val VOICE = "design/voice"
     const val PROJECTS = "design/projects"
-    const val BOTS = "design/bots"
     const val SKILLS = "design/skills"
     const val MEMORY = "design/memory"
     const val REVIEW = "design/review"
@@ -48,7 +47,7 @@ fun AppDestination.route(): String = when (this) {
     AppDestination.Chats -> Route.CHAT_LIST
     AppDestination.Voice -> DesignRoute.VOICE
     AppDestination.Projects -> DesignRoute.PROJECTS
-    AppDestination.Bots -> DesignRoute.BOTS
+    AppDestination.Bots -> Route.BOTS
     AppDestination.Skills -> DesignRoute.SKILLS
     AppDestination.Memory -> DesignRoute.MEMORY
     AppDestination.Review -> DesignRoute.REVIEW
@@ -73,7 +72,6 @@ fun paletteDestinations(): List<AppDestination> = AppDestination.entries
 fun shellDestinations(): List<AppDestination> = listOf(
     AppDestination.Voice,
     AppDestination.Projects,
-    AppDestination.Bots,
     AppDestination.Skills,
     AppDestination.Memory,
     AppDestination.Review,

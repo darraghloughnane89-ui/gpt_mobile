@@ -34,6 +34,8 @@ class DesignSystemTest {
         assertEquals(AppDestination.entries.toSet(), paletteDestinations().toSet())
         assertTrue(paletteDestinations().containsAll(drawer))
         assertEquals("design/voice", AppDestination.Voice.route())
+        assertEquals("bots", AppDestination.Bots.route())
+        assertFalse(shellDestinations().contains(AppDestination.Bots))
         assertEquals(AppSection.Library, AppDestination.Skills.section())
         assertEquals(AppSection.You, AppDestination.Usage.section())
     }

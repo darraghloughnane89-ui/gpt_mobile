@@ -45,6 +45,8 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.EmptyState
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
 import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
@@ -59,6 +61,7 @@ fun SettingScreen(
     onNavigateToPlatformSetting: (String) -> Unit,
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
+    onNavigateToBots: () -> Unit,
     onNavigateToAboutPage: () -> Unit,
     onNavigateToUsage: () -> Unit = {},
     onNavigateToObsidian: () -> Unit = {}
@@ -126,11 +129,12 @@ fun SettingScreen(
                     showLeadingIcon = false
                 )
                 if (platformState.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.no_platforms_configured),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                    EmptyState(
+                        title = stringResource(R.string.no_platforms_configured),
+                        body = stringResource(R.string.add_platform_description),
+                        mood = MascotMood.Peek,
+                        actionLabel = stringResource(R.string.add_platform),
+                        onAction = onNavigateToAddPlatform
                     )
                 } else {
                     platformState.forEach { platform ->
@@ -140,6 +144,15 @@ fun SettingScreen(
                         )
                     }
                 }
+            }
+            SettingsSection(title = stringResource(R.string.bots)) {
+                SettingItem(
+                    title = stringResource(R.string.bots),
+                    description = stringResource(R.string.bots_description),
+                    onItemClick = onNavigateToBots,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
             }
             SettingsSection(title = stringResource(R.string.tools)) {
                 SettingItem(

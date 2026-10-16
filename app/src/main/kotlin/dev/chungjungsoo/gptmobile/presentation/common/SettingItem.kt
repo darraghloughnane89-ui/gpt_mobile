@@ -21,6 +21,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
 
 @Composable
 fun SettingItem(
@@ -33,10 +35,14 @@ fun SettingItem(
     showLeadingIcon: Boolean,
     leadingIcon: @Composable () -> Unit? = {}
 ) {
+    val haptic = rememberHaptic()
     val interactionModifier = if (enabled) {
         Modifier.clickable(
             role = Role.Button,
-            onClick = onItemClick
+            onClick = {
+                haptic(HapticEvent.Tick)
+                onItemClick()
+            }
         )
     } else {
         Modifier.semantics {

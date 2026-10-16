@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,6 +53,7 @@ import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.presentation.common.DestinationCard
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.rememberLocalModelDownloader
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelCatalogPicker
@@ -346,7 +346,7 @@ private fun AddPlatformTopBar(
     navigationEnabled: Boolean
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = MaterialTheme.colorScheme.onBackground),
+        colors = frostTopAppBarColors(),
         title = { Text(modifier = Modifier.padding(4.dp), text = title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(

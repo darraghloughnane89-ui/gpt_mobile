@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +34,8 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.catalog.ModelCatalogParser
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LoadingMoment
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadStatus
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelRequirements
@@ -73,7 +73,7 @@ fun LocalModelsScreen(
                         .fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    LoadingMoment(seed = 1)
                 }
             }
 
@@ -160,10 +160,7 @@ private fun LocalModelsTopBar(
     onNavigationClick: () -> Unit
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
+        colors = frostTopAppBarColors(),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),

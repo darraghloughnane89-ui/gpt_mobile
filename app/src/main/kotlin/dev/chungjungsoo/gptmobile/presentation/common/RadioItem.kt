@@ -21,6 +21,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.HapticEvent
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.rememberHaptic
 
 @Preview
 @Composable
@@ -34,6 +36,7 @@ fun RadioItem(
     onSelected: (String) -> Unit = { }
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val haptic = rememberHaptic()
     val titleColor = if (enabled) {
         MaterialTheme.colorScheme.onSurface
     } else {
@@ -56,7 +59,10 @@ fun RadioItem(
                 .selectable(
                     selected = selected,
                     enabled = enabled,
-                    onClick = { onSelected(value) },
+                    onClick = {
+                        haptic(HapticEvent.Tick)
+                        onSelected(value)
+                    },
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
                     role = Role.RadioButton

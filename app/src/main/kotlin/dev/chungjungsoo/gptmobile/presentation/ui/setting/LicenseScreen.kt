@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,10 +74,7 @@ private fun LicenseTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
+        colors = frostTopAppBarColors(),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),

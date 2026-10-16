@@ -51,6 +51,7 @@ fun BlurTopBar(
     navigationIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
     navigationDescription: String? = null,
     onCommand: (() -> Unit)? = null,
+    actions: @Composable () -> Unit = {},
     scrollBehavior: TopAppBarScrollBehavior? = null
 ) {
     Box(modifier = modifier) {
@@ -69,6 +70,7 @@ fun BlurTopBar(
                 }
             },
             actions = {
+                actions()
                 if (onCommand != null) {
                     IconButton(onClick = onCommand) {
                         Icon(

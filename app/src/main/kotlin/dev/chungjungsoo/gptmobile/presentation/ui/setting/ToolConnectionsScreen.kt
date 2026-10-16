@@ -44,7 +44,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -84,6 +83,8 @@ import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.LoadingMoment
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.frostTopAppBarColors
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 import dev.chungjungsoo.gptmobile.util.requiresLocalNetworkAccess
 
@@ -153,11 +154,9 @@ fun ToolConnectionsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.weight(1f))
-                    CircularProgressIndicator()
-                    Text(
-                        text = stringResource(R.string.loading_tool_connections),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(top = 16.dp)
+                    LoadingMoment(
+                        seed = 2,
+                        caption = stringResource(R.string.loading_tool_connections)
                     )
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -636,10 +635,7 @@ private fun ToolConnectionsTopBar(
     showAddAction: Boolean
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
+        colors = frostTopAppBarColors(),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),
@@ -1213,10 +1209,7 @@ private fun ToolConnectionEditorTopBar(
     navigationEnabled: Boolean
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
+        colors = frostTopAppBarColors(),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),

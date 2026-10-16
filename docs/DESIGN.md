@@ -81,7 +81,7 @@ Phone width under 600dp: modal drawer. At 600dp and above: navigation rail. Both
 | Chats | Talk | Start destination. Drawer and rail. | `ChatBubble`, `ComposerBar`, `sharedChatContainer`, `EmptyState`, `ChatListSkeleton` |
 | Voice | Talk | Drawer, rail, and the composer mic when the field is empty | `VoiceOrb`, `Disclosure`. Route `design/voice` until the voice stream replaces it |
 | Projects | Library | Drawer and rail | `SurfaceCard`, `EmptyState`. Route `design/projects` |
-| Bots | Library | Drawer and rail | `ModelChip`, `ModelSwitcherSheet`, `SurfaceCard`. Route `design/bots` |
+| Bots | Library | Drawer and rail | `SurfaceCard`, `EmptyState`, `LoadingMoment`. Route `bots` (list, editor, switcher) |
 | Skills | Library | Drawer and rail | `SkillCard` / `SkillItem`. Route `design/skills` |
 | Memory | Library | Drawer and rail | `EmptyState`, `Disclosure`, `KeyValueRow`. Route `design/memory` |
 | Review | Inbox | Drawer and rail | `ReviewInboxItem`, `ReviewActionBar`. Route `design/review` |
@@ -154,6 +154,7 @@ All of these are in `dev.chungjungsoo.gptmobile.presentation.ui.designsystem` un
 - `EmptyState(title, body, mood, showMascot, animated, actionLabel, onAction)`
 - `Disclosure(title, initiallyExpanded = false)`
 - `Skeleton`, `SkeletonBlock`, `ChatListSkeleton` (`animated`)
+- `LoadingMoment(seed, caption, animated)` — mascot plus a caption for loading screens
 - `BlurTopBar`, `frostTopAppBarColors()`
 - `LoadingCaption(seed)`
 
