@@ -61,6 +61,9 @@ fun SettingScreen(
     onNavigateToLocalModels: () -> Unit,
     onNavigateToToolConnections: () -> Unit,
     onNavigateToBots: () -> Unit,
+    onNavigateToProjects: () -> Unit,
+    onNavigateToSkills: () -> Unit,
+    onNavigateToMemory: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -141,11 +144,32 @@ fun SettingScreen(
                     }
                 }
             }
-            SettingsSection(title = stringResource(R.string.bots)) {
+            SettingsSection(title = stringResource(R.string.library)) {
+                SettingItem(
+                    title = stringResource(R.string.library_projects),
+                    description = stringResource(R.string.projects_description),
+                    onItemClick = onNavigateToProjects,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
                 SettingItem(
                     title = stringResource(R.string.bots),
                     description = stringResource(R.string.bots_description),
                     onItemClick = onNavigateToBots,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.library_skills),
+                    description = stringResource(R.string.skills_description),
+                    onItemClick = onNavigateToSkills,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                SettingItem(
+                    title = stringResource(R.string.library_memory),
+                    description = stringResource(R.string.memory_description),
+                    onItemClick = onNavigateToMemory,
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )

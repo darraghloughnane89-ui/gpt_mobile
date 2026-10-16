@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.onboarding.OnboardingStore
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import javax.inject.Inject
@@ -16,7 +17,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class MainViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
+class MainViewModel @Inject constructor(
+    private val settingRepository: SettingRepository,
+    private val onboardingStore: OnboardingStore
+) : ViewModel() {
 
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
@@ -35,23 +39,16 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
             StartupRecoveryGate.await()
             val platforms = settingRepository.fetchPlatforms()
             val platformV2s = settingRepository.fetchPlatformV2s()
-
-            when {
-                (platforms.all { it.enabled.not() } && platforms.all { it.token == null }) &&
-                    (platformV2s.isEmpty())
-                -> {
-                    // Initialize
-                    sendSplashEvent(SplashEvent.OpenIntro)
-                }
-
-                platformV2s.isEmpty() -> {
-                    // Migrate to V2
-                    sendSplashEvent(SplashEvent.OpenMigrate)
-                }
-
-                else -> {
-                    sendSplashEvent(SplashEvent.OpenHome)
-                }
+            when (
+                resolveStartupRoute(
+                    legacyPlatforms = platforms,
+                    platformV2s = platformV2s,
+                    onboardingCompleted = onboardingStore.isCompleted()
+                )
+            ) {
+                StartupRoute.INTRO -> sendSplashEvent(SplashEvent.OpenIntro)
+                StartupRoute.MIGRATE -> sendSplashEvent(SplashEvent.OpenMigrate)
+                StartupRoute.HOME -> sendSplashEvent(SplashEvent.OpenHome)
             }
 
             setAsReady()

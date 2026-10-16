@@ -43,6 +43,11 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Bot
+import dev.chungjungsoo.gptmobile.presentation.common.ContextualTip
+import dev.chungjungsoo.gptmobile.presentation.common.NestEmptyState
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
+import dev.chungjungsoo.gptmobile.presentation.ui.library.LibraryTipViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.library.TipIds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,10 +55,13 @@ fun BotListScreen(
     onNavigationClick: () -> Unit,
     onCreateClick: () -> Unit,
     onEditClick: (String) -> Unit,
-    viewModel: BotListViewModel = hiltViewModel()
+    viewModel: BotListViewModel = hiltViewModel(),
+    tipViewModel: LibraryTipViewModel = hiltViewModel()
 ) {
     val bots by viewModel.bots.collectAsStateWithLifecycle()
     val canRestoreBuiltIns by viewModel.canRestoreBuiltIns.collectAsStateWithLifecycle()
+    val dismissedTips by tipViewModel.dismissed.collectAsStateWithLifecycle()
+    val showBotTip = TipIds.BOTS !in dismissedTips
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var pendingDelete by remember { mutableStateOf<Bot?>(null) }
     var pendingReset by remember { mutableStateOf<Bot?>(null) }
@@ -90,16 +98,22 @@ fun BotListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.no_bots),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                NestEmptyState(
+                    title = stringResource(R.string.shell_bots_title),
+                    body = stringResource(R.string.shell_bots_body),
+                    mood = MascotMood.Wave,
+                    modifier = Modifier.weight(1f),
+                    actionLabel = stringResource(R.string.create_bot),
+                    onAction = onCreateClick,
+                    tip = stringResource(R.string.tip_bots).takeIf { showBotTip },
+                    onDismissTip = { tipViewModel.dismiss(TipIds.BOTS) }
                 )
                 if (canRestoreBuiltIns) {
-                    TextButton(onClick = viewModel::restoreDeletedBuiltIns) {
+                    TextButton(
+                        onClick = viewModel::restoreDeletedBuiltIns,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
                         Text(stringResource(R.string.restore_built_in_bots))
                     }
                 }
@@ -112,6 +126,15 @@ fun BotListScreen(
                     bottom = innerPadding.calculateBottomPadding() + 88.dp
                 )
             ) {
+                if (showBotTip) {
+                    item(key = "bot-tip") {
+                        ContextualTip(
+                            text = stringResource(R.string.tip_bots),
+                            onDismiss = { tipViewModel.dismiss(TipIds.BOTS) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                }
                 if (canRestoreBuiltIns) {
                     item(key = "restore-built-ins") {
                         TextButton(

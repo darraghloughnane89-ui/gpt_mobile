@@ -82,8 +82,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.project.ChatListRow
 import dev.chungjungsoo.gptmobile.data.project.ProjectFilter
 import dev.chungjungsoo.gptmobile.data.project.groupChatsByProject
+import dev.chungjungsoo.gptmobile.presentation.common.ContextualTip
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
+import dev.chungjungsoo.gptmobile.presentation.common.NestEmptyState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.presentation.ui.designsystem.MascotMood
+import dev.chungjungsoo.gptmobile.presentation.ui.library.LibraryTipViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.library.TipIds
 import dev.chungjungsoo.gptmobile.presentation.ui.project.MoveToProjectDialog
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectFilterBar
 import dev.chungjungsoo.gptmobile.presentation.ui.project.ProjectsEntryRow
@@ -93,6 +98,7 @@ import dev.chungjungsoo.gptmobile.util.getPlatformName
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
+    libraryTipViewModel: LibraryTipViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onOpenProjects: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
@@ -109,6 +115,8 @@ fun HomeScreen(
     val projects by homeViewModel.projects.collectAsStateWithLifecycle()
     val projectFilter by homeViewModel.projectFilter.collectAsStateWithLifecycle()
     val showMoveDialog by homeViewModel.showMoveDialog.collectAsStateWithLifecycle()
+    val dismissedTips by libraryTipViewModel.dismissed.collectAsStateWithLifecycle()
+    val showChatTip = TipIds.CHATS !in dismissedTips && !chatListState.isSearchMode && !chatListState.isSelectionMode
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -250,16 +258,28 @@ fun HomeScreen(
                 }
 
                 chatRows.none { it is ChatListRow.Chat } -> item {
-                    EmptyErrorState(
-                        title = stringResource(R.string.no_chats_title),
-                        description = stringResource(R.string.no_chats_description),
+                    NestEmptyState(
+                        title = stringResource(R.string.empty_chats_title),
+                        body = stringResource(R.string.empty_chats_body),
+                        mood = MascotMood.Idle,
                         modifier = Modifier.fillParentMaxSize(),
-                        primaryActionLabel = stringResource(R.string.start_a_chat),
-                        onPrimaryAction = startChat
+                        actionLabel = stringResource(R.string.start_a_chat),
+                        onAction = startChat,
+                        tip = stringResource(R.string.tip_chats).takeIf { showChatTip },
+                        onDismissTip = { libraryTipViewModel.dismiss(TipIds.CHATS) }
                     )
                 }
 
                 else -> {
+                    if (showChatTip) {
+                        item(key = "chat-tip") {
+                            ContextualTip(
+                                text = stringResource(R.string.tip_chats),
+                                onDismiss = { libraryTipViewModel.dismiss(TipIds.CHATS) },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
                     if (!chatListState.isSearchMode) {
                         item { ChatsTitle(scrollBehavior) }
                     }
