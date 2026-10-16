@@ -60,6 +60,9 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -72,6 +75,33 @@
                     android:scheme="dev.chungjungsoo.gptmobile" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".presentation.fastentry.QuickAskActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/ask_robin"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GPTMobile.Overlay"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".presentation.fastentry.RobinQuickSettingsTile"
+            android:exported="true"
+            android:icon="@drawable/ic_shortcut_chat"
+            android:label="@string/tile_new_chat"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

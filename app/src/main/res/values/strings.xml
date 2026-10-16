@@ -635,4 +635,22 @@
     <string name="no_bot">No bot</string>
     <string name="no_bot_description">Use the platform instructions and tools</string>
     <string name="bots_loading">Loading…</string>
+    <string name="ask_robin">Ask Robin</string>
+    <string name="shortcut_new_chat">New chat</string>
+    <string name="shortcut_voice">Voice</string>
+    <string name="shortcut_quick_ask">Quick ask</string>
+    <string name="shortcut_untitled_chat">Untitled chat</string>
+    <string name="tile_new_chat">New chat</string>
+    <string name="tile_voice_subtitle">Voice</string>
+    <string name="quick_ask_hint">Ask something</string>
+    <string name="quick_ask_send">Ask</string>
+    <string name="quick_ask_continue">Continue in app</string>
+    <string name="quick_ask_replace">Replace selection</string>
+    <string name="quick_ask_thinking">Thinking…</string>
+    <string name="quick_ask_failed">The reply didn’t come back.</string>
+    <string name="voice_mode_unavailable">Voice mode isn’t available yet.</string>
+    <string name="fast_entry_no_platform">Switch on an assistant before starting a chat.</string>
+    <string name="fast_entry_missing_chat">That chat is gone.</string>
+    <string name="favourite_bot">Favourite</string>
+    <string name="unfavourite_bot">Remove favourite</string>
 </resources>

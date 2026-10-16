@@ -29,6 +29,9 @@ import dev.chungjungsoo.gptmobile.presentation.common.SetupNavGraph
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeLoadState
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
+import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntrySignals
+import dev.chungjungsoo.gptmobile.presentation.fastentry.FastEntryViewModel
+import dev.chungjungsoo.gptmobile.presentation.fastentry.collectFastEntries
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
@@ -40,6 +43,7 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
     private val toolConnectionsViewModel: ToolConnectionsViewModel by viewModels()
+    private val fastEntryViewModel: FastEntryViewModel by viewModels()
     private lateinit var authTabLauncher: ActivityResultLauncher<Intent>
     private lateinit var oauthCustomTabLauncher: ActivityResultLauncher<Intent>
     private var lastOAuthCallback: String? = null
@@ -66,6 +70,9 @@ class MainActivity : ComponentActivity() {
         // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
 
+        if (savedInstanceState == null) {
+            FastEntrySignals.publish(intent)
+        }
         setContent {
             val navController = rememberNavController()
             val isReady by mainViewModel.isReady.collectAsStateWithLifecycle()
@@ -95,6 +102,14 @@ class MainActivity : ComponentActivity() {
                         )
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
+                            collectFastEntries(
+                                navController = navController,
+                                context = this@MainActivity,
+                                enabledPlatforms = fastEntryViewModel::enabledPlatformUids,
+                                rememberBot = fastEntryViewModel::rememberBot,
+                                chatExists = fastEntryViewModel::chatExists,
+                                refreshShortcuts = fastEntryViewModel::refreshShortcuts
+                            )
                         }
                     }
                 }
@@ -103,10 +118,16 @@ class MainActivity : ComponentActivity() {
         dispatchOAuthIntent(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        fastEntryViewModel.refreshShortcuts()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchOAuthIntent(intent)
+        FastEntrySignals.publish(intent)
     }
 
     private fun launchOAuth(authorizationUri: String) {
